@@ -606,8 +606,9 @@ var FX = {
     FX.parts.push({ x: x, y: y, vx: 0, vy: 0, life: 0.45, age: 0, r: radius || 20,
       color: color || C.gold, grav: 0, shape: 'ring', spin: 0, rot: 0, fade: true, grow: (radius || 20) * 3 });
   },
-  text: function (x, y, str, color, size) {
-    FX.texts.push({ x: x, y: y, str: str, color: color || C.gold, size: size || 34, age: 0, life: 1.1 });
+  text: function (x, y, str, color, size, life) {
+    var span = life == null ? 1.1 : life;
+    FX.texts.push({ x: x, y: y, str: str, color: color || C.gold, size: size || 34, age: 0, life: span });
   },
   slash: function (pts, color) {
     if (!pts || pts.length < 2) return;
@@ -630,7 +631,7 @@ var FX = {
       var t = FX.texts[i];
       t.age += dt;
       if (t.age >= t.life) { FX.texts.splice(i, 1); continue; }
-      t.y -= 70 * dt;
+      t.y -= 70 * (1.1 / Math.max(t.life, 1.1)) * dt;
     }
     for (i = FX.slashes.length - 1; i >= 0; i--) {
       var s = FX.slashes[i];
@@ -1363,11 +1364,6 @@ var Halacha = {
       terms:[['Matan b\'seter','giving in secret'],
              ['Lishkas chasha\'im','"the Chamber of the Secret Ones" - that room in the Temple']],
       source:'Rambam Matnos Aniyim 10:7-9; Shekalim 5:6; Bava Basra 10b' },
-    { id:'t4', game:'tzedaka', icon:'coin', title:'A Thousand Times One',
-      hebrew:'רִבּוּי פְּעָמִים',
-      body:'Give a thousand coins in one go, or give one coin a thousand times? Rambam says the thousand times wins - and not because the poor person notices the difference. Because every single act of giving does something to YOU, and it is the repeating that changes a person.',
-      terms:[['Ribui pe\'amim','"many times" - giving often rather than all at once']],
-      source:'Rambam Matnos Aniyim 10:1; Pirkei Avos 3:15' },
     { id:'t5', game:'tzedaka', icon:'people', title:'Who Comes First',
       hebrew:'עֲנִיֵּי עִירְךָ קוֹדְמִין',
       body:'You cannot help everybody, so there is an order. Your own poor relatives come before other poor people. The poor of your own city come before the poor of somewhere else. This is not playing favourites - it is the opposite. If everyone is equally your job, then nobody actually is.',
@@ -1488,10 +1484,10 @@ var Halacha = {
       how:'Land 25 coins in an open hand without one hitting the street.' },
     { id:'b_seter',    game:'tzedaka', name:'Matan B\'Seter',      icon:'seter',  card:'t3',
       how:'Slip 10 coins into a porter\'s sack, so he never finds out who it was.' },
-    { id:'b_ribui',    game:'tzedaka', name:'A Thousand Times',   icon:'coin',   card:'t4',
+    { id:'b_ribui',    game:'tzedaka', name:'A Thousand Times',   icon:'coin',   card:'t2',
       how:'Reach a giving streak of 20 without a single miss.' },
-    { id:'b_kedimah',  game:'tzedaka', name:'Aniyei Ircha',       icon:'people', card:'t5',
-      how:'Get the order of priority right 8 times when several hands were out at once.' },
+    { id:'b_kedimah',  game:'tzedaka', name:'Just in Time',       icon:'people', card:'t2',
+      how:'Catch 8 people who were already calling out - they were about to walk off!' },
     { id:'b_before',   game:'tzedaka', name:'Before He Asked',    icon:'hand',   card:'t6',
       how:'Reach 15 people before they even have to call out.' },
     { id:'b_loan',     game:'tzedaka', name:'The Highest Rung',   icon:'lift',   card:'t7',
@@ -1500,8 +1496,8 @@ var Halacha = {
       how:'Bank 15 coins into the community kupah cart.' },
     { id:'b_gale',     game:'tzedaka', name:'Into the Wind',      icon:'wind',   card:'t1',
       how:'Land 12 coins in somebody\'s hand while a strong gust is blowing across the street.' },
-    { id:'b_words',    game:'tzedaka', name:'Eleven Blessings',   icon:'heart',  card:'t10',
-      how:'Speak to 10 people when your purse was empty, instead of turning away.' },
+    { id:'b_words',    game:'tzedaka', name:'Wait, Then Give',    icon:'heart',  card:'t10',
+      how:'Run out of coins, wait for more, then still land 10 gifts.' },
     { id:'b_ani',      game:'tzedaka', name:'Look for the Hand',  icon:'people', card:'t13',
       how:'Finish 5 streets without wasting a single coin on a man who did not need it.' },
     { id:'b_purim',    game:'tzedaka', name:'No Questions Asked', icon:'pushka', card:'t11',
@@ -1920,10 +1916,16 @@ var Game = {
       best: Profile.data.high[scene.id], isBest: isBest, points: earned,
       reason: reason || scene.failReason || 'Run complete',
       victory: !!scene.victory,
-      level: scene.level, stats: scene.stats ? scene.stats() : []
+      level: scene.level, stats: scene.stats ? scene.stats() : [],
+      helped: scene.helped || 0
     };
     if (scene.victory) { Sound.seq([784, 988, 1175, 1568], 130, 0.3, 0.28, 'triangle'); Haptics.win(); }
     else { Sound.sfx('lose'); Haptics.fail(); }
+    if (scene.victory && scene.id === 'tzedaka') {
+      Screens.buildGameOver();
+      Game.setState('GAME_OVER');
+      return;
+    }
     var card = (cardId && Halacha.byId(cardId)) || Halacha.next(scene.id, scene.level);
     Game.showCard(card, function () {
       Screens.buildGameOver();
@@ -1936,7 +1938,8 @@ var Game = {
     if (typeof card === 'string') card = Halacha.byId(card);
     if (!card) { if (onClose) onClose(); return; }
     var isNew = Profile.seeCard(card.id);
-    Game.popup = { card: card, onClose: onClose || null, t: 0, isNew: isNew, scroll: 0 };
+    Game.popup = { card: card, onClose: onClose || null, t: 0, isNew: isNew,
+      scroll: 0, dragging: false, vel: 0, maxScroll: 0 };
     Screens.buildPopup();
     Game.prevPlayState = Game.state;
     Game.setState('HALACHA_POPUP');
@@ -2000,6 +2003,7 @@ var Game = {
     if (Game.state === 'PLAYING' && Game.scene) Game.scene.update(dt);
     if (Game.state === 'MENU') Screens.menu.update(dt);
     if (Game.state === 'GALLERY') Screens.gallery.update(dt);
+    if (Game.state === 'HALACHA_POPUP') Screens.popupUpdate(dt);
     if (Game.popup) Game.popup.t += dt;
     Game.pauseBtn.update(dt);
     FX.update(dt);
@@ -2174,8 +2178,8 @@ MiniGame.prototype.damage = function (reason, x, y) {
   if (x != null) FX.text(x, y, reason || 'Oops', C.red, 30);
   if (this.lives <= 0) { this.lives = 0; this.finish(reason); }
 };
-MiniGame.prototype.finish = function (reason) {
-  Game.endGame(this, reason);
+MiniGame.prototype.finish = function (reason, cardId) {
+  Game.endGame(this, reason, cardId);
 };
 /* Interstitial Halacha flash card between levels. */
 MiniGame.prototype.interstitial = function (cb) {
@@ -2803,30 +2807,18 @@ Screens.renderPause = function (ctx) {
 };
 
 /* ------------------------------------------------- HALACHA FLASH CARD */
-Screens.buildPopup = function () {
-  var w = 560, x = (CFG.W - w) / 2;
-  Screens.popupBtns = [
-    new Button(x, 0, w, 92, 'CONTINUE', function () { Game.closeCard(); },
-      { fill: C.gold, textColor: C.ink, size: 32 })
-  ];
-};
-Screens.popupHandle = function (ev) {
-  if (UI.handle(Screens.popupBtns, ev)) return;
-};
-Screens.renderPopup = function (ctx) {
-  var p = Game.popup;
-  if (!p) return;
-  var card = p.card;
-  var appear = clamp(p.t / 0.32, 0, 1);
-  Draw.scrim(ctx, 0.86 * appear);
-
+Screens.popupLayout = function (ctx, card) {
   var w = 620, x = (CFG.W - w) / 2;
   var bodyW = w - 88;
+  var titleLines = Draw.wrap(ctx, card.title, bodyW, 33, '900');
+  var titleBlockH = 44 + titleLines.length * 38 + 16 + 28;
+
   var bodyH = Draw.paraHeight(ctx, card.body, bodyW, { size: 25, lineHeight: 35, weight: '600' });
-  var noteH = card.note
-    ? Draw.paraHeight(ctx, card.note, bodyW - 28, { size: 21, lineHeight: 29, weight: '700' }) + 34
-    : 0;
-  /* the glossary band: every Hebrew word on the card gets a plain-English line */
+  var noteInnerH = 0, noteBoxH = 0;
+  if (card.note) {
+    noteInnerH = Draw.paraHeight(ctx, card.note, bodyW - 28, { size: 21, lineHeight: 29, weight: '700' });
+    noteBoxH = noteInnerH + 22;
+  }
   var termsH = 0, ti;
   if (card.terms && card.terms.length) {
     termsH = 14;
@@ -2836,66 +2828,42 @@ Screens.renderPopup = function (ctx) {
     }
     termsH += 14;
   }
-  var h = 320 + bodyH + noteH + termsH;
-  h = Math.min(h, CFG.H - 220);
-  var y = (CFG.H - h) / 2 - 40;
+  var sourceH = Draw.paraHeight(ctx, card.source, w - 72, { size: 20, lineHeight: 26, weight: '700' }) + 20;
 
-  ctx.save();
-  var sc = lerp(0.86, 1, easeOut(appear));
-  ctx.translate(CFG.W / 2, y + h / 2);
-  ctx.scale(sc, sc);
-  ctx.translate(-CFG.W / 2, -(y + h / 2));
-  ctx.globalAlpha = appear;
+  var scrollContentH = 28 + bodyH;
+  if (termsH) scrollContentH += 12 + termsH;
+  if (noteBoxH) scrollContentH += 12 + noteBoxH;
+  scrollContentH += sourceH;
 
-  /* parchment card */
-  Draw.panel(ctx, x, y, w, h, { fill: C.parch, stroke: '#8a6a2f', strokeW: 4, radius: 26, glow: 'rgba(255,207,92,.5)', glowBlur: 40 });
-  ctx.save();
-  Draw.rr(ctx, x, y, w, h, 26); ctx.clip();
-  ctx.fillStyle = 'rgba(140,105,45,.10)';
-  for (var i = 0; i < 26; i++) ctx.fillRect(x, y + i * 26 + 12, w, 1.5);
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  ctx.beginPath(); ctx.arc(x + w, y, w * 0.5, 0, TAU); ctx.fill();
-  ctx.restore();
+  var headerH = 74;
+  var fixedH = headerH + titleBlockH;
+  var btnH = 92, btnGap = 28;
+  var avail = CFG.H - View.safe.t - View.safe.b - btnH - btnGap - 12;
+  var panelH = Math.min(fixedH + scrollContentH + 10, avail);
+  var scrollH = panelH - fixedH - 6;
+  var maxScroll = Math.max(0, scrollContentH - scrollH);
+  var totalBlock = panelH + btnGap + btnH;
+  var y = View.safe.t + Math.max(8, (CFG.H - View.safe.t - View.safe.b - totalBlock) / 2);
 
-  /* header band */
-  ctx.save();
-  Draw.rr(ctx, x, y, w, 74, 26); ctx.clip();
-  ctx.fillStyle = '#2a1f10';
-  ctx.fillRect(x, y, w, 74);
-  ctx.restore();
-  Icons.draw(ctx, card.icon, x + 46, y + 37, 40, C.gold);
-  Draw.text(ctx, 'HALACHA CARD', x + 76, y + 37, { size: 22, color: C.gold, weight: '900' });
-  if (p.isNew) {
-    Draw.panel(ctx, x + w - 106, y + 18, 82, 38, { fill: C.teal, radius: 12 });
-    Draw.text(ctx, 'NEW', x + w - 65, y + 37, { size: 20, color: '#04231f', align: 'center', weight: '900' });
-  }
+  return {
+    x: x, w: w, y: y, h: panelH, bodyW: bodyW, titleLines: titleLines,
+    fixedH: fixedH, scrollTop: y + fixedH + 4, scrollH: scrollH,
+    scrollContentH: scrollContentH, maxScroll: maxScroll,
+    bodyH: bodyH, termsH: termsH, noteInnerH: noteInnerH, noteBoxH: noteBoxH,
+    btnY: y + panelH + btnGap
+  };
+};
 
-  var ty = y + 118;
-  Draw.text(ctx, card.hebrew, x + w / 2, ty, { size: 34, color: '#5c4318', align: 'center', weight: '700' });
-  ty += 46;
-  var titleLines = Draw.wrap(ctx, card.title, bodyW, 33, '900');
-  for (var t2 = 0; t2 < titleLines.length; t2++) {
-    Draw.text(ctx, titleLines[t2], x + w / 2, ty + t2 * 38, { size: 33, color: C.ink, align: 'center', weight: '900' });
-  }
-  ty += titleLines.length * 38 + 16;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(90,66,24,.4)';
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(x + 60, ty); ctx.lineTo(x + w - 60, ty); ctx.stroke();
-  ctx.restore();
-  ty += 28;
+Screens.renderPopupScroll = function (ctx, card, L, scroll) {
+  var x = L.x, w = L.w, bodyW = L.bodyW;
+  var ty = L.scrollTop + 28 - scroll;
   ty = Draw.para(ctx, card.body, x + 44, ty, bodyW, {
     size: 25, lineHeight: 35, color: '#33291a', weight: '600', baseline: 'top'
   });
-  /* what the Hebrew words mean, before anything else - a card that uses a term
-     it never explains teaches nobody anything */
+  var ti;
   if (card.terms && card.terms.length) {
     ty += 12;
-    var th = 14;
-    for (ti = 0; ti < card.terms.length; ti++) {
-      th += Draw.paraHeight(ctx, card.terms[ti][0] + ' - ' + card.terms[ti][1],
-        bodyW - 30, { size: 20, lineHeight: 27, weight: '700' }) + 6;
-    }
+    var th = L.termsH;
     ctx.save();
     Draw.rr(ctx, x + 44, ty, bodyW, th, 12);
     ctx.fillStyle = 'rgba(53,140,124,.14)';
@@ -2915,11 +2883,9 @@ Screens.renderPopup = function (ctx) {
     }
     ty += th;
   }
-
-  /* the game's own aside, clearly marked off from the halacha itself */
   if (card.note) {
     ty += 12;
-    var nh = Draw.paraHeight(ctx, card.note, bodyW - 28, { size: 21, lineHeight: 29, weight: '700' });
+    var nh = L.noteInnerH;
     ctx.save();
     Draw.rr(ctx, x + 44, ty, bodyW, nh + 22, 12);
     ctx.fillStyle = 'rgba(120,88,28,.13)';
@@ -2931,15 +2897,140 @@ Screens.renderPopup = function (ctx) {
     Draw.para(ctx, card.note, x + 44 + 18, ty + 11, bodyW - 28, {
       size: 21, lineHeight: 29, color: '#5c4a24', weight: '700', baseline: 'top'
     });
+    ty += nh + 22;
   }
-  Draw.textSafe(ctx, card.source, x + w / 2, y + h - 34, {
-    size: 20, maxW: w - 72, color: '#7a5a22', weight: '700'
+  ty += 8;
+  Draw.para(ctx, card.source, x + 44, ty, bodyW, {
+    size: 20, lineHeight: 26, color: '#7a5a22', weight: '700', baseline: 'top'
   });
+};
+
+Screens.buildPopup = function () {
+  var w = 560, x = (CFG.W - w) / 2;
+  Screens.popupBtns = [
+    new Button(x, 0, w, 92, 'CONTINUE', function () { Game.closeCard(); },
+      { fill: C.gold, textColor: C.ink, size: 32 })
+  ];
+};
+Screens.popupUpdate = function (dt) {
+  var p = Game.popup;
+  if (!p) return;
+  if (!p.dragging) {
+    p.scroll += p.vel * dt;
+    p.vel *= 0.90;
+    if (Math.abs(p.vel) < 4) p.vel = 0;
+  }
+  p.scroll = clamp(p.scroll, 0, p.maxScroll || 0);
+};
+Screens.popupHandle = function (ev) {
+  var p = Game.popup;
+  if (!p) return;
+  if (UI.handle(Screens.popupBtns, ev)) return;
+  if (ev.type === 'down') { p.dragging = true; p.lastY = ev.y; p.vel = 0; }
+  else if (ev.type === 'move' && p.dragging) {
+    p.scroll = clamp(p.scroll - ev.dy, -36, (p.maxScroll || 0) + 36);
+    p.vel = -ev.dy * 24;
+  } else if (ev.type === 'up') {
+    p.dragging = false;
+  }
+};
+Screens.renderPopup = function (ctx) {
+  var p = Game.popup;
+  if (!p) return;
+  var card = p.card;
+  var appear = clamp(p.t / 0.32, 0, 1);
+  Draw.scrim(ctx, 0.86 * appear);
+
+  var L = Screens.popupLayout(ctx, card);
+  p.maxScroll = L.maxScroll;
+  var scroll = p.scroll || 0;
+  scroll = clamp(scroll, 0, L.maxScroll);
+  p.scroll = scroll;
+
+  var x = L.x, w = L.w, y = L.y, h = L.h;
+
+  ctx.save();
+  var sc = lerp(0.86, 1, easeOut(appear));
+  ctx.translate(CFG.W / 2, y + h / 2);
+  ctx.scale(sc, sc);
+  ctx.translate(-CFG.W / 2, -(y + h / 2));
+  ctx.globalAlpha = appear;
+
+  Draw.panel(ctx, x, y, w, h, { fill: C.parch, stroke: '#8a6a2f', strokeW: 4, radius: 26, glow: 'rgba(255,207,92,.5)', glowBlur: 40 });
+  ctx.save();
+  Draw.rr(ctx, x, y, w, h, 26); ctx.clip();
+  ctx.fillStyle = 'rgba(140,105,45,.10)';
+  for (var i = 0; i < 26; i++) ctx.fillRect(x, y + i * 26 + 12, w, 1.5);
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.beginPath(); ctx.arc(x + w, y, w * 0.5, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  Draw.rr(ctx, x, y, w, 74, 26); ctx.clip();
+  ctx.fillStyle = '#2a1f10';
+  ctx.fillRect(x, y, w, 74);
+  ctx.restore();
+  Icons.draw(ctx, card.icon, x + 46, y + 37, 40, C.gold);
+  Draw.text(ctx, 'HALACHA CARD', x + 76, y + 37, { size: 22, color: C.gold, weight: '900' });
+  if (p.isNew) {
+    Draw.panel(ctx, x + w - 106, y + 18, 82, 38, { fill: C.teal, radius: 12 });
+    Draw.text(ctx, 'NEW', x + w - 65, y + 37, { size: 20, color: '#04231f', align: 'center', weight: '900' });
+  }
+
+  var ty = y + 118;
+  Draw.text(ctx, card.hebrew, x + w / 2, ty, { size: 34, color: '#5c4318', align: 'center', weight: '700' });
+  ty += 46;
+  var titleLines = L.titleLines;
+  for (var t2 = 0; t2 < titleLines.length; t2++) {
+    Draw.text(ctx, titleLines[t2], x + w / 2, ty + t2 * 38, { size: 33, color: C.ink, align: 'center', weight: '900' });
+  }
+  ty += titleLines.length * 38 + 16;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(90,66,24,.4)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x + 60, ty); ctx.lineTo(x + w - 60, ty); ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x + 24, L.scrollTop, w - 48, L.scrollH);
+  ctx.clip();
+  Screens.renderPopupScroll(ctx, card, L, scroll);
+  ctx.restore();
+
+  if (L.maxScroll > 0) {
+    if (scroll > 6) {
+      var tg = ctx.createLinearGradient(0, L.scrollTop, 0, L.scrollTop + 28);
+      tg.addColorStop(0, 'rgba(244,232,196,.92)');
+      tg.addColorStop(1, 'rgba(244,232,196,0)');
+      ctx.fillStyle = tg;
+      ctx.fillRect(x + 24, L.scrollTop, w - 48, 28);
+    }
+    if (scroll < L.maxScroll - 6) {
+      var bg = ctx.createLinearGradient(0, L.scrollTop + L.scrollH - 34, 0, L.scrollTop + L.scrollH);
+      bg.addColorStop(0, 'rgba(244,232,196,0)');
+      bg.addColorStop(1, 'rgba(244,232,196,.94)');
+      ctx.fillStyle = bg;
+      ctx.fillRect(x + 24, L.scrollTop + L.scrollH - 34, w - 48, 34);
+      Draw.text(ctx, 'scroll for more', x + w / 2, L.scrollTop + L.scrollH - 12, {
+        size: 16, color: '#7a5a22', align: 'center', weight: '700'
+      });
+    }
+    var trackH = L.scrollH - 10;
+    var thumbH = Math.max(28, trackH * (L.scrollH / L.scrollContentH));
+    var thumbY = L.scrollTop + 5 + (L.maxScroll ? (scroll / L.maxScroll) * (trackH - thumbH) : 0);
+    ctx.fillStyle = 'rgba(90,66,24,.14)';
+    Draw.rr(ctx, x + w - 16, L.scrollTop + 5, 5, trackH, 2.5); ctx.fill();
+    ctx.fillStyle = 'rgba(90,66,24,.42)';
+    Draw.rr(ctx, x + w - 16, thumbY, 5, thumbH, 2.5); ctx.fill();
+  }
+
   ctx.restore();
 
   var btn = Screens.popupBtns[0];
-  btn.y = y + h + 30;
-  if (btn.y + btn.h > CFG.H - 30 - View.safe.b) btn.y = CFG.H - 30 - View.safe.b - btn.h;
+  btn.x = x + (w - btn.w) / 2;
+  btn.y = L.btnY;
+  if (btn.y + btn.h > CFG.H - View.safe.b - 8) btn.y = CFG.H - View.safe.b - 8 - btn.h;
   ctx.save();
   ctx.globalAlpha = appear;
   UI.drawAll(ctx, Screens.popupBtns, Game.time, 1 / 60);
@@ -2948,18 +3039,92 @@ Screens.renderPopup = function (ctx) {
 
 /* -------------------------------------------------------------- GAME OVER */
 Screens.buildGameOver = function () {
+  var o = Game.gameover;
   var w = 560, x = (CFG.W - w) / 2;
   var y = CFG.H - 300 - View.safe.b;
+  var again = (o && o.victory && o.id === 'tzedaka') ? 'BEAT YOUR SCORE' : 'PLAY AGAIN';
   Screens.overBtns = [
-    new Button(x, y, w, 92, 'PLAY AGAIN', function () { Game.startGame(Game.gameover.id); },
+    new Button(x, y, w, 92, again, function () { Game.startGame(Game.gameover.id); },
       { fill: C.gold, textColor: C.ink, size: 32 }),
     new Button(x, y + 108, w, 78, 'MAIN MENU', function () { Game.quitToMenu(); },
       { fill: 'rgba(12,18,40,.94)', textColor: C.cream, stroke: 'rgba(255,255,255,.35)', size: 26 })
   ];
 };
+Screens.renderTzedakaVictory = function (ctx, o) {
+  Draw.scrim(ctx, 0.88);
+  var w = 620, x = (CFG.W - w) / 2;
+  var bodyW = w - 88;
+  var helped = o.helped || 0;
+  var quote = 'Rambam teaches: giving one coin a thousand times to different people is better than giving a thousand coins to one person once — because every act of giving changes you.';
+  var quoteH = Draw.paraHeight(ctx, quote, bodyW, { size: 22, lineHeight: 30, weight: '600' });
+  var h = Math.min(430 + quoteH, CFG.H - View.safe.t - View.safe.b - 290);
+  var y = View.safe.t + Math.max(24, (CFG.H - View.safe.t - View.safe.b - h - 270) / 2);
+
+  Draw.panel(ctx, x, y, w, h, {
+    fill: 'rgba(10,15,34,.98)', stroke: C.gold, strokeW: 3, radius: 28,
+    glow: 'rgba(255,207,92,.4)', glowBlur: 36
+  });
+
+  ctx.save();
+  ctx.translate(CFG.W / 2, y + 58);
+  ctx.rotate(Math.sin(Game.time * 2.4) * 0.04);
+  Icons.draw(ctx, 'coin', 0, 0, 52, C.gold);
+  ctx.restore();
+
+  Draw.text(ctx, 'MAZAL TOV!', CFG.W / 2, y + 118, {
+    size: 48, color: C.gold, align: 'center', weight: '900', stroke: 'rgba(0,0,0,.55)', strokeW: 6
+  });
+  Draw.text(ctx, 'You helped all twelve!', CFG.W / 2, y + 162, {
+    size: 24, color: C.teal, align: 'center', weight: '800'
+  });
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.12)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x + 46, y + 188); ctx.lineTo(x + w - 46, y + 188); ctx.stroke();
+  ctx.restore();
+
+  Draw.para(ctx, quote, x + 44, y + 206, bodyW, {
+    size: 22, lineHeight: 30, color: 'rgba(255,255,255,.82)', weight: '600', baseline: 'top'
+  });
+
+  var countY = y + 206 + quoteH + 28;
+  Draw.text(ctx, fmt(helped), CFG.W / 2, countY, {
+    size: 72, color: C.gold, align: 'center', weight: '900', stroke: 'rgba(0,0,0,.45)', strokeW: 6
+  });
+  Draw.text(ctx, 'times you gave tzedaka', CFG.W / 2, countY + 44, {
+    size: 22, color: 'rgba(255,255,255,.65)', align: 'center', weight: '700'
+  });
+
+  var scoreY = countY + 88;
+  Draw.text(ctx, 'SCORE  ' + fmt(o.score), CFG.W / 2, scoreY, {
+    size: 26, color: C.cream, align: 'center', weight: '800'
+  });
+  if (o.isBest) {
+    ctx.save();
+    ctx.translate(CFG.W / 2, scoreY + 38);
+    ctx.rotate(Math.sin(Game.time * 3) * 0.04);
+    Draw.panel(ctx, -108, -20, 216, 40, { fill: C.teal, radius: 13 });
+    Draw.text(ctx, 'NEW BEST!', 0, 0, { size: 22, color: '#04231f', align: 'center', weight: '900' });
+    ctx.restore();
+  } else {
+    Draw.text(ctx, 'BEST  ' + fmt(o.best), CFG.W / 2, scoreY + 38, {
+      size: 22, color: 'rgba(255,255,255,.55)', align: 'center', weight: '800'
+    });
+  }
+
+  Draw.textFit(ctx, 'Think you can help even more people? Go beat your high score!',
+    CFG.W / 2, y + h - 28, w - 72, { size: 20, color: C.teal, align: 'center', weight: '700' });
+
+  UI.drawAll(ctx, Screens.overBtns, Game.time, 1 / 60);
+};
 Screens.renderGameOver = function (ctx) {
   var o = Game.gameover;
   if (!o) return;
+  if (o.victory && o.id === 'tzedaka') {
+    Screens.renderTzedakaVictory(ctx, o);
+    return;
+  }
   Draw.scrim(ctx, 0.86);
   var w = 620, x = (CFG.W - w) / 2;
   var y = View.safe.t + 120;
@@ -8136,10 +8301,10 @@ MatzahHavoc.prototype.stats = function () {
 };
 /* ==========================================================================
    GAME 5 - TZEDAKA BLAST  (Get it into their hands)
-   You lean out of your window over a market street. Two verbs: hold to aim a
-   straight DROP - how long you hold sets how fast it falls, and the dotted
-   line shows exactly where the wind will put it - and pull UP for more force
-   at somebody your own column cannot reach.
+   You lean out of your window over a market street. Pull BACK like a
+   slingshot - drag left or right to aim, pull up for zip - and let go.
+   Gravity draws a real arc, so somebody off to the side is still reachable.
+   The dotted line is that arc, wind and all.
 
    Nothing here costs a life and nothing flashes red at you. Missing is just
    missing. Every target is a real opening you can see - a palm, the slot in a
@@ -8150,10 +8315,11 @@ MatzahHavoc.prototype.stats = function () {
 function TzedakaBlast() {
   MiniGame.call(this, 'tzedaka', 'Tzedaka Blast');
   this.tips = [
-    'Hold anywhere to aim, then slide your finger left or right to lean the throw. The dotted line shows exactly where the coin is heading - and the wind shoves it around.',
-    'A little extra power helps you lead a walker. It will not punch a coin straight through a gale - read the wind meter and throw into it.',
-    'Everybody is walking, so aim where he is GOING to be, not where he is. Nobody is going to shout \'now!\' at you - working that out yourself is the fun part.',
-    'Pull your finger UP for a bit more zip. The power bar fills as you pull. Save the slam for a calm street, not for skipping the wind.'
+    'Pull BACK like a slingshot. Drag sideways from the window to aim - it stays.',
+    'Pull UP for a hard drop. Pull DOWN to lob the coin up in the air.',
+    'Fancy coat + no hand out = he already ate. Save it for an open palm!',
+    'People walk. Throw where he is GOING, not where he is.',
+    'Toss too fast and you overheat. Chill a sec and the bar climbs back.'
   ];
 }
 TzedakaBlast.prototype = Object.create(MiniGame.prototype);
@@ -8177,22 +8343,19 @@ TzedakaBlast.LANES = [806, 908, 1010];
 TzedakaBlast.GROUND = 1040;       /* below this a coin has hit the street   */
 TzedakaBlast.PAVE = 716;          /* far pavement surface                   */
 TzedakaBlast.FAR_TOP = 116;
-TzedakaBlast.GRAV = 900;          /* only slung coins arc; drops fall flat  */
-TzedakaBlast.VMIN = 320;
-TzedakaBlast.VMAX = 680;
-/* A little extra zip from a pull-up, not a skip-the-wind button. Full pull
-   still lands sooner so you can lead a walker, but the coin stays in the air
-   long enough that a gale will shove it. POWER_SPAN is a long drag so you do
-   not max it by accident. */
-TzedakaBlast.POWER_SPAN = 280;
-/* Extra sideways current on every drop, on top of the usual wind acceleration.
-   A slammed coin used to fall so fast the wind never got a turn; this keeps a
-   readable shove even at full power, and the aim line uses the same number. */
+TzedakaBlast.GRAV = 1100;         /* slingshot coins arc under gravity       */
+TzedakaBlast.VMIN = 320;          /* kept for the old drop helper / tests    */
+TzedakaBlast.VMAX = 640;
+TzedakaBlast.VY_MIN = 250;        /* a soft lob - long air time, wide reach  */
+TzedakaBlast.VY_MAX = 540;        /* a hard fling - still in the air enough  */
+TzedakaBlast.VY_UP_MIN = 140;     /* pull down → coin sails up                */
+TzedakaBlast.VY_UP_MAX = 380;
+TzedakaBlast.MAX_VX = 520;        /* far enough for the near-lane edges      */
+TzedakaBlast.PULL_SPAN = 190;
+TzedakaBlast.POWER_SPAN = 190;
+/* Extra sideways current on DROP-mode coins (tests / pigeon pops). Player
+   throws are slingshots and pick up wind through the usual acceleration. */
 TzedakaBlast.WIND_PUSH = 0.22;
-/* Steering a drop. Slide your finger sideways and the coin leaves the window
-   at an angle - continuously, from nothing, with no dead zone and no column it
-   snaps back to. LEAN_TAN is the angle at full travel, expressed as sideways
-   pixels per pixel fallen, so the reach is the same at every charge. */
 TzedakaBlast.LEAN_SPAN = 170;
 TzedakaBlast.LEAN_TAN = 0.45;
 TzedakaBlast.COIN_R = 13;
@@ -8228,10 +8391,10 @@ TzedakaBlast.prototype.personSize = function (p) {
 /* Every giving situation in the game, with the halacha it is teaching and
    the way the coin has to arrive. */
 TzedakaBlast.KINDS = {
-  hand:   { pts: 100, label:'HAND',   cry:'Please...' },
-  pushka: { pts: 120, label:'PUSHKA', cry:'Tzedakah!' },
+  hand:   { pts: 100, label:'HAND',   cry:'A coin?' },
+  pushka: { pts: 120, label:'PUSHKA', cry:'Drop it in!' },
   basket: { pts: 150, label:'SACK',   cry:'' },
-  kupah:  { pts: 180, label:'CART',   cry:'For the fund!' },
+  kupah:  { pts: 180, label:'CART',   cry:'For EVERYBODY!' },
   loan:   { pts: 500, label:'TRAY',   cry:'' }
 };
 
@@ -8263,11 +8426,16 @@ TzedakaBlast.prototype.tune = function () {
     walkMin:   46 + n * 6.0 + late * 2.2,
     walkMax:   72 + n * 7.6 + late * 2.8,
     patience:  Math.max(6.2, 15.5 - n * 0.72),
-    windEvery: Math.max(1.7, 7.4 - n * 0.48),
+    /* Hold one direction for a long stretch. Strength can puff up and down;
+       flipping left-to-right is rare and only starts later. */
+    windEvery: Math.max(12, 22 - n * 0.7),
     windMax:   34 + n * 11 + late * 3,
     gustFrom:  5,                                      /* visible wave bands  */
-    pouchMax:  12,
-    refill:    Math.max(1.05, 2.4 - n * 0.11),
+    /* Heavy-duty gun pacing: chill between throws and coins drip back in.
+       Spam until empty, then six seconds for a full reload. */
+    pouchMax:  purim ? 12 : (n >= 8 ? 10 : 8),
+    refillDry: 6,
+    refillTick: 2.6,
     pigeon:    n >= 5 ? Math.max(5.2, 20 - n * 1.15) : 999,
     pigeonMax: n >= 10 ? 3 : (n >= 7 ? 2 : 1),
     pigeonDive: n >= 8,
@@ -8283,7 +8451,6 @@ TzedakaBlast.prototype.tune = function () {
        because they stroll, and they still bounce a coin if you hit the near lane. */
     gentEvery: Math.max(0.62, 2.55 - n * 0.16),
     kinds:     TzedakaBlast.prototype.kindsFor(n),
-    kedimah:   n >= 4 && !purim,
     purim:     purim,
     mult:      purim ? 2 : 1
   };
@@ -8314,7 +8481,8 @@ TzedakaBlast.prototype.reset = function () {
   this.level = 1; this.elapsed = 0; this.mult = 1;
   this.helped = 0; this.handed = 0; this.seterGiven = 0; this.unasked = 0;
   this.kupahGiven = 0; this.loansMade = 0; this.wordsSaid = 0;
-  this.kedimahRight = 0; this.stoops = 0; this.streets = 0; this.windGiven = 0;
+  this.clutchSaves = 0; this.stoops = 0; this.streets = 0; this.windGiven = 0;
+  this.hungry = false; this.drySaid = false;
   this.gentHits = 0; this.cleanStreets = 0;
   this.missed = 0; this.missedTotal = 0;
   this.purimClean = false;
@@ -8336,11 +8504,13 @@ TzedakaBlast.prototype.setupStreet = function () {
   this.flakes = [];
   this.motes = [];
   this.pouchMax = t.pouchMax;
-  this.pouch = t.pouchMax;
-  this.refillT = t.refill;
-  this.wind = rand(-t.windMax * 0.28, t.windMax * 0.28);
-  this.windTarget = this.wind;
-  this.windT = rand(1.8, 3.0);
+  this.pouchReserve = t.pouchMax;
+  this.refillT = t.refillTick;
+  this.dryLock = false;
+  this.windDir = chance(0.5) ? 1 : -1;
+  this.windTarget = this.windDir * rand(t.windMax * 0.4, t.windMax * 0.85);
+  this.wind = this.windTarget;
+  this.windT = rand(t.windEvery * 0.75, t.windEvery * 1.1);
   this.missed = 0;   /* per street - the Purim bonus asks about THIS street */
   this.charge = 0; this.chargeDir = 1;
   this.aim = null;
@@ -8368,10 +8538,12 @@ TzedakaBlast.prototype.setupStreet = function () {
         sw: rand(0, TAU), r: wt === 'snow' ? rand(1.6, 3.4) : rand(0.9, 1.6) });
     }
   }
+  this.hungry = false;
+  this.drySaid = false;
   if (this.gents.length) this.metGent = true;
   var sc = this.scene();
-  var sub = this.level <= 3 ? 'find the open hand among the coats' : sc.sub;
-  this.say(sc.name, sub, C.gold, 3.2);
+  var sub = sc.hook || sc.sub;
+  this.say(sc.name, sub, C.gold, 3);
 };
 
 /* Nothing hangs over the road. An awning on a shopfront cannot stop a coin
@@ -8406,9 +8578,8 @@ TzedakaBlast.prototype.spawnPerson = function () {
     ch: randInt(0, TzedakaBlast.PEOPLE.length - 1),
     sz: rand(TzedakaBlast.SIZE_MIN, TzedakaBlast.SIZE_MAX),
     phase: rand(0, TAU),
-    local: t.purim ? true : chance(0.62),
     patience: t.patience, maxPat: t.patience,
-    served: false, words: false, gone: false, shamed: false,
+    served: false, gone: false, shamed: false,
     flash: 0, joy: 0, pending: 0, hint: 0,
     ice: !!t.ice, slip: 0, slipT: t.ice ? rand(0.7, 2.2) : 999
   };
@@ -8441,14 +8612,14 @@ TzedakaBlast.prototype.freeLane = function (dir, need) {
 
 TzedakaBlast.prototype.introduce = function (kind) {
   var lines = {
-    hand:   ['AN OPEN HAND', 'drop the coin right into it'],
-    pushka: ['A PUSHKA', 'a tzedaka tin - aim for the slot in the lid'],
-    basket: ['A BIG SACK', 'wide mouth, easy target - go for it'],
-    kupah:  ['THE KUPAH CART', 'the town money cart - drop it in the slot'],
-    loan:   ['A BROKEN CART', 'land the gold on his tray and he pays you back later']
+    hand:   ['OPEN HAND!', 'that is the jackpot - drop it in the palm'],
+    pushka: ['A PUSHKA!', 'tiny slot. clink!'],
+    basket: ['GIANT SACK!', 'wide open. dunk it!'],
+    kupah:  ['TOWN CART!', 'one box for the whole street - drop it in'],
+    loan:   ['BROKEN CART!', 'lend him GOLD. he pays you back. top move!']
   };
   var l = lines[kind];
-  if (l) this.say(l[0], l[1], C.gold, 2.6);
+  if (l) this.say(l[0], l[1], C.gold, 3);
 };
 
 /* A quiet, warm aside. Never red, never shaken onto the screen - this game
@@ -8458,7 +8629,7 @@ TzedakaBlast.prototype.note = function (title, sub, color) {
 };
 
 TzedakaBlast.prototype.say = function (title, sub, color, dur) {
-  this.banner = { title: title, sub: sub || '', color: color || C.gold, t: dur || 2.2, max: dur || 2.2 };
+  this.banner = { title: title, sub: sub || '', color: color || C.gold, t: dur || 3, max: dur || 3 };
 };
 
 /* The one thing that gets between your window and his hand. Deliberately slow:
@@ -8473,9 +8644,12 @@ TzedakaBlast.prototype.spawnPigeon = function () {
     dir: dir, sp: fast, flap: rand(0, TAU),
     carrying: null, dead: false, dive: false
   });
-  if (t.pigeonDive && !this.metDive) {
+  if (!this.metPigeon) {
+    this.metPigeon = true;
+    this.say('PIGEON ALERT!', 'tap him or he eats your coin for lunch', C.gold, 3);
+  } else if (t.pigeonDive && !this.metDive) {
     this.metDive = true;
-    this.say('THEY ARE DIVING', 'a bird that tilts is coming for your coin - tap it off', C.gold, 2.6);
+    this.say('DIVE BOMB!', 'now they swoop - tap fast!', C.gold, 3);
   }
 };
 
@@ -8501,6 +8675,35 @@ TzedakaBlast.GENTS = [
 TzedakaBlast.GENT_TOP = 156;
 TzedakaBlast.GENT_BOT = 6;
 
+TzedakaBlast.GENT_QUIPS = [
+  'I DRIVE A PORSCHE',
+  'I\'M RICH, RICH I TELL YOU!',
+  'I\'M THE CEO',
+  'I DON\'T EVEN PUMP MY OWN GAS',
+  'I\'M LATE FOR MY POLO GAME',
+  'I DON\'T LOOK AT PRICE TAGS',
+  'SORRY, MY YACHT IS WAITING',
+  'I DON\'T CARRY COINS',
+  'PLATINUM STATUS',
+  'YOU\'RE NOT IN MY TAX BRACKET',
+  'I ONLY FLY FIRST CLASS',
+  'MY CAT COST MORE THAN YOUR LIFE',
+  'I SUMMER IN THE HAMPTONS',
+  'I BOUGHT BITCOIN AT 3 CENTS',
+  'MY HOUSE HAS MORE THAN 1 POOL',
+  'I INVENTED THE TACO',
+  'MY NAME IS ON THAT BUILDING, BRO'
+];
+
+TzedakaBlast.prototype.gentBounceLine = function () {
+  this.gentBounceN = (this.gentBounceN || 0) + 1;
+  if (this.gentBounceN >= 3) {
+    this.gentBounceN = 0;
+    return pick(TzedakaBlast.GENT_QUIPS);
+  }
+  return 'NO THANK YOU';
+};
+
 TzedakaBlast.prototype.spawnGent = function () {
   var t = this.cfg, dir = chance(0.5) ? 1 : -1;
   var lane = this.freeLane(dir, 122);
@@ -8518,11 +8721,11 @@ TzedakaBlast.prototype.spawnGent = function () {
   this.gents.push(g);
   if (!this.metGent && !this.seeding) {
     this.metGent = true;
-    this.say('NOT EVERYBODY IS POOR', 'the man in the good coat is fine - no hand out, nothing to aim at', '#c9adff', 2.8);
+    this.say('NICE COAT, NO THANKS', 'he already ate - save it for an open hand!', '#c9adff', 3);
   }
   if (g.umb && !this.metUmb) {
     this.metUmb = true;
-    this.say('WATCH THE UMBRELLA', 'it is in the near lane and it will knock a coin aside', C.gold, 2.6);
+    this.say('WHOA, UMBRELLA!', 'wait till Mr. Fancy walks past', C.gold, 3);
   }
   return g;
 };
@@ -8561,9 +8764,9 @@ TzedakaBlast.prototype.spawnWagon = function () {
     this.metWagon = true;
     if (this.cfg && this.cfg.wagonMax > 1) {
       this.metDoubleWagon = true;
-      this.say('WAGONS IN THE ROAD', 'two can roll the near lane - wait them both out', C.gold, 2.6);
+      this.say('TWO WAGONS?!', 'the near lane is a parade - wait them out', C.gold, 3);
     } else {
-      this.say('A WAGON IN THE ROAD', 'it only blocks the near lane, and it is rolling - wait it out', C.gold, 2.6);
+      this.say('WAGON ROLLING!', 'it only blocks the near lane. sip tea. wait.', C.gold, 3);
     }
   }
 };
@@ -8573,30 +8776,50 @@ TzedakaBlast.prototype.wagonBox = function (w) {
 };
 
 /* ==========================================================================
-   THROWING - the two verbs
+   THROWING - slingshot
    ========================================================================== */
 TzedakaBlast.prototype.chargeSpeed = function () {
   return lerp(TzedakaBlast.VMIN, TzedakaBlast.VMAX, clamp(this.charge, 0, 1));
 };
 
-/* how far back the slingshot is drawn: 0 resting, 1 at full pull */
+/* pull distance from the window hand + vertical drag from where you grabbed */
 TzedakaBlast.prototype.aimPower = function (a) {
   if (!a) return 0;
-  return clamp((a.sy - a.y) / TzedakaBlast.POWER_SPAN, 0, 1);
+  var A = TzedakaBlast;
+  var pullX = a.x - A.AX;
+  var dragUp = a.sy - a.y, dragDown = a.y - a.sy;
+  var pull = Math.sqrt(pullX * pullX + dragUp * dragUp + dragDown * dragDown);
+  return clamp(pull / A.PULL_SPAN, 0, 1);
 };
 
-/* How far off vertical the current hold is aiming. Zero when you have not
-   moved, and it grows smoothly from there - one number, used by the throw, by
-   the dotted line and by the tests, so all three can never disagree. */
 TzedakaBlast.prototype.aimLean = function (a) {
   var A = TzedakaBlast;
   if (!a) return 0;
-  return clamp((a.x - a.sx) / A.LEAN_SPAN, -1, 1) * A.LEAN_TAN;
+  return clamp((a.x - A.AX) / A.LEAN_SPAN, -1, 1) * A.LEAN_TAN;
+};
+
+/* Slingshot from the window: sideways aim is where your finger IS (not where
+   you first touched). Pull up = zip downward. Pull down = lob upward. */
+TzedakaBlast.prototype.aimVel = function (a) {
+  var A = TzedakaBlast;
+  if (!a) return { vx: 0, vy: A.VY_MIN, power: 0 };
+  var pullX = a.x - A.AX;
+  var dragUp = a.sy - a.y, dragDown = a.y - a.sy;
+  var power = this.aimPower(a);
+  var hPow = Math.max(power, Math.abs(pullX) / A.PULL_SPAN);
+  var vx = clamp(pullX / A.PULL_SPAN, -1, 1) * lerp(A.VMIN, A.VMAX, hPow);
+  vx = clamp(vx, -A.MAX_VX, A.MAX_VX);
+  var vy;
+  if (dragDown > 12 && dragDown >= dragUp) {
+    vy = -lerp(A.VY_UP_MIN, A.VY_UP_MAX, clamp(dragDown / A.PULL_SPAN, 0, 1));
+  } else {
+    vy = lerp(A.VY_MIN, A.VY_MAX, clamp(Math.max(0, dragUp) / A.PULL_SPAN, 0, 1));
+  }
+  return { vx: vx, vy: vy, power: power };
 };
 
 /* where a drop at the current charge and lean will actually land, wind and all.
-   lean * dy, not lean * speed * time, because those are the same thing - which
-   is why leaning reaches equally far whether you drop it slowly or hard. */
+   Kept for tests; player throws use the slingshot arc. */
 TzedakaBlast.prototype.dropLanding = function (speed, y, lean) {
   var A = TzedakaBlast;
   var dy = y - A.AY;
@@ -8611,7 +8834,16 @@ TzedakaBlast.prototype.dropTime = function (speed, y) {
 
 
 
+TzedakaBlast.prototype.pouchCount = function () {
+  return Math.floor(this.pouchReserve || 0);
+};
+
+TzedakaBlast.prototype.pouchFill = function () {
+  return clamp((this.pouchReserve || 0) / this.pouchMax, 0, 1);
+};
+
 TzedakaBlast.prototype.throwCoin = function (vx, vy, mode, gold) {
+  var t = this.cfg, cost = gold ? 3 : 1;
   this.coins.push({
     x: TzedakaBlast.AX, y: TzedakaBlast.AY,
     px: TzedakaBlast.AX, py: TzedakaBlast.AY,
@@ -8622,10 +8854,18 @@ TzedakaBlast.prototype.throwCoin = function (vx, vy, mode, gold) {
     life: 0, bounced: 0, dead: false,
     trail: []
   });
-  this.pouch -= gold ? 3 : 1;
-  if (this.pouch < 0) this.pouch = 0;
+  this.pouchReserve -= cost;
+  if (this.pouchReserve < 0) this.pouchReserve = 0;
   Sound.sfx('coin');
   Haptics.light();
+  if (this.pouchReserve < 1) {
+    this.dryLock = true;
+    this.refillT = t.refillDry;
+    if (!this.drySaid) {
+      this.drySaid = true;
+      this.say('POCKET\'S EMPTY!', 'six seconds - full reload', C.gold, 3);
+    }
+  }
 };
 
 TzedakaBlast.prototype.handle = function (ev) {
@@ -8646,12 +8886,12 @@ TzedakaBlast.prototype.handle = function (ev) {
     this.aim = null;
     /* a quick flick of the finger at a pigeon is a shoo, not a throw */
     if (a.t < 0.24 && this.aimPower(a) < 0.1 && this.scarePigeon(ev.x, ev.y)) return;
-    if (this.pouch <= 0) { this.emptyPurse(a); return; }
+    if (this.pouchCount() < 1) { this.emptyPurse(); return; }
     var gold = this.goldWanted();
-    if (gold && this.pouch < 3) gold = false;
-    this.charge = this.aimPower(a);
-    var sp = this.chargeSpeed();
-    this.throwCoin(this.aimLean(a) * sp, sp, 'drop', gold);
+    if (gold && this.pouchReserve < 3) gold = false;
+    var v = this.aimVel(a);
+    this.charge = v.power;
+    this.throwCoin(v.vx, v.vy, 'sling', gold);
     if (this.charge > 0.6) Sound.sfx('whoosh');
     this.charge = 0;
     return;
@@ -8668,25 +8908,12 @@ TzedakaBlast.prototype.goldWanted = function () {
   return false;
 };
 
-/* an empty purse is not permission to look away - you still owe him words */
-TzedakaBlast.prototype.emptyPurse = function (a) {
-  var best = null, bd = 1e9;
-  for (var i = 0; i < this.people.length; i++) {
-    var p = this.people[i];
-    if (p.served || p.words || p.gone) continue;
-    var d = distance(a.x, a.y, p.x, p.y - 40);
-    if (d < 150 && d < bd) { bd = d; best = p; }
-  }
-  if (!best) { Sound.sfx('back'); return; }
-  best.words = true;
-  best.joy = 1.2;
-  this.wordsSaid++;
-  if (this.wordsSaid >= 10) this.award('b_words');
-  this.addScore(40, best.x, best.y - 120, 'KIND WORDS +40', C.teal);
-  FX.ring(best.x, best.y - 60, C.teal, 40);
-  Sound.sfx('good');
-  Haptics.light();
-  this.say('KIND WORDS', 'no coins left, so you said something nice instead', C.teal, 2.0);
+/* no coins left means wait - you cannot talk to the street from a window */
+TzedakaBlast.prototype.emptyPurse = function () {
+  Sound.sfx('back');
+  if (this.drySaid) return;
+  this.drySaid = true;
+  this.say('POCKET\'S EMPTY!', 'hang tight - more coins are coming', C.gold, 3);
 };
 
 TzedakaBlast.prototype.scarePigeon = function (x, y) {
@@ -8707,7 +8934,7 @@ TzedakaBlast.prototype.scarePigeon = function (x, y) {
         g.carrying = null;
       }
       FX.burst(g.x, g.y, { n: 12, color: '#c8cede', spdMax: 220 });
-      FX.text(g.x, g.y - 30, 'SHOO!', C.teal, 26);
+      FX.text(g.x, g.y - 30, 'SHOO!', C.teal, 26, TzedakaBlast.POP_LIFE);
       Sound.sfx('whoosh');
       Haptics.light();
       return true;
@@ -8759,6 +8986,12 @@ TzedakaBlast.CATCH = 4;
 /* the furthest a coin may travel between two hit tests. Must stay well under
    the height of the smallest opening in the game, which is 14. */
 TzedakaBlast.STEP_PX = 3;
+TzedakaBlast.POP_LIFE = 3;
+
+/* floating street chatter - holds long enough to read the funny lines */
+TzedakaBlast.prototype.pop = function (x, y, str, color, size) {
+  FX.text(x, y, str, color, size || 22, TzedakaBlast.POP_LIFE);
+};
 
 /* ==========================================================================
    UPDATE
@@ -8777,20 +9010,37 @@ TzedakaBlast.prototype.update = function (dt) {
     this.charge = this.aimPower(this.aim);
   }
 
-  /* purse refills - this is your ma'aser coming in, not an infinite supply */
-  if (this.pouch < this.pouchMax) {
+  /* Purse regen: drip back while you chill; six-second full reload if you overheat */
+  if (this.dryLock || this.pouchReserve < 1) {
+    this.dryLock = true;
     this.refillT -= dt;
-    if (this.refillT <= 0) { this.refillT = t.refill; this.pouch++; }
+    if (this.refillT <= 0) {
+      this.pouchReserve = this.pouchMax;
+      this.dryLock = false;
+      this.refillT = t.refillTick;
+      this.drySaid = false;
+      this.hungry = true;
+      Sound.sfx('coin');
+      Haptics.light();
+      FX.burst(TzedakaBlast.AX, TzedakaBlast.AY, { n: 10, color: C.gold, spdMax: 180 });
+      this.say('POCKET\'S FULL!', 'go go go!', C.gold, 3);
+    }
+  } else if (this.pouchReserve < this.pouchMax) {
+    this.pouchReserve = Math.min(this.pouchMax, this.pouchReserve + dt / t.refillTick);
+  } else {
+    this.refillT = t.refillTick;
   }
 
-  /* wind drifts and reverses */
+  /* Wind stays one way for a long stretch. Strength puffs; reverse is rare. */
   this.windT -= dt;
   if (this.windT <= 0) {
-    this.windT = rand(t.windEvery * 0.7, t.windEvery * 1.4);
-    this.windTarget = rand(-t.windMax, t.windMax);
+    this.windT = rand(t.windEvery * 0.85, t.windEvery * 1.25);
+    if (this.level >= 5 && chance(0.22)) this.windDir *= -1;
+    if (!this.windDir) this.windDir = chance(0.5) ? 1 : -1;
+    this.windTarget = this.windDir * rand(t.windMax * 0.35, t.windMax);
     if (Math.abs(this.windTarget) > t.windMax * 0.55) Sound.sfx('wind');
   }
-  this.wind += (this.windTarget - this.wind) * Math.min(1, dt * 1.6);
+  this.wind += (this.windTarget - this.wind) * Math.min(1, dt * 0.55);
 
   /* Move the street first, THEN the coin through it. The other way round
      tested every coin against where everybody stood a frame ago, which on a
@@ -8875,7 +9125,7 @@ TzedakaBlast.prototype.coinHits = function (c) {
       /* mark it dead and let the owning loop remove it - splicing the array
          from in here deletes whichever coin shifts into the freed index */
       g.carrying = c; c.held = true; c.dead = true; c.stolen = true;
-      FX.text(g.x, g.y - 30, 'PIGEON GOT IT', 'rgba(255,190,120,.95)', 24);
+      this.pop(g.x, g.y - 30, 'BIRD SNACK!', 'rgba(255,190,120,.95)', 24);
       Sound.sfx('bad');
       this.breakCombo();
       return;
@@ -8886,7 +9136,7 @@ TzedakaBlast.prototype.coinHits = function (c) {
      on the roof, and that is that */
   for (i = 0; i < this.wagons.length; i++) {
     if (MatzahHavoc.circleRect(c.x, c.y, c.r, this.wagonBox(this.wagons[i]))) {
-      FX.text(c.x, A.WAGON_TOP - 34, 'ON THE WAGON', 'rgba(255,255,255,.5)', 22);
+      this.pop(c.x, A.WAGON_TOP - 34, 'BONK!', 'rgba(255,255,255,.5)', 22);
       Sound.sfx('tap');
       this.breakCombo();
       c.dead = true;
@@ -8923,7 +9173,9 @@ TzedakaBlast.prototype.coinHits = function (c) {
         gt.bump = 0.5;
         this.gentHits++;
         this.streetGentHits++;
-        FX.text(gt.x, gt.y - 176 * (gt.sz || 1), 'NO THANK YOU', 'rgba(220,206,255,.85)', 22);
+        var gLine = this.gentBounceLine();
+        this.pop(gt.x, gt.y - 176 * (gt.sz || 1), gLine, 'rgba(220,206,255,.85)',
+          gLine.length > 16 ? 18 : 22);
         Sound.sfx('back');
         this.breakCombo();
         return;
@@ -8944,32 +9196,19 @@ TzedakaBlast.prototype.coinHits = function (c) {
 TzedakaBlast.prototype.landPerson = function (p, c) {
   /* the loan wants the gold, not a coin off the top */
   if (p.kind === 'loan' && !c.gold) {
-    this.addScore(60, p.x, p.y - 150, 'HE NEEDS A HAND UP +60', C.teal);
+    this.addScore(60, p.x, p.y - 150, 'GOLD ONLY +60', C.teal);
     p.flash = 0.4;
     Sound.sfx('good');
     return;
   }
 
   var pts = p.def.pts;
-  var label = '+';
+  var clutch = !!(p.hint || p.patience < p.maxPat * 0.32);
 
-  /* the porter's sack IS matan b'seter - it goes in over his shoulder and he
-     never finds out who put it there */
+  /* the sack still counts for the silent-giving badge - no lecture mid-throw */
   if (p.kind === 'basket') {
     this.seterGiven++;
     if (this.seterGiven >= 10) this.award('b_seter');
-    FX.text(p.x, p.y + 44, 'HE NEVER SAW YOU', '#c9adff', 24);
-  }
-
-  /* aniyei ircha kodmin - the poor of your own city come first. A softer scale
-     rather than a scolding: you still helped somebody. */
-  var jumped = false;
-  if (this.cfg.kedimah && !p.local) {
-    for (var i = 0; i < this.people.length; i++) {
-      var o = this.people[i];
-      if (o === p || o.served || o.gone || !o.local) continue;
-      if (o.patience < o.maxPat * 0.78) { jumped = true; break; }
-    }
   }
 
   p.served = true;
@@ -8985,15 +9224,20 @@ TzedakaBlast.prototype.landPerson = function (p, c) {
     if (this.windGiven >= 12) this.award('b_gale');
   }
 
-  if (jumped) {
-    pts = Math.round(pts * 0.6);
-    this.hitCombo();
-  } else {
-    if (this.cfg.kedimah && p.local) {
-      this.kedimahRight++;
-      if (this.kedimahRight >= 8) this.award('b_kedimah');
-    }
-    this.hitCombo();
+  this.hitCombo();
+  if (this.combo === 3) this.pop(p.x, p.y - 214, 'NICE!', C.teal, 28);
+  else if (this.combo === 5) this.pop(p.x, p.y - 214, 'STREAK!', C.gold, 30);
+  else if (this.combo === 8) this.pop(p.x, p.y - 214, 'UNSTOPPABLE!', C.gold, 32);
+  if (clutch) {
+    pts = Math.round(pts * 1.35);
+    this.clutchSaves++;
+    if (this.clutchSaves >= 8) this.award('b_kedimah');
+    this.pop(p.x, p.y - 186, 'JUST IN TIME!', C.teal, 24);
+  }
+  if (this.hungry) {
+    this.hungry = false;
+    this.wordsSaid++;
+    if (this.wordsSaid >= 10) this.award('b_words');
   }
   if (this.combo >= 20) this.award('b_ribui');
   if (this.combo > 0 && this.combo % 10 === 0) this.feverUp();
@@ -9013,10 +9257,11 @@ TzedakaBlast.prototype.landPerson = function (p, c) {
     p.repay = 7.0;
     this.loansMade++;
     if (this.loansMade >= 5) this.award('b_loan');
-    this.note('Back in business!', 'you lent him the gold and he can fix his cart', C.gold);
+    this.note('HE\'S BACK IN BUSINESS!', 'you lent him gold - he can fix the cart himself', C.gold);
   }
 
-  this.addScore(pts, p.x, p.y - 150, label + Math.round(pts * this.mult), C.gold);
+  p.thanks = pick(['THANKS!', 'YASHAR KOACH!', 'WHAT A MENSCH!', 'YOU ROCK!']);
+  this.addScore(pts, p.x, p.y - 150, '+' + Math.round(pts * this.mult), C.gold);
   FX.ring(c.x, c.y, C.gold, 34);
   FX.burst(c.x, c.y, { n: 12, color: C.gold, spdMax: 200 });
 };
@@ -9035,14 +9280,14 @@ TzedakaBlast.prototype.landStreet = function (c) {
   if (near) {
     this.stoops++;
     near.stoop = 1.0;
-    FX.text(c.x, TzedakaBlast.GROUND - 54, 'MISSED', 'rgba(255,255,255,.45)', 22);
+    this.pop(c.x, TzedakaBlast.GROUND - 54, 'ON THE STREET!', 'rgba(255,255,255,.45)', 22);
   }
 };
 
 TzedakaBlast.prototype.feverUp = function () {
   this.fever = 8;
   this.mult = this.cfg.mult * 2;
-  this.say('DOUBLE POINTS!', 'lots of little coins beat one big one', C.teal, 2.4);
+  this.say('COMBO PARTY!', 'keep going keep going!', C.teal, 3);
   Sound.sfx('badge');
   Haptics.win();
   FX.flash(C.teal, 0.22);
@@ -9063,7 +9308,7 @@ TzedakaBlast.prototype.updatePeople = function (dt) {
         p.slipT = rand(1.6, 3.2);
         if (!this.metIce) {
           this.metIce = true;
-          this.say('ICY COBBLES', 'he just slipped - throw where he is sliding, not where he was', C.gold, 2.6);
+          this.say('WHOOPS, ICE!', 'he is sliding - throw AHEAD of him', C.gold, 3);
         }
       }
       if (p.slip > 0) {
@@ -9076,31 +9321,32 @@ TzedakaBlast.prototype.updatePeople = function (dt) {
     if (p.stoop > 0) p.stoop -= dt;
     /* settle where he is standing THIS frame, once, before anything asks */
     p.lift = this.personLift(p);
-    if (!p.served && !p.words) {
+    if (!p.served) {
       p.patience -= dt;
       if (p.patience < p.maxPat * 0.3) p.hint = 1;
     }
     if (p.repay > 0) {
       p.repay -= dt;
       if (p.repay <= 0) {
-        this.pouch = Math.min(this.pouchMax, this.pouch + 3);
-        this.addScore(300, p.x, p.y - 170, 'HE PAID IT BACK +300', '#8ee06a');
+        this.pouchReserve = Math.min(this.pouchMax, this.pouchReserve + 3);
+        if (this.pouchReserve >= 1) this.dryLock = false;
+        this.addScore(300, p.x, p.y - 170, 'PAID YOU BACK +300', '#8ee06a');
         FX.burst(p.x, p.y - 90, { n: 18, color: '#8ee06a', spdMax: 240 });
         Sound.sfx('badge');
       }
     }
 
     var off = p.dir > 0 ? p.x > CFG.W + 120 : p.x < -120;
-    if (off || (p.patience <= 0 && !p.served && !p.words)) {
+    if (off || (p.patience <= 0 && !p.served)) {
       this.people.splice(i, 1);
-      if (p.served || p.words) continue;
+      if (p.served) continue;
       /* somebody who never put a hand out was never sent away - you simply
          missed the higher rung. Everyone else is a real failure. */
       this.missed++;
       this.missedTotal++;
       this.breakCombo();
       if (this.missedTotal === 3) {
-        this.note('Try to reach everybody!', 'one coin each if you can manage it', C.teal);
+        this.note('HE GOT AWAY!', 'next one - you got this', C.teal);
       }
     }
   }
@@ -9208,7 +9454,7 @@ TzedakaBlast.prototype.closeStreet = function () {
   }
   if (this.level >= TzedakaBlast.STREETS) {
     this.victory = true;
-    this.finish('All twelve streets walked, every hand filled');
+    this.finish('You helped all twelve!');
     return;
   }
   this.level++;
@@ -9222,13 +9468,13 @@ TzedakaBlast.prototype.closeStreet = function () {
 TzedakaBlast.prototype.stats = function () {
   return [
     ['People helped', this.helped],
-    ['Slipped into a sack unseen', this.seterGiven],
-    ['Reached before they asked', this.unasked],
+    ['Sacks stuffed', this.seterGiven],
+    ['Got there before they asked', this.unasked],
     ['Carts back in business', this.loansMade],
     ['Landed in a big wind', this.windGiven],
-    ['Kind words when the purse was empty', this.wordsSaid],
+    ['Gifts after the purse ran dry', this.wordsSaid],
     ['Coins that hit the street', this.stoops],
-    ['Coins wasted on a rich man', this.gentHits],
+    ['Coins wasted on a fancy coat', this.gentHits],
     ['Best streak', this.bestCombo]
   ];
 };
@@ -9282,7 +9528,7 @@ TzedakaBlast.TOWERS = [
    shape, how many storeys you can see, the palette, the weather and the cart
    standing in the road. No two streets in a row look alike. */
 TzedakaBlast.SCENES = [
-  { id:'city',   name:'THE CITY',          sub:'a tenement street after dark',
+  { id:'city',   name:'LOOK FOR THE HAND', sub:'fancy coat? keep walking. open palm? JACKPOT',
     sky:[[0,'#050a18'],[0.3,'#091530'],[0.55,'#0e2044'],[0.72,'#132741'],[1,'#0b0f1c']],
     wallA:'#141b30', wallB:'#101728', mine:'#1a2138',
     lit:'rgba(255,196,96,.85)', lit2:'rgba(255,214,132,.62)', dark:'rgba(6,10,20,.72)',
@@ -9291,7 +9537,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,196,110,.16)', cart:'#3a3550', weather:null,
     tops:[244,168,296,116,212,152,268], rows:9 },
 
-  { id:'west',   name:'THE FRONTIER',      sub:'a timber main street, lamps lit',
+  { id:'west',   name:'COWBOY STREET',     sub:'same rule out west: no hand out, no coin',
     sky:[[0,'#0d0a16'],[0.3,'#1a1220'],[0.55,'#2a1a24'],[0.72,'#33202a'],[1,'#140f18']],
     wallA:'#3a2a1e', wallB:'#2e2118', mine:'#463020',
     lit:'rgba(255,186,84,.88)', lit2:'rgba(255,206,120,.6)', dark:'rgba(22,14,10,.78)',
@@ -9300,7 +9546,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,176,90,.20)', cart:'#6b4a28', weather:null,
     tops:[512,470,534,452,520,486,542], rows:2 },
 
-  { id:'stone',  name:'THE OLD CITY',      sub:'limestone alleys and arched windows',
+  { id:'stone',  name:'OLD CITY',          sub:'same game as always: open hands win',
     sky:[[0,'#070c1c'],[0.3,'#0d1730'],[0.55,'#152741'],[0.72,'#1d3348'],[1,'#0d1220']],
     wallA:'#3b3527', wallB:'#2f2a1f', mine:'#4a4231',
     lit:'rgba(255,208,132,.86)', lit2:'rgba(255,226,168,.6)', dark:'rgba(16,14,10,.75)',
@@ -9309,7 +9555,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,214,140,.18)', cart:'#5c5340', weather:null,
     tops:[380,318,410,286,364,330,402], rows:4 },
 
-  { id:'port',   name:'THE HARBOUR',       sub:'warehouses and rigging by the water',
+  { id:'port',   name:'HARBOR HUSTLE',     sub:'wind off the water. aim like you mean it',
     sky:[[0,'#04101a'],[0.3,'#071c2c'],[0.55,'#0b2b3e'],[0.72,'#103546'],[1,'#07131c']],
     wallA:'#152a33', wallB:'#102028', mine:'#1b3540',
     lit:'rgba(170,232,255,.7)', lit2:'rgba(255,206,120,.55)', dark:'rgba(5,16,22,.76)',
@@ -9318,7 +9564,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(150,220,255,.15)', cart:'#22454f', weather:null,
     tops:[436,378,458,350,416,392,468], rows:3 },
 
-  { id:'narrow', name:'THE NARROWS',       sub:'a brick alley with the sky a long way up',
+  { id:'narrow', name:'THE SQUEEZE',       sub:'wind picked a side. throw INTO it',
     sky:[[0,'#0a0610'],[0.3,'#140b1a'],[0.55,'#1d1024'],[0.72,'#241528'],[1,'#0c0812']],
     wallA:'#3a1f1e', wallB:'#2c1717', mine:'#482724',
     lit:'rgba(255,168,96,.8)', lit2:'rgba(255,196,128,.55)', dark:'rgba(14,7,7,.8)',
@@ -9327,7 +9573,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,150,90,.17)', cart:'#4a2c26', weather:null,
     tops:[96,60,130,40,110,72,120], rows:11 },
 
-  { id:'village',name:'THE VILLAGE LANE',  sub:'cottages, fences and a long quiet road',
+  { id:'village',name:'QUIET LANE',        sub:'sshhh - give before he even asks',
     sky:[[0,'#06121a'],[0.3,'#0a2028'],[0.55,'#123038'],[0.72,'#1a3d3c'],[1,'#0a1a18']],
     wallA:'#5a5142', wallB:'#494134', mine:'#6a5c48',
     lit:'rgba(255,214,140,.88)', lit2:'rgba(255,232,180,.6)', dark:'rgba(20,18,12,.74)',
@@ -9336,7 +9582,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,222,150,.19)', cart:'#6a5230', weather:null,
     tops:[548,520,560,506,540,528,566], rows:2 },
 
-  { id:'snow',   name:'THE WINTER STREET', sub:'first snow settling on the cobbles',
+  { id:'snow',   name:'SLIPPERY STREET',   sub:'ice is a trickster. throw where he is GOING',
     sky:[[0,'#0b1020'],[0.3,'#131c33'],[0.55,'#1d2a45'],[0.72,'#26364f'],[1,'#141a28']],
     wallA:'#2a3244', wallB:'#222938', mine:'#333c50',
     lit:'rgba(255,224,168,.8)', lit2:'rgba(206,232,255,.55)', dark:'rgba(12,16,26,.72)',
@@ -9345,7 +9591,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(200,226,255,.18)', cart:'#3e4860', weather:'snow',
     tops:[330,282,352,258,318,296,364], rows:6 },
 
-  { id:'adobe',  name:'THE ADOBE TOWN',    sub:'flat roofs and warm clay walls',
+  { id:'adobe',  name:'BIRD TOWN',         sub:'pigeons are not tzedaka. tap them!',
     sky:[[0,'#140a12'],[0.3,'#241016'],[0.55,'#361a1a'],[0.72,'#42251c'],[1,'#180d10']],
     wallA:'#6a4028', wallB:'#563220', mine:'#7a4c30',
     lit:'rgba(255,190,100,.88)', lit2:'rgba(255,212,140,.6)', dark:'rgba(26,14,8,.76)',
@@ -9354,7 +9600,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,186,104,.20)', cart:'#7a5232', weather:null,
     tops:[470,424,492,404,452,436,500], rows:3 },
 
-  { id:'canal',  name:'THE CANAL BRIDGE',  sub:'iron railings over black water, and rain',
+  { id:'canal',  name:'RAINY BRIDGE',      sub:'umbrellas bounce coins. wait for the gap',
     sky:[[0,'#04120f'],[0.3,'#082019'],[0.55,'#0d3025'],[0.72,'#123a2e'],[1,'#061412']],
     wallA:'#1d3a30', wallB:'#152c26', mine:'#254a3c',
     lit:'rgba(190,255,214,.66)', lit2:'rgba(255,214,140,.5)', dark:'rgba(5,18,14,.78)',
@@ -9363,7 +9609,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(160,255,206,.15)', cart:'#28503f', weather:'rain',
     tops:[356,300,378,272,340,314,392], rows:5 },
 
-  { id:'market', name:'THE MARKET ROW',    sub:'shutters down, arches empty for the night',
+  { id:'market', name:'MARKET NIGHT',      sub:'lots of coats, one pushka. find the slot',
     sky:[[0,'#0e0818'],[0.3,'#180d26'],[0.55,'#241436'],[0.72,'#2c1a3e'],[1,'#100a1a']],
     wallA:'#402a3a', wallB:'#33212e', mine:'#4e3446',
     lit:'rgba(255,200,140,.82)', lit2:'rgba(226,180,255,.55)', dark:'rgba(16,10,20,.76)',
@@ -9372,7 +9618,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(236,180,255,.16)', cart:'#523a4a', weather:null,
     tops:[402,350,424,330,388,364,436], rows:5 },
 
-  { id:'hill',   name:'THE HILL TERRACES', sub:'stepped houses climbing the slope',
+  { id:'hill',   name:'UP THE HILL',       sub:'hold onto your hat. they walk FAST',
     sky:[[0,'#080b20'],[0.3,'#101638'],[0.55,'#1a2350'],[0.72,'#222c5c'],[1,'#0c0f24']],
     wallA:'#3c4058', wallB:'#2f3348', mine:'#4a4e68',
     lit:'rgba(255,206,132,.84)', lit2:'rgba(196,214,255,.55)', dark:'rgba(10,12,22,.74)',
@@ -9381,7 +9627,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(210,222,255,.16)', cart:'#454a66', weather:null,
     tops:[286,214,340,180,262,224,318], rows:7 },
 
-  { id:'purim',  name:'THE PURIM STREET',  sub:'lanterns strung end to end, everybody out',
+  { id:'purim',  name:'PURIM PARTY',       sub:'today you just GIVE. no checking, no waiting',
     sky:[[0,'#150a1e'],[0.3,'#25102c'],[0.55,'#38183a'],[0.72,'#452046'],[1,'#180c1e']],
     wallA:'#4a2f4a', wallB:'#3c2540', mine:'#5c3a56',
     lit:'rgba(255,222,140,.95)', lit2:'rgba(255,180,220,.7)', dark:'rgba(30,16,30,.5)',
@@ -10036,9 +10282,9 @@ TzedakaBlast.prototype.drawPersonState = function (ctx, p, t) {
   var cx = b.x + b.w / 2, top = p.y - 184;   /* clear of the hat, whatever he holds */
   var footY = p.y + 22;
 
-  if (p.served || p.words) {
-    Draw.textSafe(ctx, p.words ? 'BLESSED YOU' : 'THANK YOU', cx, footY, {
-      size: 19, maxW: 220, color: p.words ? C.teal : '#8ee06a', weight: '900',
+  if (p.served) {
+    Draw.textSafe(ctx, p.thanks || 'THANKS!', cx, footY, {
+      size: 19, maxW: 220, color: '#8ee06a', weight: '900',
       stroke: 'rgba(0,0,0,.7)', strokeW: 4
     });
     return;
@@ -10058,14 +10304,8 @@ TzedakaBlast.prototype.drawPersonState = function (ctx, p, t) {
     fg: pk > 0.55 ? C.teal : C.gold, gloss: false
   });
 
-  /* a local keeps a door on this street; a traveller carries his pack */
-  if (this.cfg.kedimah) {
-    Icons.draw(ctx, p.local ? 'window' : 'run', cx + w / 2 + 15, top + 12, 19,
-      p.local ? 'rgba(142,224,106,.9)' : 'rgba(255,138,107,.9)');
-  }
-
   var note = null, nc = null;
-  if (p.kind === 'loan')  { note = 'LEND HIM THE GOLD'; nc = C.gold; }
+  if (p.kind === 'loan')  { note = 'TOSS HIM THE GOLD!'; nc = C.gold; }
   else if (p.hint && p.patience < p.maxPat * 0.32) {
     note = p.def.cry || '...'; nc = 'rgba(255,207,92,.95)';
   }
@@ -10411,8 +10651,8 @@ TzedakaBlast.prototype.drawSelf = function (ctx, t) {
   ctx.beginPath(); ctx.arc(A.AX, A.AY - 11, 8.5, 0, TAU); ctx.fill();
   ctx.restore();
 
-  if (this.pouch > 0) {
-    var gold = this.goldWanted() && this.pouch >= 3;
+  if (this.pouchCount() > 0) {
+    var gold = this.goldWanted() && this.pouchReserve >= 3;
     ctx.save();
     ctx.translate(A.AX, A.AY);
     var g = ctx.createRadialGradient(-3, -3, 1, 0, 0, 10);
@@ -10424,30 +10664,26 @@ TzedakaBlast.prototype.drawSelf = function (ctx, t) {
     ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.stroke();
     ctx.restore();
     if (gold) {
-      Draw.textSafe(ctx, 'GOLD COIN - COSTS 3', A.AX, A.AY + 34, {
+      Draw.textSafe(ctx, 'GOLD! costs 3', A.AX, A.AY + 34, {
         size: 16, maxW: 260, color: C.gold, weight: '900', stroke: 'rgba(0,0,0,.75)', strokeW: 4
       });
     }
   } else {
-    Draw.textSafe(ctx, 'PURSE EMPTY - TAP SOMEBODY AND SAY A KIND WORD', A.AX, A.AY + 34, {
-      size: 17, maxW: 600, color: C.teal, weight: '900', stroke: 'rgba(0,0,0,.8)', strokeW: 4
+    Draw.textSafe(ctx, 'WAITING FOR COINS...', A.AX, A.AY + 34, {
+      size: 17, maxW: 420, color: C.gold, weight: '900', stroke: 'rgba(0,0,0,.8)', strokeW: 4
     });
   }
 };
 
 /* ------------------------------------------------------------ aiming UI */
 TzedakaBlast.prototype.drawAim = function (ctx, t) {
-  var A = TzedakaBlast, i;
+  var A = TzedakaBlast, i, v, x, y, vx, vy, sdt, power;
   if (!this.aim) return;
-  if (this.pouch <= 0) return;
+  if (this.pouchCount() < 1) return;
 
-  /* A drop: draw the one line the coin will actually take - leaned by however
-     far your finger has slid sideways, bent by whatever the wind is doing - and
-     put a single marker where it lands. No snapping back to the column. */
-  var speed = this.chargeSpeed();
-  var lean = this.aimLean(this.aim);
-  var x = A.AX, y = A.AY, vx = lean * speed, sdt = 1 / 90;
-  var power = this.aimPower(this.aim);
+  v = this.aimVel(this.aim);
+  power = v.power;
+  x = A.AX; y = A.AY; vx = v.vx; vy = v.vy; sdt = 1 / 90;
   ctx.save();
 
   /* THE FORCE METER. It sits right under the window where you are looking, it
@@ -10468,7 +10704,6 @@ TzedakaBlast.prototype.drawAim = function (ctx, t) {
     ctx.fillRect(px, pyy, pw * power, ph);
     ctx.restore();
   }
-  /* four notches, so "about half" is a thing you can actually judge */
   ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2;
   for (var nk = 1; nk < 4; nk++) {
     ctx.beginPath();
@@ -10476,38 +10711,41 @@ TzedakaBlast.prototype.drawAim = function (ctx, t) {
     ctx.lineTo(px + (pw / 4) * nk, pyy + ph - 2);
     ctx.stroke();
   }
-  Draw.text(ctx, power < 0.02 ? 'PULL UP FOR POWER' : Math.round(power * 100) + '%',
+  Draw.text(ctx, power < 0.02 ? 'PULL BACK TO THROW' : Math.round(power * 100) + '%',
     A.AX, pyy + ph + 15, {
       size: 16, color: power > 0.6 ? '#ffb07a' : 'rgba(255,255,255,.72)',
       align: 'center', weight: '900'
     });
 
-  /* the drawn-back line from the window to your finger, like a slingshot */
-  if (power > 0.02 || Math.abs(lean) > 0.001) {
-    ctx.strokeStyle = 'rgba(255,207,92,.5)';
+  /* rubber band from the window to your finger */
+  if (power > 0.02 || Math.abs(this.aim.x - A.AX) > 4 || Math.abs(this.aim.y - A.AY) > 4) {
+    ctx.strokeStyle = 'rgba(255,207,92,.55)';
     ctx.lineWidth = 4; ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(A.AX, A.AY + 26);
-    ctx.lineTo(A.AX + (lean / A.LEAN_TAN) * 54, A.AY + 26 - power * 30);
+    ctx.moveTo(A.AX, A.AY);
+    ctx.lineTo(this.aim.x, this.aim.y);
     ctx.stroke();
   }
+
+  /* the real slingshot arc - same integrator the coin flies on */
   ctx.strokeStyle = 'rgba(255,255,255,.34)';
   ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.setLineDash([7, 12]);
   ctx.beginPath();
   ctx.moveTo(x, y);
-  for (i = 0; i < 400 && y < A.GROUND; i++) {
-    vx += this.wind * sdt;
-    x += vx * sdt + this.wind * A.WIND_PUSH * sdt;
-    y += speed * sdt;
+  for (i = 0; i < 500 && y < A.GROUND && x > -40 && x < CFG.W + 40; i++) {
+    vx += this.wind * sdt * 0.55;
+    vy += A.GRAV * sdt;
+    x += vx * sdt;
+    y += vy * sdt;
     ctx.lineTo(x, y);
   }
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.strokeStyle = C.gold; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.ellipse(x, A.GROUND, 26, 9, 0, 0, TAU); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(x, Math.min(y, A.GROUND), 26, 9, 0, 0, TAU); ctx.stroke();
   ctx.globalAlpha = 0.45;
-  ctx.beginPath(); ctx.ellipse(x, A.GROUND, 14, 5, 0, 0, TAU); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(x, Math.min(y, A.GROUND), 14, 5, 0, 0, TAU); ctx.stroke();
   ctx.restore();
 };
 
@@ -10646,29 +10884,43 @@ TzedakaBlast.prototype.renderHud = function (ctx, y) {
   });
   Draw.meter(ctx, 178, top + 38, 156, 12, clamp(this.served / this.need, 0, 1), { fg: C.teal, gloss: false });
 
-  /* row 1 right - the purse */
+  /* row 1 right - the purse (smooth reserve bar like an overheating gun) */
   Draw.panel(ctx, 368, top, 330, 58, { fill: 'rgba(10,15,30,.9)', radius: 13, stroke: 'rgba(255,255,255,.14)' });
-  Icons.draw(ctx, 'coin', 400, top + 28, 30, this.pouch > 0 ? C.gold : 'rgba(255,255,255,.25)');
-  Draw.text(ctx, this.pouch + ' / ' + this.pouchMax, 426, top + 30, {
-    size: 23, color: this.pouch > 0 ? C.gold : C.red, weight: '900'
+  var pFill = this.pouchFill();
+  var pCount = this.pouchCount();
+  var pLow = pFill <= 0.35;
+  var pDry = this.dryLock || this.pouchReserve < 1;
+  Icons.draw(ctx, 'coin', 400, top + 28, 30, pDry ? 'rgba(255,255,255,.25)' : (pLow ? '#ffb07a' : C.gold));
+  Draw.text(ctx, pCount + ' / ' + this.pouchMax, 426, top + 26, {
+    size: 23, color: pDry ? C.red : (pLow ? '#ffb07a' : C.gold), weight: '900'
   });
   if (this.combo > 1) {
-    Draw.text(ctx, 'STREAK x' + this.combo, 682, top + 24, {
-      size: 19, color: this.fever > 0 ? C.teal : C.gold, align: 'right', weight: '900'
+    Draw.text(ctx, 'STREAK x' + this.combo + (this.fever > 0 ? ' !' : ''), 682, top + 26, {
+      size: 18, color: this.fever > 0 ? C.teal : C.gold, align: 'right', weight: '900'
     });
-    Draw.text(ctx, this.fever > 0 ? 'RIBUI PE\'AMIM x2' : 'ribui pe\'amim', 682, top + 46, {
-      size: 13, color: 'rgba(255,255,255,.55)', align: 'right', weight: '800'
+  }
+  if (pDry) {
+    Draw.text(ctx, 'RELOAD ' + Math.ceil(Math.max(0, this.refillT)) + 's', 426, top + 48, {
+      size: 13, color: C.red, weight: '800'
     });
-  } else if (this.pouch < this.pouchMax) {
-    Draw.text(ctx, 'ma\'aser coming in', 682, top + 24, {
-      size: 14, color: 'rgba(255,255,255,.45)', align: 'right', weight: '800'
+    Draw.meter(ctx, 540, top + 40, 142, 8, 1 - clamp(this.refillT / this.cfg.refillDry, 0, 1),
+      { fg: C.red, gloss: false });
+  } else if (pFill < 1) {
+    Draw.text(ctx, pLow ? 'PACE YOURSELF...' : 'catching breath', 426, top + 48, {
+      size: 13, color: pLow ? '#ffb07a' : 'rgba(255,255,255,.55)', weight: '800'
     });
-    Draw.meter(ctx, 540, top + 36, 142, 8, 1 - clamp(this.refillT / this.cfg.refill, 0, 1), { fg: C.teal, gloss: false });
+    Draw.meter(ctx, 540, top + 40, 142, 8, pFill, {
+      fg: pLow ? '#ffb07a' : C.teal, gloss: false
+    });
+  } else if (this.fever > 0) {
+    Draw.text(ctx, 'DOUBLE POINTS!', 682, top + 48, {
+      size: 13, color: C.teal, align: 'right', weight: '800'
+    });
   }
 
   /* row 2 - how fast the coin falls, which sets how far ahead you must aim */
   var bw = CFG.W - 96, bx = 48, by = top + 84;
-  var charging = !!(this.aim && this.pouch > 0);
+  var charging = !!(this.aim && this.pouchCount() > 0);
   Draw.panel(ctx, bx - 14, by - 12, bw + 28, 58, {
     fill: 'rgba(10,15,30,.9)', radius: 13,
     stroke: charging ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.12)', strokeW: charging ? 3 : 2
@@ -10692,7 +10944,7 @@ TzedakaBlast.prototype.renderHud = function (ctx, y) {
     Draw.text(ctx, 'GENTLE', bx + 6, by + 38, { size: 13, color: 'rgba(53,214,196,.9)', weight: '900' });
     Draw.text(ctx, 'HARD', bx + bw - 6, by + 38, { size: 13, color: 'rgba(255,207,92,.9)', align: 'right', weight: '900' });
   } else {
-    Draw.text(ctx, 'SLIDE TO AIM   -   PULL UP FOR POWER', bx + bw / 2, by + 38, {
+    Draw.text(ctx, 'PULL BACK TO THROW   -   DOWN LOBS UP', bx + bw / 2, by + 38, {
       size: 15, color: 'rgba(255,255,255,.55)', align: 'center', weight: '800'
     });
   }
