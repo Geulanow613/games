@@ -1,0 +1,23 @@
+{
+  "name": "mitzvah-dash",
+  "version": "1.0.0",
+  "description": "Four arcade minigames with an embedded halacha learning engine. Single-file HTML5 game packaged for iOS and Android.",
+  "private": true,
+  "scripts": {
+    "serve": "npx serve .",
+    "ios": "npx cap sync ios && npx cap open ios",
+    "android": "npx cap sync android && npx cap open android",
+    "sync": "npx cap sync",
+    "sync:app": "node ../hehehe/sharedmodule/tools/sync_mitzvah_dash.js",
+    "sync:app:watch": "node ../hehehe/sharedmodule/tools/sync_mitzvah_dash.js --watch",
+    "test": "node qa2.js && npm run sync:app"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
+  }
+}
