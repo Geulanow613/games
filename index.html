@@ -8254,7 +8254,7 @@ TzedakaBlast.prototype.tune = function () {
        point of the street, and the quota comes down to match. */
     goal:      Math.round(2.5 + n * 0.28) + (purim ? 7 : 0),             /* people to help     */
     maxPoor:   (n <= 4 || purim || n >= 11) ? 2 : 1,
-    gentMax:   n >= 10 ? 8 : (n >= 7 ? 7 : (n >= 6 ? 6 : 5)),
+    gentMax:   n >= 10 ? 8 : (n >= 7 ? 7 : (n >= 4 ? 5 : 4)),
     dur:       74 + (n > 6 ? 8 : 0) + (n >= 10 ? 4 : 0),
     spawnEvery: Math.max(1.05, 3.4 - n * 0.19),
     /* They get properly quick, and by a step every single street. From street 5
@@ -8274,15 +8274,14 @@ TzedakaBlast.prototype.tune = function () {
     /* a big wagon standing in the near road. It rolls, so it is a thing to
        time rather than a wall - and it is IN the street, which is the only
        kind of obstacle that makes any sense from a window above one. */
-    wagon:     n >= 3 ? Math.max(8.5, 26 - n * 1.15) : 999,
+    wagon:     n >= 2 ? Math.max(8.5, 26 - n * 1.15) : 999,
     wagonMax:  n >= 8 ? 2 : 1,
     ice:       n === 7,
     umbrellas: n >= 9,
-    /* The gentlemen have their own clock, so a busy street never costs the poor
-       man his place on it. From street 2 the pavement fills up with men who
-       want nothing from you, and that is what makes finding the one who does
-       feel like something. */
-    gentEvery: n >= 2 ? Math.max(0.62, 3.1 - n * 0.19) : 999,
+    /* Regular people walk every street, including the first. Finding the open
+       hand in a pavement of good coats IS the early game - easy on street 1
+       because they stroll, and they still bounce a coin if you hit the near lane. */
+    gentEvery: Math.max(0.62, 2.55 - n * 0.16),
     kinds:     TzedakaBlast.prototype.kindsFor(n),
     kedimah:   n >= 4 && !purim,
     purim:     purim,
@@ -8339,20 +8338,9 @@ TzedakaBlast.prototype.setupStreet = function () {
   this.pouchMax = t.pouchMax;
   this.pouch = t.pouchMax;
   this.refillT = t.refill;
-  this.wind = 0; this.windTarget = 0; this.windT = 2.4;
-  this.spawnT = 0.7;
-  this.pigeonT = t.pigeon;
-  this.wagonT = rand(t.wagon * 0.6, t.wagon);
-  this.gentT = t.gentEvery < 100 ? rand(0.3, 1.2) : 9999;
-  this.streetGentHits = 0;
-  var wt = this.scene().weather;
-  if (wt) {
-    for (var f = 0; f < (wt === 'snow' ? 140 : 90); f++) {
-      this.flakes.push({ x: rand(-40, CFG.W + 40), y: rand(0, CFG.H),
-        sp: wt === 'snow' ? rand(26, 62) : rand(420, 700),
-        sw: rand(0, TAU), r: wt === 'snow' ? rand(1.6, 3.4) : rand(0.9, 1.6) });
-    }
-  }
+  this.wind = rand(-t.windMax * 0.28, t.windMax * 0.28);
+  this.windTarget = this.wind;
+  this.windT = rand(1.8, 3.0);
   this.missed = 0;   /* per street - the Purim bonus asks about THIS street */
   this.charge = 0; this.chargeDir = 1;
   this.aim = null;
@@ -8362,8 +8350,28 @@ TzedakaBlast.prototype.setupStreet = function () {
   this.personId = 0;
   this.mult = t.mult;
   if (t.purim) this.purimTotal = 0;
+  this.seeding = true;
+  this.spawnPerson();
+  this.spawnT = rand(0.9, 1.6);
+  this.pigeonT = t.pigeon;
+  this.wagonT = rand(t.wagon * 0.45, t.wagon);
+  var gi, wantGents = this.level <= 2 ? 2 : 3;
+  for (gi = 0; gi < wantGents; gi++) this.spawnGent();
+  this.gentT = rand(0.7, 1.4);
+  this.seeding = false;
+  this.streetGentHits = 0;
+  var wt = this.scene().weather;
+  if (wt) {
+    for (var f = 0; f < (wt === 'snow' ? 140 : 90); f++) {
+      this.flakes.push({ x: rand(-40, CFG.W + 40), y: rand(0, CFG.H),
+        sp: wt === 'snow' ? rand(26, 62) : rand(420, 700),
+        sw: rand(0, TAU), r: wt === 'snow' ? rand(1.6, 3.4) : rand(0.9, 1.6) });
+    }
+  }
+  if (this.gents.length) this.metGent = true;
   var sc = this.scene();
-  this.say(sc.name, sc.sub, C.gold, 3.0);
+  var sub = this.level <= 3 ? 'find the open hand among the coats' : sc.sub;
+  this.say(sc.name, sub, C.gold, 3.2);
 };
 
 /* Nothing hangs over the road. An awning on a shopfront cannot stop a coin
@@ -8500,14 +8508,15 @@ TzedakaBlast.prototype.spawnGent = function () {
   var g = {
     lane: lane, y: TzedakaBlast.LANES[lane], dir: dir,
     x: dir > 0 ? -80 : CFG.W + 80,
-    sp: rand(t.walkMin * 1.1, t.walkMax * 1.25),
+    sp: rand(t.walkMin * (this.level <= 3 ? 0.82 : 1.1),
+             t.walkMax * (this.level <= 3 ? 0.98 : 1.25)),
     ch: randInt(0, TzedakaBlast.GENTS.length - 1),
     sz: rand(TzedakaBlast.SIZE_MIN, TzedakaBlast.SIZE_MAX),
     phase: rand(0, TAU), bump: 0,
     umb: !!(t.umbrellas && chance(0.48))
   };
   this.gents.push(g);
-  if (!this.metGent) {
+  if (!this.metGent && !this.seeding) {
     this.metGent = true;
     this.say('NOT EVERYBODY IS POOR', 'the man in the good coat is fine - no hand out, nothing to aim at', '#c9adff', 2.8);
   }
@@ -8545,7 +8554,7 @@ TzedakaBlast.prototype.spawnWagon = function () {
   var w = TzedakaBlast.WAGON_W;
   this.wagons.push({
     x: dir > 0 ? -w - 20 : CFG.W + 20, dir: dir,
-    sp: rand(74, 112), w: w, y: TzedakaBlast.WAGON_TOP,
+    sp: rand(this.level <= 3 ? 50 : 74, this.level <= 3 ? 78 : 112), w: w, y: TzedakaBlast.WAGON_TOP,
     h: TzedakaBlast.GROUND - TzedakaBlast.WAGON_TOP, roll: 0
   });
   if (!this.metWagon) {
