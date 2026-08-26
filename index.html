@@ -1487,7 +1487,7 @@ var Halacha = {
     { id:'b_hand',     game:'tzedaka', name:'Into His Hand',      icon:'hand',   card:'t2',
       how:'Land 25 coins in an open hand without one hitting the street.' },
     { id:'b_seter',    game:'tzedaka', name:'Matan B\'Seter',      icon:'seter',  card:'t3',
-      how:'Land 10 coins in the small hand of somebody who never calls out.' },
+      how:'Slip 10 coins into a porter\'s sack, so he never finds out who it was.' },
     { id:'b_ribui',    game:'tzedaka', name:'A Thousand Times',   icon:'coin',   card:'t4',
       how:'Reach a giving streak of 20 without a single miss.' },
     { id:'b_kedimah',  game:'tzedaka', name:'Aniyei Ircha',       icon:'people', card:'t5',
@@ -8138,7 +8138,7 @@ MatzahHavoc.prototype.stats = function () {
    GAME 5 - TZEDAKA BLAST  (Get it into their hands)
    You lean out of your window over a market street. Two verbs: hold to aim a
    straight DROP - how long you hold sets how fast it falls, and the dotted
-   line shows exactly where the wind will put it - or pull back to SLING an arc
+   line shows exactly where the wind will put it - and pull UP for more force
    at somebody your own column cannot reach.
 
    Nothing here costs a life and nothing flashes red at you. Missing is just
@@ -8150,10 +8150,10 @@ MatzahHavoc.prototype.stats = function () {
 function TzedakaBlast() {
   MiniGame.call(this, 'tzedaka', 'Tzedaka Blast');
   this.tips = [
-    'Hold anywhere to aim. The dotted line shows where your coin is heading - and the wind shoves it around.',
-    'The longer you hold, the harder the throw. A gentle coin floats down and drifts; a hard one drops like a stone.',
+    'Hold anywhere to aim, then slide your finger left or right to lean the throw. The dotted line shows exactly where the coin is heading - and the wind shoves it around.',
+    'A little extra power helps you lead a walker. It will not punch a coin straight through a gale - read the wind meter and throw into it.',
     'Everybody is walking, so aim where he is GOING to be, not where he is. Nobody is going to shout \'now!\' at you - working that out yourself is the fun part.',
-    'Pull back instead of holding still and you sling the coin in an arc - handy for somebody you cannot reach by dropping straight down.'
+    'Pull your finger UP for a bit more zip. The power bar fills as you pull. Save the slam for a calm street, not for skipping the wind.'
   ];
 }
 TzedakaBlast.prototype = Object.create(MiniGame.prototype);
@@ -8178,32 +8178,59 @@ TzedakaBlast.GROUND = 1040;       /* below this a coin has hit the street   */
 TzedakaBlast.PAVE = 716;          /* far pavement surface                   */
 TzedakaBlast.FAR_TOP = 116;
 TzedakaBlast.GRAV = 900;          /* only slung coins arc; drops fall flat  */
-TzedakaBlast.VMIN = 300;
-TzedakaBlast.VMAX = 1250;
-TzedakaBlast.SLING_MUL = 3.6;
-TzedakaBlast.SLING_MAX = 1380;
-TzedakaBlast.PULL_MIN = 26;       /* past this a hold becomes a pull-back   */
+TzedakaBlast.VMIN = 320;
+TzedakaBlast.VMAX = 680;
+/* A little extra zip from a pull-up, not a skip-the-wind button. Full pull
+   still lands sooner so you can lead a walker, but the coin stays in the air
+   long enough that a gale will shove it. POWER_SPAN is a long drag so you do
+   not max it by accident. */
+TzedakaBlast.POWER_SPAN = 280;
+/* Extra sideways current on every drop, on top of the usual wind acceleration.
+   A slammed coin used to fall so fast the wind never got a turn; this keeps a
+   readable shove even at full power, and the aim line uses the same number. */
+TzedakaBlast.WIND_PUSH = 0.22;
+/* Steering a drop. Slide your finger sideways and the coin leaves the window
+   at an angle - continuously, from nothing, with no dead zone and no column it
+   snaps back to. LEAN_TAN is the angle at full travel, expressed as sideways
+   pixels per pixel fallen, so the reach is the same at every charge. */
+TzedakaBlast.LEAN_SPAN = 170;
+TzedakaBlast.LEAN_TAN = 0.45;
 TzedakaBlast.COIN_R = 13;
 
 /* No pass/fail bands. What the charge picks is how FAST the coin falls, which
    is really how long it is in the air - and that is how far ahead of a walking
    person you have to let go. Nothing about it can be "wrong". */
 TzedakaBlast.PEOPLE = [
-  { coat:'#3a5f9f', hat:'#1a2540', skin:'#f0c39a', beard:'#5a4030' },
-  { coat:'#8a3a48', hat:'#2a1218', skin:'#f6d3ae', beard:'#3a2418' },
-  { coat:'#2f6b52', hat:'#14281e', skin:'#c98d63', beard:'#241a12' },
-  { coat:'#6a4f9a', hat:'#241a3a', skin:'#f7d9bb', beard:'#7a5230' },
-  { coat:'#3f7480', hat:'#16323a', skin:'#e8b489', beard:'#463020' },
-  { coat:'#9a6a2f', hat:'#3a2610', skin:'#eec49b', beard:'#2e2016' }
+  { coat:'#3a5f9f', hat:'#1a2540', skin:'#f0c39a', beard:'#5a4030', brim:1.00, tall:1 },
+  { coat:'#8a3a48', hat:'#2a1218', skin:'#f6d3ae', beard:'#3a2418', brim:1.18, tall:0 },
+  { coat:'#2f6b52', hat:'#14281e', skin:'#c98d63', beard:'#241a12', brim:0.86, tall:2 },
+  { coat:'#6a4f9a', hat:'#241a3a', skin:'#f7d9bb', beard:'#7a5230', brim:1.10, tall:0 },
+  { coat:'#3f7480', hat:'#16323a', skin:'#e8b489', beard:'#463020', brim:0.92, tall:1 },
+  { coat:'#9a6a2f', hat:'#3a2610', skin:'#eec49b', beard:'#2e2016', brim:1.22, tall:2 },
+  { coat:'#4a4a6e', hat:'#1c1c2e', skin:'#d9a377', beard:'#33231a', brim:1.00, tall:0 },
+  { coat:'#7a3f2a', hat:'#2c1610', skin:'#f2cba4', beard:'#6a4526', brim:0.88, tall:1 },
+  { coat:'#2d5a72', hat:'#12242e', skin:'#c58a5e', beard:'#1f150e', brim:1.14, tall:2 },
+  { coat:'#5e6f3a', hat:'#232a14', skin:'#f4d2ac', beard:'#4a3418', brim:0.96, tall:0 },
+  { coat:'#86485f', hat:'#2a1622', skin:'#e2b085', beard:'#3c2618', brim:1.06, tall:1 },
+  { coat:'#37485c', hat:'#151d26', skin:'#f7dcc0', beard:'#8a6236', brim:1.20, tall:2 },
+  { coat:'#6b3a6a', hat:'#251226', skin:'#d29a6e', beard:'#2a1c14', brim:0.90, tall:0 },
+  { coat:'#3f6a44', hat:'#182a1a', skin:'#f0c8a0', beard:'#57391c', brim:1.08, tall:1 },
+  { coat:'#8a6a3a', hat:'#2e2214', skin:'#c9895c', beard:'#241810', brim:1.02, tall:2 },
+  { coat:'#4d3f7a', hat:'#1a142c', skin:'#f5d6b4', beard:'#6e4a28', brim:0.94, tall:0 }
 ];
-
+/* No two men on the street are the same height. The opening scales with him,
+   so a short man really does have a smaller hand to hit. */
+TzedakaBlast.SIZE_MIN = 0.90;
+TzedakaBlast.SIZE_MAX = 1.10;
+TzedakaBlast.prototype.personSize = function (p) {
+  return p.sz == null ? 1 : p.sz;
+};
 /* Every giving situation in the game, with the halacha it is teaching and
    the way the coin has to arrive. */
 TzedakaBlast.KINDS = {
   hand:   { pts: 100, label:'HAND',   cry:'Please...' },
   pushka: { pts: 120, label:'PUSHKA', cry:'Tzedakah!' },
   basket: { pts: 150, label:'SACK',   cry:'' },
-  seter:  { pts: 300, label:'HAND',   cry:'' },
   kupah:  { pts: 180, label:'CART',   cry:'For the fund!' },
   loan:   { pts: 500, label:'TRAY',   cry:'' }
 };
@@ -8216,25 +8243,46 @@ TzedakaBlast.STREETS = 12;
 TzedakaBlast.prototype.tune = function () {
   var n = clamp(this.level, 1, TzedakaBlast.STREETS);
   var purim = n >= TzedakaBlast.STREETS;
+  var late = Math.max(0, n - 4);                       /* 0 until street 5  */
   return {
-    goal:      Math.round(5 + n * 0.95),               /* people to help     */
-    dur:       74 + (n > 6 ? 8 : 0),
-    spawnEvery: Math.max(1.15, 3.4 - n * 0.19),
-    walkMin:   48 + n * 3.4,
-    walkMax:   74 + n * 5.2,
-    patience:  Math.max(6.8, 15.5 - n * 0.68),
-    windEvery: Math.max(2.2, 7.4 - n * 0.44),
-    windMax:   34 + n * 11,
+    /* The street is not a crowd of poor people any more. There are only ever
+       two or three walking at once, so every one of them counts and the quota
+       has to come down to match - what makes it hard is landing the coin, not
+       finding somebody to land it on. */
+    /* One poor man crossing at a time from street 5 on, two before that and
+       two again on Purim. He is the only one who needs you, so he is the whole
+       point of the street, and the quota comes down to match. */
+    goal:      Math.round(2.5 + n * 0.28) + (purim ? 7 : 0),             /* people to help     */
+    maxPoor:   (n <= 4 || purim || n >= 11) ? 2 : 1,
+    gentMax:   n >= 10 ? 8 : (n >= 7 ? 7 : (n >= 6 ? 6 : 5)),
+    dur:       74 + (n > 6 ? 8 : 0) + (n >= 10 ? 4 : 0),
+    spawnEvery: Math.max(1.05, 3.4 - n * 0.19),
+    /* They get properly quick, and by a step every single street. From street 5
+       the cobbles pick up a bit extra; the audit still holds the street-8
+       release window above a fifth of a second. */
+    walkMin:   46 + n * 6.0 + late * 2.2,
+    walkMax:   72 + n * 7.6 + late * 2.8,
+    patience:  Math.max(6.2, 15.5 - n * 0.72),
+    windEvery: Math.max(1.7, 7.4 - n * 0.48),
+    windMax:   34 + n * 11 + late * 3,
     gustFrom:  5,                                      /* visible wave bands  */
     pouchMax:  12,
     refill:    Math.max(1.05, 2.4 - n * 0.11),
-    pigeon:    n >= 5 ? Math.max(6.5, 20 - n * 1.05) : 999,
+    pigeon:    n >= 5 ? Math.max(5.2, 20 - n * 1.15) : 999,
+    pigeonMax: n >= 10 ? 3 : (n >= 7 ? 2 : 1),
+    pigeonDive: n >= 8,
     /* a big wagon standing in the near road. It rolls, so it is a thing to
        time rather than a wall - and it is IN the street, which is the only
        kind of obstacle that makes any sense from a window above one. */
-    wagon:     n >= 3 ? Math.max(11, 26 - n * 1.05) : 999,
-    /* how often the next person along is somebody who does not need it */
-    richOdds:  n >= 2 ? Math.min(0.34, 0.06 + n * 0.026) : 0,
+    wagon:     n >= 3 ? Math.max(8.5, 26 - n * 1.15) : 999,
+    wagonMax:  n >= 8 ? 2 : 1,
+    ice:       n === 7,
+    umbrellas: n >= 9,
+    /* The gentlemen have their own clock, so a busy street never costs the poor
+       man his place on it. From street 2 the pavement fills up with men who
+       want nothing from you, and that is what makes finding the one who does
+       feel like something. */
+    gentEvery: n >= 2 ? Math.max(0.62, 3.1 - n * 0.19) : 999,
     kinds:     TzedakaBlast.prototype.kindsFor(n),
     kedimah:   n >= 4 && !purim,
     purim:     purim,
@@ -8246,19 +8294,18 @@ TzedakaBlast.prototype.tune = function () {
 TzedakaBlast.prototype.kindsFor = function (n) {
   var k = ['hand', 'hand', 'pushka'];
   if (n >= 2) k.push('pushka', 'basket');
-  if (n >= 3) k.push('seter');
-  if (n >= 4) k.push('seter', 'pushka');
+  if (n >= 3) k.push('hand');
+  if (n >= 4) k.push('pushka', 'basket');
   if (n >= 5) k.push('basket', 'hand');
   if (n >= 6) k.push('kupah');
   if (n >= 7) k.push('loan');
-  if (n >= 8) k.push('kupah', 'seter');
+  if (n >= 8) k.push('kupah', 'hand');
   if (n >= 9) k.push('loan', 'basket');
   if (n >= 10) k.push('hand', 'pushka');
-  if (n >= 11) k.push('seter', 'kupah');
-  if (n >= 12) k = k.concat(['hand', 'pushka', 'hand', 'basket', 'seter']);
+  if (n >= 11) k.push('basket', 'kupah');
+  if (n >= 12) k = k.concat(['hand', 'pushka', 'hand', 'basket', 'pushka']);
   return k;
 };
-/* the sling has a target from the very first street - both verbs, straight away */
 /* --------------------------------------------------------------- new run */
 TzedakaBlast.prototype.reset = function () {
   this.score = 0; this.combo = 0;
@@ -8296,10 +8343,11 @@ TzedakaBlast.prototype.setupStreet = function () {
   this.spawnT = 0.7;
   this.pigeonT = t.pigeon;
   this.wagonT = rand(t.wagon * 0.6, t.wagon);
+  this.gentT = t.gentEvery < 100 ? rand(0.3, 1.2) : 9999;
   this.streetGentHits = 0;
   var wt = this.scene().weather;
   if (wt) {
-    for (var f = 0; f < 90; f++) {
+    for (var f = 0; f < (wt === 'snow' ? 140 : 90); f++) {
       this.flakes.push({ x: rand(-40, CFG.W + 40), y: rand(0, CFG.H),
         sp: wt === 'snow' ? rand(26, 62) : rand(420, 700),
         sw: rand(0, TAU), r: wt === 'snow' ? rand(1.6, 3.4) : rand(0.9, 1.6) });
@@ -8348,11 +8396,13 @@ TzedakaBlast.prototype.spawnPerson = function () {
     x: dir > 0 ? -90 : CFG.W + 90,
     sp: sp,
     ch: randInt(0, TzedakaBlast.PEOPLE.length - 1),
+    sz: rand(TzedakaBlast.SIZE_MIN, TzedakaBlast.SIZE_MAX),
     phase: rand(0, TAU),
     local: t.purim ? true : chance(0.62),
     patience: t.patience, maxPat: t.patience,
     served: false, words: false, gone: false, shamed: false,
-    flash: 0, joy: 0, pending: 0, hint: 0
+    flash: 0, joy: 0, pending: 0, hint: 0,
+    ice: !!t.ice, slip: 0, slipT: t.ice ? rand(0.7, 2.2) : 999
   };
   if (kind === 'loan') { p.sp *= 0.55; p.patience = p.maxPat = t.patience * 1.7; }
   this.people.push(p);
@@ -8364,7 +8414,7 @@ TzedakaBlast.prototype.spawnPerson = function () {
 };
 
 /* pick the lane whose entry side is clearest, so nobody walks into a pile-up */
-TzedakaBlast.prototype.freeLane = function (dir) {
+TzedakaBlast.prototype.freeLane = function (dir, need) {
   var A = TzedakaBlast, best = -1, bestGap = -1;
   /* gentlemen walk the same pavement, so they count for spacing too */
   var walking = this.people.concat(this.gents || []);
@@ -8378,7 +8428,7 @@ TzedakaBlast.prototype.freeLane = function (dir) {
     }
     if (gap > bestGap) { bestGap = gap; best = l; }
   }
-  return bestGap < 190 ? -1 : best;
+  return bestGap < (need || 190) ? -1 : best;
 };
 
 TzedakaBlast.prototype.introduce = function (kind) {
@@ -8386,7 +8436,6 @@ TzedakaBlast.prototype.introduce = function (kind) {
     hand:   ['AN OPEN HAND', 'drop the coin right into it'],
     pushka: ['A PUSHKA', 'a tzedaka tin - aim for the slot in the lid'],
     basket: ['A BIG SACK', 'wide mouth, easy target - go for it'],
-    seter:  ['THE QUIET ONE', 'he never calls out, and his hand is small. Worth more!'],
     kupah:  ['THE KUPAH CART', 'the town money cart - drop it in the slot'],
     loan:   ['A BROKEN CART', 'land the gold on his tray and he pays you back later']
   };
@@ -8408,12 +8457,18 @@ TzedakaBlast.prototype.say = function (title, sub, color, dur) {
    you are meant to see it coming, count it, and throw around it - not be
    ambushed by it. Higher streets only. */
 TzedakaBlast.prototype.spawnPigeon = function () {
+  var t = this.cfg || this.tune();
   var dir = chance(0.5) ? 1 : -1;
+  var fast = t.pigeonDive ? rand(64, 96) : rand(52, 84);
   this.pigeons.push({
     x: dir > 0 ? -70 : CFG.W + 70, y: rand(470, 760),
-    dir: dir, sp: rand(52, 84), flap: rand(0, TAU),
-    carrying: null, dead: false
+    dir: dir, sp: fast, flap: rand(0, TAU),
+    carrying: null, dead: false, dive: false
   });
+  if (t.pigeonDive && !this.metDive) {
+    this.metDive = true;
+    this.say('THEY ARE DIVING', 'a bird that tilts is coming for your coin - tap it off', C.gold, 2.6);
+  }
 };
 
 /* --------------------------------------------------------- the gentlemen */
@@ -8425,42 +8480,64 @@ TzedakaBlast.GENTS = [
   { coat:'#20263a', hat:'#0e1220', skin:'#f0c39a', trim:'#c9a24a' },
   { coat:'#33202c', hat:'#180d14', skin:'#f6d3ae', trim:'#b9903c' },
   { coat:'#1e3028', hat:'#0c1712', skin:'#c98d63', trim:'#cbb06a' },
-  { coat:'#2c2438', hat:'#140f1e', skin:'#f7d9bb', trim:'#a89050' }
-];
-TzedakaBlast.GENT_W = 54;   /* his shoulders, and the whole of the blocker */
+  { coat:'#2c2438', hat:'#140f1e', skin:'#f7d9bb', trim:'#a89050' },
+  { coat:'#3a2a20', hat:'#160f0a', skin:'#e2b085', trim:'#d8bb70' },
+  { coat:'#182c3a', hat:'#0a141c', skin:'#d29a6e', trim:'#9fb4c8' },
+  { coat:'#302038', hat:'#150c1a', skin:'#f4d2ac', trim:'#c2a0d8' },
+  { coat:'#1a2e2c', hat:'#0b1614', skin:'#c58a5e', trim:'#8fc4b4' },
+  { coat:'#3c2430', hat:'#1a0e16', skin:'#f2cba4', trim:'#e0a8b8' },
+  { coat:'#26303c', hat:'#10161c', skin:'#d9a377', trim:'#b8c6d4' },
+  { coat:'#342c1e', hat:'#17130c', skin:'#f5d6b4', trim:'#e6cc84' },
+  { coat:'#221a2e', hat:'#0e0a16', skin:'#e8b489', trim:'#a294c8' }
+];TzedakaBlast.GENT_W = 54;   /* his shoulders, and the whole of the blocker */
 TzedakaBlast.GENT_TOP = 156;
 TzedakaBlast.GENT_BOT = 6;
 
 TzedakaBlast.prototype.spawnGent = function () {
   var t = this.cfg, dir = chance(0.5) ? 1 : -1;
-  var lane = this.freeLane(dir);
+  var lane = this.freeLane(dir, 122);
   if (lane < 0) return null;
   var g = {
     lane: lane, y: TzedakaBlast.LANES[lane], dir: dir,
     x: dir > 0 ? -80 : CFG.W + 80,
     sp: rand(t.walkMin * 1.1, t.walkMax * 1.25),
     ch: randInt(0, TzedakaBlast.GENTS.length - 1),
-    phase: rand(0, TAU), bump: 0
+    sz: rand(TzedakaBlast.SIZE_MIN, TzedakaBlast.SIZE_MAX),
+    phase: rand(0, TAU), bump: 0,
+    umb: !!(t.umbrellas && chance(0.48))
   };
   this.gents.push(g);
   if (!this.metGent) {
     this.metGent = true;
     this.say('NOT EVERYBODY IS POOR', 'the man in the good coat is fine - no hand out, nothing to aim at', '#c9adff', 2.8);
   }
+  if (g.umb && !this.metUmb) {
+    this.metUmb = true;
+    this.say('WATCH THE UMBRELLA', 'it is in the near lane and it will knock a coin aside', C.gold, 2.6);
+  }
   return g;
 };
 
 TzedakaBlast.prototype.gentBox = function (g) {
-  var A = TzedakaBlast;
-  return { x: g.x - A.GENT_W / 2, y: g.y - A.GENT_TOP,
-           w: A.GENT_W, h: A.GENT_TOP - A.GENT_BOT };
+  var A = TzedakaBlast, z = g.sz || 1;
+  var extra = g.umb ? 38 : 0;
+  return { x: g.x - (A.GENT_W * z) / 2, y: g.y - (A.GENT_TOP + extra) * z,
+           w: A.GENT_W * z, h: (A.GENT_TOP - A.GENT_BOT + extra) * z };
+};
+
+/* Depth of field, in one line. Only what is walking the lane nearest you is
+   between you and the street; anything further up it, the coin goes in front
+   of. This is why a gentleman two lanes back can no longer eat a throw meant
+   for the man standing in front of him. */
+TzedakaBlast.prototype.blocksHere = function (g) {
+  return g.lane === TzedakaBlast.LANES.length - 1;
 };
 
 /* ------------------------------------------------------------- the wagon */
 /* A big covered wagon standing in the NEAR lane. Its roof is below every hand
    in the two far lanes, so it can only ever be in the way of the lane closest
    to you - and it rolls straight through, so it is a thing to wait out. */
-TzedakaBlast.WAGON_TOP = 884;
+TzedakaBlast.WAGON_TOP = 872;
 TzedakaBlast.WAGON_W = 176;
 
 TzedakaBlast.prototype.spawnWagon = function () {
@@ -8473,7 +8550,12 @@ TzedakaBlast.prototype.spawnWagon = function () {
   });
   if (!this.metWagon) {
     this.metWagon = true;
-    this.say('A WAGON IN THE ROAD', 'it only blocks the near lane, and it is rolling - wait it out', C.gold, 2.6);
+    if (this.cfg && this.cfg.wagonMax > 1) {
+      this.metDoubleWagon = true;
+      this.say('WAGONS IN THE ROAD', 'two can roll the near lane - wait them both out', C.gold, 2.6);
+    } else {
+      this.say('A WAGON IN THE ROAD', 'it only blocks the near lane, and it is rolling - wait it out', C.gold, 2.6);
+    }
   }
 };
 
@@ -8488,12 +8570,30 @@ TzedakaBlast.prototype.chargeSpeed = function () {
   return lerp(TzedakaBlast.VMIN, TzedakaBlast.VMAX, clamp(this.charge, 0, 1));
 };
 
-/* where a straight drop at the current charge will actually land, wind and all */
-TzedakaBlast.prototype.dropLanding = function (speed, y) {
-  var dy = y - TzedakaBlast.AY;
-  if (dy <= 0) return TzedakaBlast.AX;
+/* how far back the slingshot is drawn: 0 resting, 1 at full pull */
+TzedakaBlast.prototype.aimPower = function (a) {
+  if (!a) return 0;
+  return clamp((a.sy - a.y) / TzedakaBlast.POWER_SPAN, 0, 1);
+};
+
+/* How far off vertical the current hold is aiming. Zero when you have not
+   moved, and it grows smoothly from there - one number, used by the throw, by
+   the dotted line and by the tests, so all three can never disagree. */
+TzedakaBlast.prototype.aimLean = function (a) {
+  var A = TzedakaBlast;
+  if (!a) return 0;
+  return clamp((a.x - a.sx) / A.LEAN_SPAN, -1, 1) * A.LEAN_TAN;
+};
+
+/* where a drop at the current charge and lean will actually land, wind and all.
+   lean * dy, not lean * speed * time, because those are the same thing - which
+   is why leaning reaches equally far whether you drop it slowly or hard. */
+TzedakaBlast.prototype.dropLanding = function (speed, y, lean) {
+  var A = TzedakaBlast;
+  var dy = y - A.AY;
+  if (dy <= 0) return A.AX;
   var tt = dy / speed;
-  return TzedakaBlast.AX + 0.5 * this.wind * tt * tt;
+  return A.AX + (lean || 0) * dy + this.wind * A.WIND_PUSH * tt + 0.5 * this.wind * tt * tt;
 };
 TzedakaBlast.prototype.dropTime = function (speed, y) {
   var dy = y - TzedakaBlast.AY;
@@ -8528,30 +8628,22 @@ TzedakaBlast.prototype.handle = function (ev) {
   }
   if (ev.type === 'move' && this.aim && this.aim.id === ev.id) {
     this.aim.x = ev.x; this.aim.y = ev.y;
-    var d = distance(ev.x, ev.y, this.aim.sx, this.aim.sy);
-    this.aim.mode = d > A.PULL_MIN ? 'sling' : 'charge';
+    /* One gesture, no modes to flip between: sideways aims it, up powers it. */
+    this.charge = this.aimPower(this.aim);
     return;
   }
   if (ev.type === 'up' && this.aim && this.aim.id === ev.id) {
     var a = this.aim;
     this.aim = null;
     /* a quick flick of the finger at a pigeon is a shoo, not a throw */
-    if (a.mode === 'charge' && a.t < 0.24 && this.scarePigeon(ev.x, ev.y)) return;
+    if (a.t < 0.24 && this.aimPower(a) < 0.1 && this.scarePigeon(ev.x, ev.y)) return;
     if (this.pouch <= 0) { this.emptyPurse(a); return; }
-    if (a.mode === 'sling') {
-      var dx = a.sx - a.x, dy = a.sy - a.y;
-      var mag = Math.hypot(dx, dy);
-      if (mag < A.PULL_MIN) return;
-      var k = Math.min(mag * A.SLING_MUL, A.SLING_MAX) / mag;
-      var gold = this.goldWanted();
-      if (gold && this.pouch < 3) gold = false;
-      this.throwCoin(dx * k, dy * k, 'sling', gold);
-      Sound.sfx('whoosh');
-    } else {
-      var gold2 = this.goldWanted();
-      if (gold2 && this.pouch < 3) gold2 = false;
-      this.throwCoin(0, this.chargeSpeed(), 'drop', gold2);
-    }
+    var gold = this.goldWanted();
+    if (gold && this.pouch < 3) gold = false;
+    this.charge = this.aimPower(a);
+    var sp = this.chargeSpeed();
+    this.throwCoin(this.aimLean(a) * sp, sp, 'drop', gold);
+    if (this.charge > 0.6) Sound.sfx('whoosh');
     this.charge = 0;
     return;
   }
@@ -8619,23 +8711,45 @@ TzedakaBlast.prototype.scarePigeon = function (x, y) {
    TARGETS
    ========================================================================== */
 /* The target is the opening itself - the palm of his hand, the slot in the tin,
-   the mouth of the sack. Not his coat, not his hat. */
-TzedakaBlast.prototype.targetBox = function (p) {
-  var d = p.dir;
-  switch (p.kind) {
-    case 'hand':   return { x: p.x + d * 46 - 19, y: p.y - 74,  w: 38, h: 14 };
-    case 'pushka': return { x: p.x + d * 46 - 17, y: p.y - 116, w: 34, h: 16 };
-    case 'basket': return { x: p.x - d * 32 - 19, y: p.y - 122, w: 38, h: 16 };
-    case 'seter':  return { x: p.x + d * 36 - 16, y: p.y - 62,  w: 32, h: 14 };
-    case 'kupah':  return { x: p.x - d * 54 - 19, y: p.y - 122, w: 38, h: 14 };
-    case 'loan':   return { x: p.x - d * 50 - 24, y: p.y - 106, w: 48, h: 20 };
-  }
-  return { x: p.x - 18, y: p.y - 80, w: 36, h: 18 };
+   the mouth of the sack. Not his coat, not his hat.
+
+   p.lift is how far off the ground the whole man is drawn this instant: he bobs
+   as he walks, he jumps a little when you reach him, and he bends right down
+   when a coin lands in the dust beside him. The box HAS to carry that with him.
+   It used to not, and a man stooping for a dropped coin had his hand drawn
+   fourteen pixels away from the thing the coin was actually tested against - so
+   you could watch a coin go straight through his open palm and score nothing.
+   One number, in one place, used by both the drawing and the hit test. */
+TzedakaBlast.prototype.personLift = function (p) {
+  var bob = Math.abs(Math.cos(p.phase || 0)) * 3;
+  var stoop = p.stoop > 0 ? Math.sin((1.2 - p.stoop) * 6) * 14 : 0;
+  var joy = p.joy > 0 ? Math.abs(Math.sin(p.joy * 9)) * 6 : 0;
+  return bob + joy - stoop;
 };
 
-/* How close the coin itself has to be. Three pixels, measured from the middle
+TzedakaBlast.prototype.targetBox = function (p) {
+  var d = p.dir, z = this.personSize(p);
+  var y = p.y - (p.lift == null ? this.personLift(p) : p.lift);
+  var box = function (ox, oy, w, h) {
+    return { x: p.x + d * ox * z - (w * z) / 2, y: y - oy * z, w: w * z, h: h * z };
+  };
+  switch (p.kind) {
+    case 'hand':   return box(46, 81, 38, 14);
+    case 'pushka': return box(46, 124, 34, 16);
+    case 'basket': return box(-32, 130, 38, 16);
+    case 'kupah':  return box(-54, 129, 38, 14);
+    case 'loan':   return box(-50, 116, 48, 20);
+  }
+  return box(0, 89, 36, 18);
+};
+
+/* How close the coin itself has to be. Four pixels, measured from the middle
    of the coin - it has to go IN, not merely brush past him. */
-TzedakaBlast.CATCH = 3;
+TzedakaBlast.CATCH = 4;
+
+/* the furthest a coin may travel between two hit tests. Must stay well under
+   the height of the smallest opening in the game, which is 14. */
+TzedakaBlast.STEP_PX = 3;
 
 /* ==========================================================================
    UPDATE
@@ -8647,12 +8761,11 @@ TzedakaBlast.prototype.update = function (dt) {
   if (this.banner) { this.banner.t -= dt; if (this.banner.t <= 0) this.banner = null; }
   if (this.fever > 0) { this.fever -= dt; if (this.fever <= 0) this.mult = t.mult; }
 
-  /* charge meter ping-pongs so you can pick any speed you like */
-  if (this.aim && this.aim.mode === 'charge') {
+  /* No ping-pong meter any more. The power is wherever your finger is, so a
+     throw is never a matter of catching a bar at the right instant. */
+  if (this.aim) {
     this.aim.t += dt;
-    this.charge += this.chargeDir * dt / 0.78;
-    if (this.charge >= 1) { this.charge = 1; this.chargeDir = -1; }
-    if (this.charge <= 0) { this.charge = 0; this.chargeDir = 1; }
+    this.charge = this.aimPower(this.aim);
   }
 
   /* purse refills - this is your ma'aser coming in, not an infinite supply */
@@ -8670,27 +8783,40 @@ TzedakaBlast.prototype.update = function (dt) {
   }
   this.wind += (this.windTarget - this.wind) * Math.min(1, dt * 1.6);
 
-  this.updateCoins(dt);
+  /* Move the street first, THEN the coin through it. The other way round
+     tested every coin against where everybody stood a frame ago, which on a
+     bobbing target is a pixel or three of pure unfairness. */
   this.updatePeople(dt);
-  this.updatePigeons(dt);
   this.updateGents(dt);
   this.updateWagons(dt);
+  this.updatePigeons(dt);
+  this.updateCoins(dt);
   this.updateWeather(dt);
 
   /* spawns */
   this.spawnT -= dt;
   if (this.spawnT <= 0) {
     this.spawnT = rand(t.spawnEvery * 0.75, t.spawnEvery * 1.3);
-    /* sometimes the next person along is somebody who does not need it */
-    if (t.richOdds > 0 && this.gents.length < 3 && chance(t.richOdds)) this.spawnGent();
-    else if (this.people.length < (t.purim ? 8 : 6)) this.spawnPerson();
+    /* The poor man's slot is his own. Nothing else can take it. */
+    if (this.people.length < t.maxPoor) this.spawnPerson();
+  }
+  /* and when the street has nobody on it who needs you, the next one is
+     already on his way in - a long empty pavement is just dead time */
+  if (this.people.length === 0 && this.spawnT > 0.55) this.spawnT = 0.55;
+  this.gentT -= dt;
+  if (this.gentT <= 0) {
+    this.gentT = rand(t.gentEvery * 0.7, t.gentEvery * 1.35);
+    if (this.gents.length < t.gentMax) this.spawnGent();
   }
   this.pigeonT -= dt;
-  if (this.pigeonT <= 0) { this.pigeonT = rand(t.pigeon * 0.8, t.pigeon * 1.5); this.spawnPigeon(); }
+  if (this.pigeonT <= 0) {
+    this.pigeonT = rand(t.pigeon * 0.8, t.pigeon * 1.5);
+    if (this.pigeons.length < (t.pigeonMax || 1)) this.spawnPigeon();
+  }
   this.wagonT -= dt;
   if (this.wagonT <= 0) {
     this.wagonT = rand(t.wagon * 0.85, t.wagon * 1.5);
-    if (this.wagons.length === 0) this.spawnWagon();
+    if (this.wagons.length < (t.wagonMax || 1)) this.spawnWagon();
   }
 
   /* the street closes */
@@ -8705,10 +8831,16 @@ TzedakaBlast.prototype.updateCoins = function (dt) {
     if (c.held) continue;
     c.life += dt;
     c.spin += c.spinV * dt;
-    var steps = 4, sdt = dt / steps;
+    /* The hit test is a point test, so a coin may never move further in one
+       step than the thing it is aimed at is tall. The smallest opening in the
+       game is 14px; step no more than STEP_PX and it cannot be jumped over.
+       At full charge that is sixteen steps a frame, which is nothing. */
+    var travel = Math.abs(c.vy) * dt + Math.abs(c.vx) * dt;
+    var steps = clamp(Math.ceil(travel / A.STEP_PX), 4, 24), sdt = dt / steps;
     for (s = 0; s < steps && !c.dead; s++) {
       c.px = c.x; c.py = c.y;
       c.vx += this.wind * sdt * (c.mode === 'drop' ? 1 : 0.55);
+      if (c.mode === 'drop') c.x += this.wind * A.WIND_PUSH * sdt;
       if (c.mode === 'sling') c.vy += A.GRAV * sdt;
       c.x += c.vx * sdt;
       c.y += c.vy * sdt;
@@ -8753,28 +8885,8 @@ TzedakaBlast.prototype.coinHits = function (c) {
     }
   }
 
-  /* a gentleman in a good coat. Nothing to aim into, and a coin off his
-     shoulder ends up in the road like any other miss. */
-  if (!c.offGent) {
-    for (i = 0; i < this.gents.length; i++) {
-      var gt = this.gents[i];
-      if (MatzahHavoc.circleRect(c.x, c.y, c.r, this.gentBox(gt))) {
-        c.offGent = true;
-        c.mode = 'sling';
-        c.vy = -Math.abs(c.vy) * 0.16 - 40;
-        c.vx = (c.x < gt.x ? -1 : 1) * rand(80, 170);
-        gt.bump = 0.5;
-        this.gentHits++;
-        this.streetGentHits++;
-        FX.text(gt.x, gt.y - 176, 'NO THANK YOU', 'rgba(220,206,255,.85)', 22);
-        Sound.sfx('back');
-        this.breakCombo();
-        return;
-      }
-    }
-  }
-
-  /* people */
+  /* People first, ALWAYS. If a coin can land in somebody's hand it lands in
+     it - no bystander gets to steal a throw that was on target. */
   for (i = 0; i < this.people.length; i++) {
     var p = this.people[i];
     if (p.served || p.gone) continue;
@@ -8783,6 +8895,30 @@ TzedakaBlast.prototype.coinHits = function (c) {
       this.landPerson(p, c);
       c.dead = true;
       return;
+    }
+  }
+
+  /* A gentleman in a good coat. He only gets in the way when he is walking the
+     NEAREST lane - the one between you and everybody else. A man further up
+     the street is further away, so the coin passes in front of him however
+     much of the screen he happens to be standing on. */
+  if (!c.offGent) {
+    for (i = 0; i < this.gents.length; i++) {
+      var gt = this.gents[i];
+      if (!this.blocksHere(gt)) continue;
+      if (MatzahHavoc.circleRect(c.x, c.y, c.r, this.gentBox(gt))) {
+        c.offGent = true;
+        c.mode = 'sling';
+        c.vy = -Math.abs(c.vy) * 0.16 - 40;
+        c.vx = (c.x < gt.x ? -1 : 1) * rand(80, 170);
+        gt.bump = 0.5;
+        this.gentHits++;
+        this.streetGentHits++;
+        FX.text(gt.x, gt.y - 176 * (gt.sz || 1), 'NO THANK YOU', 'rgba(220,206,255,.85)', 22);
+        Sound.sfx('back');
+        this.breakCombo();
+        return;
+      }
     }
   }
 
@@ -8808,12 +8944,12 @@ TzedakaBlast.prototype.landPerson = function (p, c) {
   var pts = p.def.pts;
   var label = '+';
 
-  /* the quiet one never calls out, so his hand is a small target and it is
-     worth more. Nothing to judge here - you either landed it or you did not. */
-  if (p.kind === 'seter') {
+  /* the porter's sack IS matan b'seter - it goes in over his shoulder and he
+     never finds out who put it there */
+  if (p.kind === 'basket') {
     this.seterGiven++;
     if (this.seterGiven >= 10) this.award('b_seter');
-    FX.text(p.x, p.y + 44, 'NICE AND QUIET', '#c9adff', 24);
+    FX.text(p.x, p.y + 44, 'HE NEVER SAW YOU', '#c9adff', 24);
   }
 
   /* aniyei ircha kodmin - the poor of your own city come first. A softer scale
@@ -8911,9 +9047,26 @@ TzedakaBlast.prototype.updatePeople = function (dt) {
     var p = this.people[i];
     p.phase += dt * (p.sp / 26);
     p.x += p.dir * p.sp * dt;
+    if (p.ice) {
+      p.slipT -= dt;
+      if (p.slipT <= 0 && p.slip <= 0 && !p.served) {
+        p.slip = 0.62;
+        p.slipT = rand(1.6, 3.2);
+        if (!this.metIce) {
+          this.metIce = true;
+          this.say('ICY COBBLES', 'he just slipped - throw where he is sliding, not where he was', C.gold, 2.6);
+        }
+      }
+      if (p.slip > 0) {
+        p.x += p.dir * p.sp * 2.15 * dt;
+        p.slip -= dt;
+      }
+    }
     if (p.flash > 0) p.flash -= dt;
     if (p.joy > 0) p.joy -= dt;
     if (p.stoop > 0) p.stoop -= dt;
+    /* settle where he is standing THIS frame, once, before anything asks */
+    p.lift = this.personLift(p);
     if (!p.served && !p.words) {
       p.patience -= dt;
       if (p.patience < p.maxPat * 0.3) p.hint = 1;
@@ -8945,11 +9098,28 @@ TzedakaBlast.prototype.updatePeople = function (dt) {
 };
 
 TzedakaBlast.prototype.updatePigeons = function (dt) {
-  for (var i = this.pigeons.length - 1; i >= 0; i--) {
+  var t = this.cfg, i, c, best, bd, dx, dy;
+  for (i = this.pigeons.length - 1; i >= 0; i--) {
     var g = this.pigeons[i];
-    g.flap += dt * 12;
+    g.flap += dt * (g.dive ? 16 : 12);
     g.x += g.dir * g.sp * dt;
     g.y += Math.sin(g.flap * 0.28) * 22 * dt;
+    g.dive = false;
+    if (t && t.pigeonDive && !g.carrying && !g.dead) {
+      best = null; bd = 210;
+      for (var k = 0; k < this.coins.length; k++) {
+        c = this.coins[k];
+        if (c.dead || c.held) continue;
+        dx = c.x - g.x; dy = c.y - g.y;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d < bd) { bd = d; best = c; }
+      }
+      if (best) {
+        g.dive = true;
+        g.x += clamp(best.x - g.x, -90, 90) * dt * 1.35;
+        g.y += clamp(best.y - g.y, -70, 70) * dt * 1.7;
+      }
+    }
     if (g.carrying) { g.carrying.x = g.x; g.carrying.y = g.y + 16; }
     if (g.dead || g.x < -110 || g.x > CFG.W + 110) {
       if (g.carrying && !g.dead) this.breakCombo();
@@ -8990,8 +9160,11 @@ TzedakaBlast.prototype.updateWeather = function (dt) {
   for (var i = 0; i < this.flakes.length; i++) {
     var f = this.flakes[i];
     f.y += f.sp * dt;
+    f.x += this.wind * 0.14 * dt;
     f.sw += dt * 1.6;
     if (f.y > CFG.H + 12) { f.y = -12; f.x = rand(-40, CFG.W + 40); }
+    if (f.x < -50) f.x = CFG.W + 40;
+    if (f.x > CFG.W + 50) f.x = -40;
   }
 };
 
@@ -9020,7 +9193,7 @@ TzedakaBlast.prototype.closeStreet = function () {
     Haptics.win();
   }
   /* a street where you never wasted a coin on somebody who did not need it */
-  if (this.streetGentHits === 0 && this.cfg.richOdds > 0) {
+  if (this.streetGentHits === 0 && this.cfg.gentEvery < 100) {
     this.cleanStreets++;
     if (this.cleanStreets >= 5) this.award('b_ani');
   }
@@ -9040,7 +9213,7 @@ TzedakaBlast.prototype.closeStreet = function () {
 TzedakaBlast.prototype.stats = function () {
   return [
     ['People helped', this.helped],
-    ['Quiet hands hit', this.seterGiven],
+    ['Slipped into a sack unseen', this.seterGiven],
     ['Reached before they asked', this.unasked],
     ['Carts back in business', this.loansMade],
     ['Landed in a big wind', this.windGiven],
@@ -9600,19 +9773,37 @@ TzedakaBlast.prototype.drawMote = function (ctx, m) {
   ctx.restore();
 };
 
+/* Two eyes, always. A single dark dot reads as a cyclops at this size. */
+TzedakaBlast.prototype.drawEyes = function (ctx, cx, cy) {
+  var i, ex;
+  for (i = -1; i <= 1; i += 2) {
+    ex = cx + i * 6.4;
+    ctx.fillStyle = '#f4efe4';
+    ctx.beginPath(); ctx.ellipse(ex, cy, 3.3, 3.7, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#2a1c12';
+    ctx.beginPath(); ctx.arc(ex, cy + 0.3, 1.65, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.beginPath(); ctx.arc(ex - 0.7, cy - 0.8, 0.7, 0, TAU); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(30,22,16,.45)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 9.4, cy - 5.2); ctx.lineTo(cx - 3.4, cy - 6.4);
+  ctx.moveTo(cx + 3.4, cy - 6.4); ctx.lineTo(cx + 9.4, cy - 5.2);
+  ctx.stroke();
+};
+
 /* --------------------------------------------------------------- people */
 /* Everyone on this street is dressed: long coat, long sleeves, hat. Only
    the face and the hands show. */
 TzedakaBlast.prototype.drawPerson = function (ctx, p, t) {
   var A = TzedakaBlast, ch = A.PEOPLE[p.ch];
   var swing = Math.sin(p.phase) * 11;
-  var bob = Math.abs(Math.cos(p.phase)) * 3;
-  var stoop = p.stoop > 0 ? Math.sin((1.2 - p.stoop) * 6) * 14 : 0;
-  var joy = p.joy > 0 ? Math.abs(Math.sin(p.joy * 9)) * 6 : 0;
-  var lift = bob + joy - stoop;
+  /* the ONE lift, the same number the hit box is built from */
+  var lift = p.lift == null ? this.personLift(p) : p.lift;
+  var z = this.personSize(p);
   ctx.save();
   ctx.translate(p.x, p.y - lift);
-  ctx.scale(p.dir, 1);
+  ctx.scale(p.dir * z, z);
 
   ctx.fillStyle = 'rgba(0,0,0,.34)';
   ctx.beginPath(); ctx.ellipse(0, 4 + lift, 27, 7, 0, 0, TAU); ctx.fill();
@@ -9655,11 +9846,34 @@ TzedakaBlast.prototype.drawPerson = function (ctx, p, t) {
   ctx.quadraticCurveTo(14, -96, 15, -111);
   ctx.quadraticCurveTo(3, -102, -12, -111);
   ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#20242f';
-  ctx.beginPath(); ctx.arc(10, -116, 2.4, 0, TAU); ctx.fill();
+  this.drawEyes(ctx, 2, -116);
+  if (p.slip > 0) {
+    ctx.strokeStyle = 'rgba(210,230,255,.7)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-18, 2); ctx.lineTo(-34, 8);
+    ctx.moveTo(10, 2); ctx.lineTo(-6, 10);
+    ctx.stroke();
+  }
+  /* every man his own hat: wider or narrower brim, and a crown that is a
+     cap, a homburg or a tall black hat */
   ctx.fillStyle = ch.hat;
-  ctx.beginPath(); ctx.ellipse(2, -126, 24, 5.5, 0, 0, TAU); ctx.fill();
-  Draw.rr(ctx, -11, -145, 27, 20, 5); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(2, -126, 24 * ch.brim, 5.5, 0, 0, TAU); ctx.fill();
+  if (ch.tall === 2) {
+    Draw.rr(ctx, -11, -152, 27, 27, 4); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.10)';
+    ctx.fillRect(-11, -134, 27, 4);
+  } else if (ch.tall === 1) {
+    Draw.rr(ctx, -11, -145, 27, 20, 5); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.28)';
+    ctx.beginPath();
+    ctx.moveTo(-11, -140); ctx.quadraticCurveTo(2, -147, 16, -140);
+    ctx.lineTo(16, -137); ctx.lineTo(-11, -137); ctx.closePath(); ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(-11, -125);
+    ctx.quadraticCurveTo(2, -144, 16, -125);
+    ctx.closePath(); ctx.fill();
+  }
 
   ctx.restore();
 
@@ -9672,8 +9886,13 @@ TzedakaBlast.prototype.drawHolding = function (ctx, p, t, swing, lift) {
   var cy = b.y + b.h / 2, cx = b.x + b.w / 2;
   var ch = TzedakaBlast.PEOPLE[p.ch];
   var f;
+  /* where his feet are drawn this instant, and how big he is - everything
+     here hangs off those two, exactly as the hit box does */
+  var py = p.y - (p.lift == null ? this.personLift(p) : p.lift);
+  var z = this.personSize(p);
   ctx.save();
-  ctx.translate(0, -lift);
+  /* NO translate here. The box already carries the lift, so shifting the art
+     on top of it would put the opening back where the coin is not. */
 
   /* THE RULE FOR EVERYTHING BELOW: whatever is drawn as the opening is drawn at
      exactly the size of the box the coin is tested against. If the art is any
@@ -9682,13 +9901,14 @@ TzedakaBlast.prototype.drawHolding = function (ctx, p, t, swing, lift) {
 
   /* the reaching arm: shoulder, elbow, wrist. Straight segments with round
      caps, so it is an arm and not a tapering blob. */
-  if (p.kind === 'hand' || p.kind === 'pushka' || p.kind === 'seter') {
+  if (p.kind === 'hand' || p.kind === 'pushka') {
     var wrX = cx - d * (b.w / 2 + 5), wrY = cy;
     ctx.strokeStyle = ch.coat;
     ctx.lineWidth = 11; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath();
-    ctx.moveTo(p.x + d * 13, p.y - 88);
-    ctx.lineTo(p.x + d * 30, p.y - 80);
+    ctx.lineWidth = 11 * z;
+    ctx.moveTo(p.x + d * 13 * z, py - 88 * z);
+    ctx.lineTo(p.x + d * 30 * z, py - 80 * z);
     ctx.lineTo(wrX, wrY);
     ctx.stroke();
     /* the cuff, so the sleeve visibly ends and the hand begins */
@@ -9699,7 +9919,7 @@ TzedakaBlast.prototype.drawHolding = function (ctx, p, t, swing, lift) {
   }
 
   /* a plain open hand, filling its own hitbox exactly */
-  if (p.kind === 'hand' || p.kind === 'seter') {
+  if (p.kind === 'hand') {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(d, 1);
@@ -9765,29 +9985,29 @@ TzedakaBlast.prototype.drawHolding = function (ctx, p, t, swing, lift) {
     Draw.rr(ctx, b.x, b.y, b.w, b.h, b.h / 2); ctx.stroke();
     ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.moveTo(cx + d * 16, b.y + 4); ctx.lineTo(p.x - d * 4, p.y - 92);
+    ctx.moveTo(cx + d * 16, b.y + 4); ctx.lineTo(p.x - d * 4 * z, py - 92 * z);
     ctx.stroke();
   }
 
   /* a cart, with its slot or its tray as the opening. */
   if (p.kind === 'kupah' || p.kind === 'loan') {
     var cartX = cx - b.w / 2 - 16, cartW = b.w + 32;
-    var cartY = b.y + b.h + 8, cartH = Math.max(30, p.y - 22 - cartY);
+    var cartY = b.y + b.h + 8, cartH = Math.max(30, py - 22 * z - cartY);
     ctx.fillStyle = p.kind === 'loan' ? '#6b4a2a' : '#2f4a6e';
     Draw.rr(ctx, cartX, cartY, cartW, cartH, 6); ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 2.5;
     Draw.rr(ctx, cartX, cartY, cartW, cartH, 6); ctx.stroke();
     ctx.fillStyle = '#20242f';
-    ctx.beginPath(); ctx.arc(cartX + 16, p.y - 18, 13, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.arc(cartX + cartW - 16, p.y - 18, 13, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(cartX + 16, py - 18 * z, 13, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(cartX + cartW - 16, py - 18 * z, 13, 0, TAU); ctx.fill();
     ctx.fillStyle = '#5c6478';
-    ctx.beginPath(); ctx.arc(cartX + 16, p.y - 18, 5, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.arc(cartX + cartW - 16, p.y - 18, 5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(cartX + 16, py - 18 * z, 5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(cartX + cartW - 16, py - 18 * z, 5, 0, TAU); ctx.fill();
     if (p.kind === 'loan' && !p.served) {
       ctx.strokeStyle = C.red; ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.moveTo(cartX + cartW - 26, p.y - 28); ctx.lineTo(cartX + cartW - 6, p.y - 8);
-      ctx.moveTo(cartX + cartW - 6, p.y - 28); ctx.lineTo(cartX + cartW - 26, p.y - 8);
+      ctx.moveTo(cartX + cartW - 26, py - 28 * z); ctx.lineTo(cartX + cartW - 6, py - 8 * z);
+      ctx.moveTo(cartX + cartW - 6, py - 28 * z); ctx.lineTo(cartX + cartW - 26, py - 8 * z);
       ctx.stroke();
     }
     ctx.fillStyle = p.kind === 'loan' ? '#c9a24a' : '#8d99b0';
@@ -9863,10 +10083,10 @@ TzedakaBlast.prototype.drawGent = function (ctx, g, t) {
   var bump = g.bump > 0 ? Math.sin(g.bump * 22) * 4 : 0;
   /* he does not bob. The top of his hat has to sit exactly on the top of the
      box that stops a coin, and a bobbing figure cannot promise that. */
-  var lift = 0;
+  var lift = 0, z = g.sz || 1;
   ctx.save();
   ctx.translate(g.x + bump, g.y - lift);
-  ctx.scale(g.dir, 1);
+  ctx.scale(g.dir * z, z);
 
   ctx.fillStyle = 'rgba(0,0,0,.34)';
   ctx.beginPath(); ctx.ellipse(0, 4, 26 - bob, 7, 0, 0, TAU); ctx.fill();
@@ -9933,8 +10153,7 @@ TzedakaBlast.prototype.drawGent = function (ctx, g, t) {
   ctx.quadraticCurveTo(2, -96, 13, -117);
   ctx.quadraticCurveTo(4, -110, -9, -118);
   ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#1a1410';
-  ctx.beginPath(); ctx.arc(8, -124, 1.9, 0, TAU); ctx.fill();
+  this.drawEyes(ctx, 2, -124);
 
   /* a silk top hat - the top of it is the top of his blocker box */
   ctx.fillStyle = ch.hat;
@@ -9942,6 +10161,16 @@ TzedakaBlast.prototype.drawGent = function (ctx, g, t) {
   Draw.rr(ctx, -11, -156, 26, 24, 3); ctx.fill();
   ctx.fillStyle = ch.trim;
   ctx.fillRect(-11, -138, 26, 4);
+  if (g.umb) {
+    ctx.fillStyle = ch.trim;
+    ctx.beginPath();
+    ctx.moveTo(-28, -168);
+    ctx.quadraticCurveTo(2, -196, 32, -168);
+    ctx.lineTo(2, -164);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#2a1c12'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(2, -164); ctx.lineTo(2, -156); ctx.stroke();
+  }
   ctx.restore();
 };
 
@@ -10085,8 +10314,9 @@ TzedakaBlast.prototype.drawPigeon = function (ctx, g) {
   var wing = Math.sin(g.flap) * 16;
   ctx.save();
   ctx.translate(g.x, g.y);
+  if (g.dive) ctx.rotate(-0.28 * g.dir);
   ctx.scale(g.dir, 1);
-  ctx.fillStyle = '#6f7a90';
+  ctx.fillStyle = g.dive ? '#8a6a78' : '#6f7a90';
   ctx.beginPath(); ctx.ellipse(0, 0, 22, 13, 0, 0, TAU); ctx.fill();
   ctx.fillStyle = '#8d97ab';
   ctx.beginPath();
@@ -10101,8 +10331,8 @@ TzedakaBlast.prototype.drawPigeon = function (ctx, g) {
   ctx.fillStyle = '#141822';
   ctx.beginPath(); ctx.arc(20, -10, 2, 0, TAU); ctx.fill();
   ctx.restore();
-  Draw.textSafe(ctx, 'TAP!', g.x, g.y - 34, {
-    size: 17, maxW: 120, color: C.teal, weight: '900', stroke: 'rgba(0,0,0,.7)', strokeW: 4
+  Draw.textSafe(ctx, g.dive ? 'DIVING!' : 'TAP!', g.x, g.y - 34, {
+    size: 17, maxW: 140, color: g.dive ? '#ffb07a' : C.teal, weight: '900', stroke: 'rgba(0,0,0,.7)', strokeW: 4
   });
 };
 
@@ -10202,28 +10432,56 @@ TzedakaBlast.prototype.drawAim = function (ctx, t) {
   if (!this.aim) return;
   if (this.pouch <= 0) return;
 
-  if (this.aim.mode === 'sling') {
-    var dx = this.aim.sx - this.aim.x, dy = this.aim.sy - this.aim.y;
-    var mag = Math.hypot(dx, dy);
-    if (mag < A.PULL_MIN) return;
-    var k = Math.min(mag * A.SLING_MUL, A.SLING_MAX) / mag;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,207,92,.7)'; ctx.lineWidth = 5; ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(A.AX - 16, A.AY - 4);
-    ctx.lineTo(A.AX - dx * 0.42, A.AY - dy * 0.42);
-    ctx.lineTo(A.AX + 16, A.AY - 4);
-    ctx.stroke();
-    ctx.restore();
-    this.drawArc(ctx, dx * k, dy * k);
-    return;
-  }
-
-  /* A straight drop: draw the one line the coin will actually take, bent by
-     whatever the wind is doing, and put a single marker where it lands. */
+  /* A drop: draw the one line the coin will actually take - leaned by however
+     far your finger has slid sideways, bent by whatever the wind is doing - and
+     put a single marker where it lands. No snapping back to the column. */
   var speed = this.chargeSpeed();
-  var x = A.AX, y = A.AY, vx = 0, sdt = 1 / 90;
+  var lean = this.aimLean(this.aim);
+  var x = A.AX, y = A.AY, vx = lean * speed, sdt = 1 / 90;
+  var power = this.aimPower(this.aim);
   ctx.save();
+
+  /* THE FORCE METER. It sits right under the window where you are looking, it
+     fills as you pull, and it never moves on its own - what you see is what
+     the coin gets. */
+  var pw = 128, ph = 13, px = A.AX - pw / 2, pyy = A.AY + 40;
+  Draw.rr(ctx, px, pyy, pw, ph, 6);
+  ctx.fillStyle = 'rgba(6,10,24,.82)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 2; ctx.stroke();
+  if (power > 0.002) {
+    ctx.save();
+    Draw.rr(ctx, px, pyy, pw, ph, 6); ctx.clip();
+    var pg = ctx.createLinearGradient(px, 0, px + pw, 0);
+    pg.addColorStop(0, '#5ed6b8');
+    pg.addColorStop(0.55, '#ffcf5c');
+    pg.addColorStop(1, '#ff8a5c');
+    ctx.fillStyle = pg;
+    ctx.fillRect(px, pyy, pw * power, ph);
+    ctx.restore();
+  }
+  /* four notches, so "about half" is a thing you can actually judge */
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2;
+  for (var nk = 1; nk < 4; nk++) {
+    ctx.beginPath();
+    ctx.moveTo(px + (pw / 4) * nk, pyy + 2);
+    ctx.lineTo(px + (pw / 4) * nk, pyy + ph - 2);
+    ctx.stroke();
+  }
+  Draw.text(ctx, power < 0.02 ? 'PULL UP FOR POWER' : Math.round(power * 100) + '%',
+    A.AX, pyy + ph + 15, {
+      size: 16, color: power > 0.6 ? '#ffb07a' : 'rgba(255,255,255,.72)',
+      align: 'center', weight: '900'
+    });
+
+  /* the drawn-back line from the window to your finger, like a slingshot */
+  if (power > 0.02 || Math.abs(lean) > 0.001) {
+    ctx.strokeStyle = 'rgba(255,207,92,.5)';
+    ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(A.AX, A.AY + 26);
+    ctx.lineTo(A.AX + (lean / A.LEAN_TAN) * 54, A.AY + 26 - power * 30);
+    ctx.stroke();
+  }
   ctx.strokeStyle = 'rgba(255,255,255,.34)';
   ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.setLineDash([7, 12]);
@@ -10231,7 +10489,7 @@ TzedakaBlast.prototype.drawAim = function (ctx, t) {
   ctx.moveTo(x, y);
   for (i = 0; i < 400 && y < A.GROUND; i++) {
     vx += this.wind * sdt;
-    x += vx * sdt;
+    x += vx * sdt + this.wind * A.WIND_PUSH * sdt;
     y += speed * sdt;
     ctx.lineTo(x, y);
   }
@@ -10245,23 +10503,6 @@ TzedakaBlast.prototype.drawAim = function (ctx, t) {
 };
 
 /* run the real integrator forward so the preview cannot lie to the player */
-TzedakaBlast.prototype.drawArc = function (ctx, vx, vy) {
-  var A = TzedakaBlast;
-  var x = A.AX, y = A.AY, sdt = 1 / 90, i, s;
-  ctx.save();
-  for (i = 0; i < 26; i++) {
-    for (s = 0; s < 4; s++) {
-      vx += this.wind * sdt * 0.55;
-      vy += A.GRAV * sdt;
-      x += vx * sdt; y += vy * sdt;
-    }
-    if (y > A.GROUND || x < -30 || x > CFG.W + 30) break;
-    ctx.globalAlpha = Math.max(0.12, 0.85 - i * 0.03);
-    ctx.fillStyle = C.gold;
-    ctx.beginPath(); ctx.arc(x, y, Math.max(2.5, 6 - i * 0.13), 0, TAU); ctx.fill();
-  }
-  ctx.restore();
-};
 
 TzedakaBlast.prototype.drawWind = function (ctx, t) {
   var A = TzedakaBlast, w = this.wind, i;
@@ -10418,7 +10659,7 @@ TzedakaBlast.prototype.renderHud = function (ctx, y) {
 
   /* row 2 - how fast the coin falls, which sets how far ahead you must aim */
   var bw = CFG.W - 96, bx = 48, by = top + 84;
-  var charging = !!(this.aim && this.aim.mode === 'charge' && this.pouch > 0);
+  var charging = !!(this.aim && this.pouch > 0);
   Draw.panel(ctx, bx - 14, by - 12, bw + 28, 58, {
     fill: 'rgba(10,15,30,.9)', radius: 13,
     stroke: charging ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.12)', strokeW: charging ? 3 : 2
@@ -10439,10 +10680,10 @@ TzedakaBlast.prototype.renderHud = function (ctx, y) {
     ctx.fillStyle = '#ffffff';
     Draw.rr(ctx, hx - 3, by - 7, 6, 34, 3); ctx.fill();
     ctx.restore();
-    Draw.text(ctx, 'FLOAT IT DOWN', bx + 6, by + 38, { size: 13, color: 'rgba(53,214,196,.9)', weight: '900' });
-    Draw.text(ctx, 'DROP IT FAST', bx + bw - 6, by + 38, { size: 13, color: 'rgba(255,207,92,.9)', align: 'right', weight: '900' });
+    Draw.text(ctx, 'GENTLE', bx + 6, by + 38, { size: 13, color: 'rgba(53,214,196,.9)', weight: '900' });
+    Draw.text(ctx, 'HARD', bx + bw - 6, by + 38, { size: 13, color: 'rgba(255,207,92,.9)', align: 'right', weight: '900' });
   } else {
-    Draw.text(ctx, 'HOLD TO AIM A DROP   -   PULL BACK TO SLING', bx + bw / 2, by + 38, {
+    Draw.text(ctx, 'SLIDE TO AIM   -   PULL UP FOR POWER', bx + bw / 2, by + 38, {
       size: 15, color: 'rgba(255,255,255,.55)', align: 'center', weight: '800'
     });
   }
