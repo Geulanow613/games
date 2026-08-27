@@ -244,6 +244,282 @@ const assert = require('assert');
     r.rush.speed > r.calm.speed * 1.4 && r.rush.interval < r.calm.interval * 0.7 &&
     r.rush.mult === 2 && r.afterMult === 1, JSON.stringify(r));
 
+
+  r = await page.evaluate(() => {
+    const names = KosherSort.SCENES.map(sc => sc.name);
+    return { n: names.length, unique: new Set(names).size, chapters: Game.scene.chapters().count };
+  });
+  check('kosher: twelve named belt shifts', r.n === 12 && r.unique === 12 && r.chapters === 12, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    s.level = 12; s.setupShift(); s.sortedThisLevel = s.need; s.lives = 3;
+    s.levelUp();
+    return { victory: !!s.victory, state: Game.state, id: Game.gameover && Game.gameover.id };
+  });
+  check('kosher: finishing shift 12 shows the congratulations screen',
+    r.victory === true && r.state === 'GAME_OVER' && r.id === 'kosher', JSON.stringify(r));
+
+  // ---------- KITCHEN MATCH ----------
+  await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay();
+    window.KS = {
+      wipe() {
+        const s = Game.scene;
+        for (let r = 0; r < KitchenMatch.ROWS; r++)
+          for (let c = 0; c < KitchenMatch.COLS; c++) s.grid[r][c] = null;
+        s.riseT = 999; s.rushTimer = 999; s.busy = 0; s._shifting = false;
+        s.plates = 0; s.combo = 0; s.wrong = 0; s.correct = 0;
+        s.selected = null;
+      },
+      at(c, r) { return Game.scene.cellCenter(c, r); }
+    };
+  });
+
+  r = await page.evaluate(() => {
+    const meat = Foods.list.find(f => f.k === 'meat');
+    const dairy = Foods.list.find(f => f.k === 'dairy');
+    const pareve = Foods.list.find(f => f.k === 'pareve' && f.shape !== 'fish');
+    const fish = Foods.list.find(f => f.shape === 'fish');
+    const treif = Foods.list.find(f => f.k === 'treif');
+    const mixed = Foods.list.find(f => f.k === 'mixed');
+    return {
+      mm: KitchenMatch.canTogether(meat, meat),
+      md: KitchenMatch.canTogether(meat, dairy),
+      mp: KitchenMatch.canTogether(meat, pareve),
+      dp: KitchenMatch.canTogether(dairy, pareve),
+      mf: KitchenMatch.canTogether(meat, fish),
+      df: KitchenMatch.canTogether(dairy, fish),
+      tm: KitchenMatch.canTogether(treif, meat),
+      xm: KitchenMatch.canTogether(mixed, meat)
+    };
+  });
+  check('kitchen: pareve plates with either side, meat and dairy never, fish not with meat, junk plates with nobody',
+    r.mm && !r.md && r.mp && r.dp && !r.mf && r.df && !r.tm && !r.xm, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe();
+    s.put(1, 5, 'meat'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
+    const same = s.findMatches().length;
+    KS.wipe();
+    s.put(1, 5, 'meat'); s.put(2, 5, 'Apple'); s.put(3, 5, 'meat');
+    const mixedOk = s.findMatches().length;
+    KS.wipe();
+    s.put(1, 5, 'meat'); s.put(2, 5, 'dairy'); s.put(3, 5, 'meat');
+    const mixedBad = s.findMatches().length;
+    return { same, mixedOk, mixedBad };
+  });
+  check('kitchen: three meat match, meat-pareve-meat match, meat-dairy-meat never does',
+    r.same >= 3 && r.mixedOk >= 3 && r.mixedBad === 0, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.score = 0; s.lives = 3;
+    s.put(1, 5, 'meat'); s.put(2, 5, 'dairy'); s.put(3, 5, 'meat');
+    const bounced = s.trySwap(2, 5, 1, 5);
+    return { ok: bounced.ok, reason: bounced.reason, plates: s.plates, lives: s.lives, wrong: s.wrong };
+  });
+  check('kitchen: swapping meat onto dairy bounces back - nothing is lost, they just stay apart',
+    r.ok === false && r.plates === 0 && r.lives === 3 && r.wrong >= 1, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.score = 0; s.lives = 3;
+    s.put(0, 5, 'meat'); s.put(1, 5, 'dairy'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
+    const moved = s.trySwap(1, 5, 0, 5);
+    const kinds = [];
+    for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
+      for (let cc = 0; cc < KitchenMatch.COLS; cc++)
+        if (s.grid[rr][cc]) kinds.push(s.grid[rr][cc].food.k);
+    return { ok: moved.ok, plates: s.plates, score: Math.round(s.score), lives: s.lives,
+      leftover: kinds.includes('dairy') };
+  });
+  check('kitchen: swapping a dairy off three meat plates them, and the dairy stays',
+    r.ok === true && r.plates >= 1 && r.score > 0 && r.lives === 3 && r.leftover === true, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe();
+    s.put(1, 5, 'meat'); s.put(2, 5, 'meat'); s.put(3, 5, 'dairy'); s.put(4, 5, 'meat');
+    const from = s.cellCenter(3, 5), to = s.cellCenter(4, 5);
+    return { fx: from.x, fy: from.y, tx: to.x, ty: to.y };
+  });
+  await page.evaluate(p => QA.swipe(p.fx, p.fy, p.tx, p.ty), r);
+  await frame(4);
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    let dairy = 0, meat = 0;
+    for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
+      for (let cc = 0; cc < KitchenMatch.COLS; cc++) {
+        const t = s.grid[rr][cc];
+        if (!t) continue;
+        if (t.food.k === 'dairy') dairy++;
+        if (t.food.k === 'meat') meat++;
+      }
+    return { plates: s.plates, dairy, meat };
+  });
+  check('kitchen: a swipe swaps the dish you started on, not its neighbour',
+    r.plates >= 1 && r.dairy === 1, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe();
+    s.put(0, 5, 'meat'); s.put(1, 5, 'dairy'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
+    const p = s.cellCenter(1, 5);
+    return { x: p.x, y: p.y };
+  });
+  await page.evaluate(p => QA.swipe(p.x, p.y, p.x - 40, p.y), r);
+  await frame(4);
+  r = await page.evaluate(() => ({ plates: Game.scene.plates }));
+  check('kitchen: a short swipe still swaps into the next square, even if the finger never left the cell',
+    r.plates >= 1, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.selected = null;
+    s.put(0, 5, 'meat'); s.put(1, 5, 'dairy'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
+    const a = s.cellCenter(1, 5), b = s.cellCenter(0, 5);
+    return { ax: a.x, ay: a.y, bx: b.x, by: b.y };
+  });
+  await page.evaluate(p => QA.tap(p.ax, p.ay), r);
+  await frame(2);
+  await page.evaluate(p => QA.tap(p.bx, p.by), r);
+  await frame(4);
+  r = await page.evaluate(() => ({ plates: Game.scene.plates, selected: Game.scene.selected }));
+  check('kitchen: tap a dish then tap its neighbour to swap',
+    r.plates >= 1 && !r.selected, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    let leftover = 0;
+    for (let i = 0; i < 6; i++) {
+      s.level = 1; s.setupShift(true);
+      leftover = Math.max(leftover, s.findMatches().length);
+    }
+    return { leftover };
+  });
+  check('kitchen: a fresh board has no plates already sitting there',
+    r.leftover === 0, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe();
+    s.put(0, 5, 'meat'); s.put(1, 5, 'meat'); s.put(2, 5, 'meat');
+    s.put(0, 3, 'dairy'); s.put(1, 3, 'dairy'); s.put(2, 3, 'dairy');
+    const groups = s.findMatchGroups();
+    return { n: groups.length, sizes: groups.map(g => g.length).sort() };
+  });
+  check('kitchen: two separate threes are two plates, not one FULL PLATE of six',
+    r.n === 2 && r.sizes[0] === 3 && r.sizes[1] === 3, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.uncovered = 0; s.lives = 3;
+    s.put(2, 4, 'meat', { covered: true });
+    s.put(3, 4, 'meat');
+    const blocked = s.trySwap(2, 4, 3, 4);
+    return { reason: blocked.reason, covered: s.grid[4][2].covered, lives: s.lives };
+  });
+  check('kitchen: a covered dish cannot be swapped until you look under the lid',
+    r.reason === 'covered' && r.covered === true && r.lives === 3, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    const p = s.cellCenter(2, 4);
+    return { x: p.x, y: p.y };
+  });
+  await page.evaluate(p => QA.tap(p.x, p.y), r);
+  await frame(3);
+  r = await page.evaluate(() => ({ covered: Game.scene.grid[4][2].covered, uncovered: Game.scene.uncovered }));
+  check('kitchen: tapping lifts the lid', r.covered === false && r.uncovered === 1, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe();
+    s.put(2, 4, 'treif');
+    const ok = s.dispose(2, 4);
+    return { ok, treifOk: s.treifOk, gone: !s.grid[4][2], lives: s.lives };
+  });
+  check('kitchen: treif flicks UP into the chute',
+    r.ok === true && r.treifOk >= 1 && r.gone && r.lives === 3, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe();
+    s.put(2, 4, 'mixed');
+    const ok = s.dispose(2, 4);
+    return { ok, mixedOk: s.mixedOk, gone: !s.grid[4][2] };
+  });
+  check('kitchen: mixed flicked up to disposal', r.ok === true && r.mixedOk >= 1 && r.gone, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.lives = 3;
+    s.put(2, 4, 'meat');
+    const ok = s.dispose(2, 4);
+    return { ok, still: !!(s.grid[4][2]), lives: s.lives };
+  });
+  check('kitchen: a kosher dish cannot be dumped - it has to be plated',
+    r.ok === false && r.still === true && r.lives === 3, JSON.stringify(r));
+
+  r = await page.evaluate(() => ({
+    name: Foods.list.find(f => f.shape === 'lasagna').name,
+    hint: Foods.list.find(f => f.shape === 'lasagna').hint
+  }));
+  check('kitchen: the lasagna is labelled Meat/Cheese and says why',
+    r.name === 'Meat/Cheese Lasagna' && r.hint.indexOf('pareve meat lasagna') > 0, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    s.level = 1; s.setupShift(true);
+    const calm = { interval: +s.interval().toFixed(3), mult: s.mult, speed: s.speed() };
+    s.rushT = 8;
+    const rush = { interval: +s.interval().toFixed(3), mult: 2, speed: s.speed(), t: s.rushT };
+    s.rushT = 0.001; s.update(0.016);
+    return { calm, rush, afterMult: s.mult };
+  });
+  check('kitchen: the Kashrus Rush speeds the rise and doubles the score',
+    r.rush.speed > r.calm.speed * 1.4 && r.rush.interval < r.calm.interval * 0.7 &&
+    r.afterMult === 1, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    s.level = 1; s.setupShift(true); s.plates = s.need; s._shifting = false;
+    s.shiftUp();
+    return { state: Game.state, level: s.level };
+  });
+  check('kitchen: filling the plate quota triggers a halacha card + shift up',
+    r.state === 'HALACHA_POPUP' && r.level === 2, JSON.stringify(r));
+  await page.evaluate(() => Game.closeCard());
+  await frame(3);
+  check('kitchen: card returns to play', (await page.evaluate(() => Game.state)) === 'PLAYING');
+
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay();
+    const s = Game.scene;
+    const names = KitchenMatch.SCENES.map(sc => sc.name);
+    s.level = 12; s.setupShift(true);
+    return {
+      shifts: KitchenMatch.SHIFTS, unique: new Set(names).size, chapters: s.chapters().count,
+      mash: s.cfg.id, mix: KitchenMatch.SCENES[1].mixPareve
+    };
+  });
+  check('kitchen: twelve named kitchen shifts',
+    r.shifts === 12 && r.unique === 12 && r.chapters === 12 && r.mash === 'mash' && r.mix === 1, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    s.level = 12; s.setupShift(true); s.plates = s.need; s._shifting = false;
+    s.shiftUp();
+    return { victory: !!s.victory, state: Game.state, id: Game.gameover && Game.gameover.id };
+  });
+  check('kitchen: finishing shift 12 shows the congratulations screen',
+    r.victory === true && r.state === 'GAME_OVER' && r.id === 'kitchen', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay();
+    const s = Game.scene; KS.wipe(); s.lives = 3;
+    for (let c = 0; c < KitchenMatch.COLS; c++) s.put(c, 0, 'pareve');
+    s.doRise();
+    return { lives: s.lives, overloads: s.overloads };
+  });
+  check('kitchen: a full top shelf when the stack rises is an overload, not a lecture',
+    r.lives === 2 && r.overloads === 1, JSON.stringify(r));
+
+  r = await page.evaluate(() => ({ min: Input.SWIPE_MIN, tap: Input.TAP_MAX_MOVE }));
+  check('input: no dead band between a tap and a swipe', r.min <= r.tap, JSON.stringify(r));
+
+  // ---------- SHUL: kosher vs treif food trucks ----------
   // ---------- SHUL: kosher vs treif food trucks ----------
   await page.evaluate(() => { Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay(); });
   r = await page.evaluate(() => {
@@ -1027,6 +1303,48 @@ const assert = require('assert');
   await page.evaluate(() => Game.closeCard());
   await frame(3);
 
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay();
+    const s = Game.scene;
+    const names = ShulCrossing.SCENES.map(sc => sc.name);
+    s.level = 9; s.setupWalk(true);
+    const minyanId = s.cfg.id;
+    s.level = 12; s.setupWalk(true);
+    const sofId = s.cfg.id;
+    s.lives = 3; s.hopT = 0; s.invuln = 0; s.riding = null; s.remountCool = 0;
+    const rr = Math.round(s.py);
+    s.rows[rr] = { type: 'minyan', r: rr, dir: 1, speed: 0, items: [] };
+    s.update(0.016);
+    const livesAfter = s.lives;
+    const bumped = s.row === rr - 1 || s.row === 0;
+    s.hopT = 0; s.stun = 0; s.invuln = 0.6;
+    const beforeHop = { row: s.row, col: s.col };
+    const ahead = s.row + 1;
+    s.rows[ahead] = { type: 'safe', r: ahead, decor: [], blocked: [s.col], blockKind: 'cone' };
+    s.hop(0, 1);
+    return {
+      walks: ShulCrossing.WALKS, unique: new Set(names).size, chapters: s.chapters().count,
+      minyanId: minyanId, sofId: sofId,
+      bumped: bumped, lives: livesAfter,
+      blocked: s.row === beforeHop.row && s.col === beforeHop.col
+    };
+  });
+  check('shul: twelve named walks, and missing a minyan bump costs no life',
+    r.walks === 12 && r.unique === 12 && r.chapters === 12 &&
+    r.minyanId === 'minyan' && r.sofId === 'sof' && r.lives === 3, JSON.stringify(r));
+  check('shul: a blocked square refuses the hop', r.blocked === true, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay();
+    const s = Game.scene;
+    s.level = 12; s.setupWalk(true);
+    s.row = s.goalRow; s.py = s.goalRow; s.col = 4; s.px = 4; s.hopT = 0;
+    s.arrive();
+    return { victory: !!s.victory, state: Game.state, id: Game.gameover && Game.gameover.id };
+  });
+  check('shul: finishing walk 12 shows the congratulations screen',
+    r.victory === true && r.state === 'GAME_OVER' && r.id === 'shul', JSON.stringify(r));
+
   // ---------- MATZAH ----------
   await page.evaluate(() => { Game.quitToMenu(); Game.startGame('matzah'); Game.beginPlay();
     const s = Game.scene; s.chametz.length = 0;
@@ -1141,6 +1459,44 @@ const assert = require('assert');
     return { lives: s.lives };
   });
   check('matzah: the same crash without the shield still costs a life', r.lives === 2, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('matzah'); Game.beginPlay();
+    const s = Game.scene;
+    const names = MatzahHavoc.SCENES.map(sc => sc.name);
+    s.level = 5; s.setupRoute();
+    const flour = s.cfg.id;
+    s.level = 12; s.setupRoute();
+    const erev = s.cfg.id;
+    s.level = 1; s.setupRoute();
+    s.spawnAir = 999; s.spawnRoad = 999; s.spawnCloud = 999; s.spawnPickup = 999;
+    s.dumpT = 99; s.tornado = 0; s.tornadoLeft = 0; s.wind = 0; s.shield = 0;
+    const dough = { kind: 'dough', giant: false, x: 200, y: 400, vx: 0, vy: 0, r: 30, rot: 0, spin: 0, hp: 1, flash: 0, cool: 0, dead: false };
+    s.chametz = [dough];
+    for (let i = 0; i < 180; i++) s.update(1 / 60);
+    return {
+      routes: MatzahHavoc.ROUTES, unique: new Set(names).size,
+      chapters: s.chapters && s.chapters().count,
+      flour: flour, erev: erev,
+      grew: dough.r > 40, becameGiant: !!dough.giant
+    };
+  });
+  check('matzah: twelve named routes, and rising dough grows if you wait',
+    r.routes === 12 && r.unique === 12 && r.chapters === 12 &&
+    r.flour === 'flour' && r.erev === 'erev' && r.grew && r.becameGiant, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('matzah'); Game.beginPlay();
+    const s = Game.scene;
+    s.level = 12; s.setupRoute();
+    s.dist = s.goal + 10; s.hour = 20; s.lives = 3;
+    s.chametz.length = 0; s.obstacles.length = 0; s.clouds.length = 0;
+    s.spawnAir = 999; s.spawnRoad = 999; s.spawnCloud = 999; s.spawnPickup = 999;
+    s.deliver();
+    return { victory: !!s.victory, state: Game.state, id: Game.gameover && Game.gameover.id };
+  });
+  check('matzah: finishing route 12 shows the congratulations screen',
+    r.victory === true && r.state === 'GAME_OVER' && r.id === 'matzah', JSON.stringify(r));
 
   // ---------- no sun, moon or stars anywhere in the art ----------
   r = await page.evaluate(() => {
@@ -1280,6 +1636,34 @@ const assert = require('assert');
     r.meatLeftOfBelts && r.dairyRightOfBelts && r.pareveBelowEnd && r.trashAboveTop &&
     r.chutesBetweenBelts && r.grabUnambiguous, JSON.stringify(r));
 
+  // Kitchen Match - grouping is the kashrus, and a grab is one cell
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay();
+    const s = Game.scene;
+    const o = s.origin();
+    const boardW = KitchenMatch.COLS * KitchenMatch.CELL;
+    const boardH = KitchenMatch.ROWS * KitchenMatch.CELL;
+    const meat = Foods.list.find(f => f.k === 'meat');
+    const dairy = Foods.list.find(f => f.k === 'dairy');
+    const apple = Foods.list.find(f => f.name === 'Apple');
+    let together = 0, clash = 0;
+    for (let i = 0; i < 80; i++) {
+      const a = Foods.list[i % Foods.list.length], b = Foods.list[(i * 3) % Foods.list.length];
+      if (KitchenMatch.canTogether(a, b)) together++; else clash++;
+    }
+    return {
+      onScreen: o.x > 8 && o.x + boardW < CFG.W - 8 && o.y > 200 && o.y + boardH < CFG.H - 80,
+      grabSmallerThanCell: KitchenMatch.GRAB_RADIUS < KitchenMatch.CELL,
+      meatDairyNever: KitchenMatch.canTogether(meat, dairy) === false,
+      pareveWithMeat: KitchenMatch.canTogether(apple, meat) === true,
+      together, clash,
+      cols: KitchenMatch.COLS, rows: KitchenMatch.ROWS
+    };
+  });
+  check('audit/kitchen: the board fits, grabs stay on one dish, and meat-dairy is the only pairing that never plates',
+    r.onScreen && r.grabSmallerThanCell && r.meatDairyNever && r.pareveWithMeat &&
+    r.together > 0 && r.clash > 0 && r.cols === 6, JSON.stringify(r));
+
   // Matzah Havoc - steering range, lanes and hitbox
   r = await page.evaluate(() => {
     Game.quitToMenu(); Game.startGame('matzah'); Game.beginPlay();
@@ -1306,7 +1690,8 @@ const assert = require('assert');
   await page.evaluate(() => {
     Game.quitToMenu(); Game.startGame('tzedaka'); Game.beginPlay();
     const s = Game.scene;
-    s.spawnT = 9999; s.pigeonT = 9999; s.people.length = 0; s.coins.length = 0;
+    s.spawnT = 9999; s.pigeonT = 9999; s.wagonT = 9999; s.gentT = 9999;
+    s.people.length = 0; s.coins.length = 0; s.gents.length = 0; s.wagons.length = 0;
     s.wind = 0; s.windTarget = 0; s.windT = 9999;
     window.TZ = {
       /* park one person of a given kind under the window, ready to catch */
@@ -1314,7 +1699,9 @@ const assert = require('assert');
         const A = TzedakaBlast, def = A.KINDS[kind];
         s.wind = 0; s.windTarget = 0; s.windT = 9999;
         s.left = 9999;          /* no street may close in the middle of a test */
-        s.spawnT = 9999; s.pigeonT = 9999;   /* and nobody may wander in */
+        s.spawnT = 9999; s.pigeonT = 9999; s.wagonT = 9999; s.gentT = 9999;
+        s.refillT = 9999;
+        s.gents.length = 0; s.wagons.length = 0;
         const p = { id: ++s.personId, kind, def, lane, y: A.LANES[lane],
           dir: 1, x: A.AX + (dx || 0), sp: 0, ch: 0, phase: 0, local: true,
           patience: 20, maxPat: 20, served: false, words: false, gone: false, shamed: false,
@@ -1345,21 +1732,52 @@ const assert = require('assert');
     return { mode: before, charge: mid, coins: s.coins.length,
       vx: c ? Math.round(c.vx) : null, vy: c ? Math.round(c.vy) : null, kind: c ? c.mode : null };
   });
-  check('tzedaka: holding still charges a straight drop, and the charge is the speed',
-    r.mode === 'charge' && r.charge > 0.1 && r.coins === 1 && r.vx === 0 &&
-    r.vy >= 300 && r.kind === 'drop', JSON.stringify(r));
+  check('tzedaka: holding still flings a gentle coin straight down',
+    r.mode === 'charge' && r.charge < 0.05 && r.coins === 1 && r.vx === 0 &&
+    r.vy >= 230 && r.vy <= 280 && r.kind === 'sling', JSON.stringify(r));
 
   r = await page.evaluate(() => {
     const s = Game.scene, A = TzedakaBlast;
     s.coins.length = 0;
-    QA.grab(360, 700); QA.dragTo(470, 800, 4); TZ.flush();
+    QA.grab(360, 700); QA.dragTo(360, 450, 6); TZ.flush();
     const mode = s.aim ? s.aim.mode : null;
+    const power = s.charge;
     QA.release(); TZ.flush();
     const c = s.coins[0];
-    return { mode, vx: c ? Math.round(c.vx) : null, vy: c ? Math.round(c.vy) : null, kind: c ? c.mode : null };
+    return { mode, power, vx: c ? Math.round(c.vx) : null, vy: c ? Math.round(c.vy) : null, kind: c ? c.mode : null };
   });
-  check('tzedaka: pulling back slings instead - away from the pull, exactly like a slingshot',
-    r.mode === 'sling' && r.kind === 'sling' && r.vx < -200 && r.vy < -200, JSON.stringify(r));
+  check('tzedaka: pulling back adds zip, and the coin still flies as a slingshot arc',
+    r.mode === 'charge' && r.kind === 'sling' && r.power > 0.7 && r.vx === 0 &&
+    r.vy > 480 && r.vy < 560, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene, A = TzedakaBlast;
+    s.coins.length = 0; s.wind = 0; s.windTarget = 0; s.windT = 9999;
+    QA.grab(360, 700); QA.dragTo(150, 700, 8); TZ.flush();
+    QA.release(); TZ.flush();
+    const c = s.coins[0];
+    let x = A.AX, y = A.AY, vx = c.vx, vy = c.vy, sdt = 1 / 90;
+    const near = A.LANES[0] - 92;
+    while (y < near && y < A.GROUND) {
+      vx += 0; vy += A.GRAV * sdt; x += vx * sdt; y += vy * sdt;
+      if (y > 2000) break;
+    }
+    return { kind: c ? c.mode : null, vx: c ? Math.round(c.vx) : null,
+      land: Math.round(x), ax: A.AX };
+  });
+  check('tzedaka: a sideways slingshot lob can reach well outside the old spotlight',
+    r.kind === 'sling' && r.vx < -200 && Math.abs(r.land - r.ax) > 180, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene, A = TzedakaBlast;
+    s.coins.length = 0; s.wind = 0; s.windTarget = 0; s.windT = 9999;
+    QA.grab(360, 420); QA.dragTo(360, 580, 8); TZ.flush();
+    QA.release(); TZ.flush();
+    const c = s.coins[0];
+    return { vy: c ? Math.round(c.vy) : null, kind: c ? c.mode : null };
+  });
+  check('tzedaka: pulling down lobs the coin upward',
+    r.kind === 'sling' && r.vy < -80, JSON.stringify(r));
 
   /* the dotted preview must be the same integrator the coin actually uses */
   r = await page.evaluate(() => {
@@ -1444,47 +1862,41 @@ const assert = require('assert');
 
   r = await page.evaluate(() => {
     const s = Game.scene, A = TzedakaBlast;
-    s.coins.length = 0; s.people.length = 0; s.combo = 0; s.score = 0;
-    const shy = TZ.put('seter', 1, 0);
-    let b = s.targetBox(shy); shy.x += A.AX - (b.x + b.w / 2);
+    s.coins.length = 0; s.people.length = 0; s.combo = 0; s.score = 0; s.seterGiven = 0;
     TZ.put('hand', 1, 130);                 /* somebody standing right there */
-    s.update(1 / 60);
-    const watched = shy.seen;
+    const sack = TZ.put('basket', 1, 0);
+    let b = s.targetBox(sack); sack.x += A.AX - (b.x + b.w / 2);
     TZ.drop(700); TZ.settle(160);
-    return { watched, served: shy.served, score: Math.round(s.score),
-      soft: !!(s.banner && s.banner.soft), lives: s.lives };
+    return { served: sack.served, given: s.seterGiven, score: Math.round(s.score), lives: s.lives };
   });
-  check('tzedaka: giving to the bashful one in the open still helps him - it just scores less, and nothing is lost',
-    r.watched > 0 && r.served === true && r.lives === 1 && r.score > 0 && r.score < 120 && r.soft === true,
-    JSON.stringify(r));
+  check('tzedaka: stuffing the sack still counts with somebody standing nearby - giving is never punished',
+    r.served === true && r.given === 1 && r.lives === 1 && r.score > 0, JSON.stringify(r));
 
   r = await page.evaluate(() => {
     const s = Game.scene, A = TzedakaBlast;
     s.coins.length = 0; s.people.length = 0; s.combo = 0; s.score = 0; s.seterGiven = 0;
-    const shy = TZ.put('seter', 1, 0);
-    const b = s.targetBox(shy); shy.x += A.AX - (b.x + b.w / 2);
-    s.update(1 / 60);
-    const alone = shy.seen;
+    const sack = TZ.put('basket', 1, 0);
+    const b = s.targetBox(sack); sack.x += A.AX - (b.x + b.w / 2);
     TZ.drop(700); TZ.settle(160);
-    return { alone, served: shy.served, given: s.seterGiven, score: Math.round(s.score) };
+    return { served: sack.served, given: s.seterGiven, score: Math.round(s.score) };
   });
-  check('tzedaka: waiting until nobody is looking is matan b\'seter and pays the most',
-    r.alone === 0 && r.served === true && r.given === 1 && r.score >= 300, JSON.stringify(r));
+  check('tzedaka: a coin in the sack is matan b\'seter - he never sees who put it there',
+    r.served === true && r.given === 1 && r.score >= 150, JSON.stringify(r));
 
   r = await page.evaluate(() => {
     const s = Game.scene, A = TzedakaBlast;
     s.coins.length = 0; s.people.length = 0; s.combo = 0; s.score = 0;
-    s.cfg.kedimah = true;
-    const local = TZ.put('hand', 0, -260, { local: true });
-    local.patience = local.maxPat * 0.5;
-    const away = TZ.put('hand', 1, 0, { local: false });
-    const b = s.targetBox(away); away.x += A.AX - (b.x + b.w / 2);
+    s.banner = null;
+    const a = TZ.put('hand', 0, -260);
+    a.patience = a.maxPat * 0.5;
+    const b = TZ.put('hand', 1, 0);
+    const box = s.targetBox(b); b.x += A.AX - (box.x + box.w / 2);
     TZ.drop(700); TZ.settle(160);
-    return { served: away.served, combo: s.combo, score: Math.round(s.score),
-      soft: !!(s.banner && s.banner.soft) };
+    return { served: b.served, combo: s.combo, score: Math.round(s.score),
+      neighborTalk: !!(s.banner && /NEIGHBOR|local|visitor/i.test((s.banner.title || '') + (s.banner.sub || ''))) };
   });
-  check('tzedaka: serving the out-of-towner while a local waits scores less and says why, gently',
-    r.served === true && r.combo === 1 && r.score > 0 && r.score < 100 && r.soft === true,
+  check('tzedaka: every open hand scores the same - the game does not pretend you can tell who is a neighbor',
+    r.served === true && r.combo === 1 && r.score >= 100 && r.neighborTalk === false,
     JSON.stringify(r));
 
   r = await page.evaluate(() => {
@@ -1502,16 +1914,20 @@ const assert = require('assert');
 
   r = await page.evaluate(() => {
     const s = Game.scene;
-    s.coins.length = 0; s.people.length = 0; s.pouch = 0; s.wordsSaid = 0; s.missed = 0;
+    s.coins.length = 0; s.people.length = 0; s.pouchReserve = 0; s.dryLock = true; s.wordsSaid = 0; s.missed = 0;
+    s.drySaid = false; s.hungry = false; s.banner = null;
     const p = TZ.put('hand', 1, 0);
     QA.grab(p.x, p.y - 60); QA.release(); TZ.flush();
     const words = p.words;
+    const served = p.served;
     p.patience = 0.02;
     s.update(1 / 30);
-    return { words, said: s.wordsSaid, missed: s.missed };
+    return { words: !!words, served, said: s.wordsSaid, missed: s.missed,
+      emptyTalk: !!(s.banner && /KIND WORD|say something/i.test((s.banner.title || '') + (s.banner.sub || ''))) };
   });
-  check('tzedaka: with an empty purse you still owe him words, and words mean he did not leave empty',
-    r.words === true && r.said === 1 && !r.missed, JSON.stringify(r));
+  check('tzedaka: an empty purse cannot talk to the street - you wait, and a walker still leaves unhelped',
+    r.words === false && r.served === false && r.said === 0 && r.missed === 1 && r.emptyTalk === false,
+    JSON.stringify(r));
 
   r = await page.evaluate(() => {
     const s = Game.scene, A = TzedakaBlast;
@@ -1534,18 +1950,18 @@ const assert = require('assert');
   r = await page.evaluate(() => {
     const s = Game.scene, A = TzedakaBlast;
     s.coins.length = 0; s.people.length = 0;
-    s.pouch = 12; s.loansMade = 0; s.score = 0;
+    s.pouchMax = 8; s.pouchReserve = 8; s.loansMade = 0; s.score = 0;
     const p = TZ.put('loan', 1, 0);
     const b = s.targetBox(p); p.x += A.AX - (b.x + b.w / 2);
     const wanted = s.goldWanted();
-    const before = s.pouch;
+    const before = s.pouchReserve;
     TZ.drop(700, true);
-    const cost = before - s.pouch;
+    const cost = before - s.pouchReserve;
     TZ.settle(120);
     const served = p.served;
-    const midPouch = s.pouch;
+    const midPouch = s.pouchReserve;
     for (let i = 0; i < 8 * 60; i++) s.update(1 / 60);
-    return { wanted, cost, served, loans: s.loansMade, midPouch, endPouch: s.pouch, score: Math.round(s.score) };
+    return { wanted, cost, served, loans: s.loansMade, midPouch, endPouch: s.pouchReserve, score: Math.round(s.score) };
   });
   check('tzedaka: the highest rung is a loan - it costs three, sets him up, and he pays it back',
     r.wanted === true && r.cost === 3 && r.served === true && r.loans === 1 &&
@@ -1569,7 +1985,7 @@ const assert = require('assert');
   r = await page.evaluate(() => {
     const s = Game.scene;
     s.coins.length = 0; s.people.length = 0; s.pigeons.length = 0;
-    s.pouch = 12;
+    s.pouchReserve = 12;
     s.spawnPigeon();
     const g = s.pigeons[0];
     g.x = 360; g.y = 600;
@@ -1601,11 +2017,11 @@ const assert = require('assert');
 
   r = await page.evaluate(() => {
     const s = Game.scene;
-    s.level = 8; s.setupStreet();
-    return { purim: s.cfg.purim, kedimah: s.cfg.kedimah, mult: s.mult, goal: s.need };
+    s.level = 12; s.setupStreet();
+    return { purim: s.cfg.purim, mult: s.mult, goal: s.need };
   });
   check('tzedaka: the last street is Matanos LaEvyonim - you do not check, you just give',
-    r.purim === true && r.kedimah === false && r.mult === 2 && r.goal >= 12, JSON.stringify(r));
+    r.purim === true && r.mult === 2 && r.goal >= 12, JSON.stringify(r));
 
   // ---------- AUDIT: TZEDAKA GEOMETRY ----------
   r = await page.evaluate(() => {
@@ -1684,6 +2100,21 @@ const assert = require('assert');
   check('tzedaka: nothing in the game costs a life, shakes the screen or flashes it red',
     r.bad.length === 0 && r.maxLives === 0, JSON.stringify(r));
 
+  r = await page.evaluate(() => {
+    const src = TzedakaBlast.prototype;
+    const eyes = src.drawEyes.toString();
+    const person = src.drawPerson.toString();
+    const gent = src.drawGent.toString();
+    return {
+      helper: eyes.includes('ellipse') && (eyes.match(/arc\(/g) || []).length >= 2,
+      person: person.includes('drawEyes'),
+      gent: gent.includes('drawEyes'),
+      noCyclops: !/arc\(\s*10,\s*-116/.test(person) && !/arc\(\s*8,\s*-124/.test(gent)
+    };
+  });
+  check('tzedaka: everybody on the street has two eyes',
+    r.helper && r.person && r.gent && r.noCyclops, JSON.stringify(r));
+
   // ---------- REGRESSIONS FOUND BY THE ADVERSARIAL AUDIT ----------
   r = await page.evaluate(() => {
     const s = Game.scene, A = TzedakaBlast;
@@ -1731,7 +2162,7 @@ const assert = require('assert');
     p.patience = 0.02;
     s.update(1 / 30);
     const afterStreet1 = s.missed;
-    s.level = 8; s.setupStreet(); s.spawnT = 9999;
+    s.level = TzedakaBlast.STREETS; s.setupStreet(); s.spawnT = 9999;
     const afterReset = s.missed;
     s.served = s.need; s.left = 0.001;
     s.update(1 / 60);
@@ -1747,9 +2178,9 @@ const assert = require('assert');
   r = await page.evaluate(() => {
     const s = Game.scene, A = TzedakaBlast;
     const out = {};
-    for (const kind of ['hand', 'pushka', 'basket', 'noask', 'kupah', 'loan']) {
+    for (const kind of ['hand', 'pushka', 'basket', 'kupah', 'loan']) {
       const gold = kind === 'loan';
-      s.coins.length = 0; s.people.length = 0; s.combo = 0; s.pouch = 12;
+      s.coins.length = 0; s.people.length = 0; s.combo = 0; s.pouchReserve = 12;
       const p = TZ.put(kind, 1, 0);
       p.sp = 0;
       const b0 = s.targetBox(p);
@@ -1760,7 +2191,7 @@ const assert = require('assert');
       const hit = p.served;
       /* and the same throw, one coin-width to the side, must not - and must
          not score a single point either */
-      s.coins.length = 0; s.people.length = 0; s.combo = 0; s.pouch = 12;
+      s.coins.length = 0; s.people.length = 0; s.combo = 0; s.pouchReserve = 12;
       const q = TZ.put(kind, 1, 0);
       q.sp = 0;
       const qb0 = s.targetBox(q);
@@ -1829,18 +2260,31 @@ const assert = require('assert');
       narrow = Math.min(narrow, s.targetBox(p).w);
     }
     const econ = [];
+    const upd = TzedakaBlast.prototype.update.toString();
+    if (!/refillTick/.test(upd)) bad.push('purse must drip back while you still have coins');
+    if (!/refillDry/.test(upd)) bad.push('overheated purse must take six seconds to reload');
     for (let lv = 1; lv <= 8; lv++) {
       const T = s.tune.call({ level: lv });
-      const supply = Math.floor(T.dur / T.spawnEvery);
+      /* How many people actually walk through: spawn rate is capped by how
+         many can be on the pavement at once and how long they take to cross. */
+      const avgWalk = (T.walkMin + T.walkMax) / 2;
+      const cross = (CFG.W + 180) / avgWalk;
+      const throughput = T.maxPoor / Math.max(cross, T.spawnEvery);
+      const supply = Math.max(1, Math.round(T.dur * throughput));
       const slack = supply / T.goal;
       econ.push(+slack.toFixed(2));
       if (slack < 1.8) bad.push('street ' + lv + ' does not send enough people to reach its own quota');
       if (slack > 5) bad.push('street ' + lv + ' quota is so loose it cannot be missed');
       const win = (narrow + A.CATCH * 2) / T.walkMax;
       if (win < 0.2) bad.push('street ' + lv + ' release window is ' + win.toFixed(2) + 's - too tight to hit');
-      const coins = T.pouchMax + Math.floor(T.dur / T.refill);
+      const coins = T.pouchMax + Math.floor(T.dur / T.refillTick) +
+        T.pouchMax * Math.floor(T.dur / T.refillDry);
       if (coins < T.goal * 2) bad.push('street ' + lv + ' cannot fund its own quota');
-      /* wind must bend a slow drop and leave a fast one alone */
+      if (T.refillDry !== 6) bad.push('street ' + lv + ' overheated reload must stay at 6 seconds');
+      if (T.refillTick > 3.5) bad.push('street ' + lv + ' purse regen is too slow to pace with');
+      if (T.pouchMax > 12) bad.push('street ' + lv + ' purse is so big the drip never matters');
+      /* wind must bend a slow drop AND still shove a hard one - slamming is a
+         little extra zip, not a skip-the-gale button */
       const deep = A.LANES[2] - 92;
       const saveWind = s.wind;
       s.wind = T.windMax;
@@ -1849,7 +2293,8 @@ const assert = require('assert');
       s.wind = saveWind;
       if (slowDrift < 40) bad.push('street ' + lv + ' wind is too weak to change anything');
       if (A.AX + slowDrift > CFG.W + 80) bad.push('street ' + lv + ' max wind blows every slow drop off the screen');
-      if (fastDrift > 60) bad.push('street ' + lv + ' even a hard drop is at the wind\'s mercy');
+      if (fastDrift < 22) bad.push('street ' + lv + ' a hard drop still has to respect the wind');
+      if (fastDrift > slowDrift * 0.72) bad.push('street ' + lv + ' a hard drop should still cut more wind than a soft one');
     }
 
     /* 4. Nothing static is left in the game - every target walks. */
@@ -1871,7 +2316,7 @@ const assert = require('assert');
 
   // ---------- SOAK: 45s of random input across all games ----------
   await page.evaluate(() => { Game.quitToMenu(); });
-  for (const gid of ['menorah', 'shul', 'kosher', 'matzah', 'tzedaka']) {
+  for (const gid of ['menorah', 'shul', 'kosher', 'kitchen', 'matzah', 'tzedaka']) {
     await page.evaluate(id => { Game.quitToMenu(); Game.startGame(id); Game.beginPlay(); }, gid);
     for (let i = 0; i < 55; i++) {
       await page.evaluate(() => {
@@ -1895,14 +2340,17 @@ const assert = require('assert');
   // ---------- RENDER SMOKE: every screen of every game must actually draw ----------
   {
     const before = errors.length;
-    for (const gid of ['menorah', 'shul', 'kosher', 'matzah', 'tzedaka']) {
+    for (const gid of ['menorah', 'shul', 'kosher', 'kitchen', 'matzah', 'tzedaka']) {
       await page.evaluate(id => { Game.quitToMenu(); Game.startGame(id); Game.beginPlay(); }, gid);
       /* walk every level of the game so level-gated scenery gets drawn too */
-      for (let lv = 1; lv <= 8; lv++) {
+      for (let lv = 1; lv <= 12; lv++) {
         await page.evaluate(l => {
           const sc = Game.scene;
           if (sc.setupStreet) { sc.level = l; sc.setupStreet(); for (let k = 0; k < 5; k++) sc.spawnPerson(); }
-          else if (sc.setupNight) { sc.night = l; sc.setupNight(); }
+          else if (sc.setupNight) { sc.night = Math.min(l, 8); sc.setupNight(); }
+          else if (sc.setupRoute) { sc.level = Math.min(l, 12); sc.setupRoute(); }
+          else if (sc.setupWalk) { sc.level = Math.min(l, 12); sc.setupWalk(true); }
+          else if (sc.setupShift) { sc.level = Math.min(l, 12); sc.setupShift(true); }
           else { sc.level = l; }
         }, lv);
         await frame(6);

@@ -68,15 +68,16 @@ npm i @capacitor/haptics
 
 ---
 
-## The five minigames
+## The six minigames
 
 | Game | Halacha it teaches | Controls |
 |---|---|---|
 | **Menorah Keeper** | Ner Chanukah must burn a full half hour after nightfall; a lighting the wind will kill is not a valid lighting; olive oil, the shamash, lighting one light from another, and *me'ikkar hadin* — one light a night is already the mitzvah | Every light has **its own jug directly beneath it** — **tap the jug** (or the light) to top it up · **Swipe against the wind** along the marked lane — *window closed* — and the gust blows back out the way it came · **Swipe** jelly off the glass and burning latkes off the cups · **Tap** dreidels before they knock a jug over · **Tap the shamash** to lift it off its pin, then **drag it onto a dark wick and hold it there** to relight — the cup needs oil in it first |
 | **Shul Crossing** | Sof Zman Tefillah, Plag HaMincha, zerizin makdimin, schar pesios, kavod Shabbos | **Tap** to leap forward · **Swipe left/right/down** to steer · the **food truck lane** is uncommon and mixed: ride a **KOSHER FOOD** truck for a free lift and invincibility, but a **NOT KOSHER** truck flattens you — read the label · dodge the sprinklers, because one soaking leaves you with a **WET HAT** and the dry hat bonus is gone for the whole crossing · beat the zman to the shul for a **Mitzvah Multiplier** |
-| **Kosher Sort** | Basar b'chalav (cooking, eating and benefit), pareve, waiting between meat and milk, fins-and-scales, the two signs, hechsher, checking for insects | **Swipe left** → meat bin · **right** → dairy · **down** → pareve · **flick up** → disposal chute for mixtures and non-kosher items · **tap** a covered dish to lift the lid before you can rule on it · survive the **Kashrus Rush**. A wrong call shows the reason before it costs you |
+| **Kosher Sort** | Basar b'chalav (cooking, eating and benefit), pareve, waiting between meat and milk, fins-and-scales, the two signs, hechsher, checking for insects | Dual conveyor: **swipe left** → meat bin · **right** → dairy · **down** → pareve · **flick up** → disposal. **Tap** a lid before you swipe. Survive the **Kashrus Rush**. Twelve named belt shifts |
+| **Kitchen Match** | The same kashrus: what can share a plate | **Swipe** neighbouring dishes to swap. **Three that can share a plate** vanish — meat with meat, dairy with dairy, pareve with either side. Meat and dairy never match (the swap bounces). **Flick up** treif or mixed dishes. **Tap** a lid. Plate the quota before the stack **overloads**. Twelve named kitchen shifts |
 | **Matzah Delivery Havoc** | The fourth halachic hour on Erev Pesach, bedikas chametz, bittul, eighteen minutes, matzah shemura, bal yeira'eh | **Drag the bottom-left slider** (or the truck) to steer · **slash** with your other hand to cut flying chametz · **giant croissants** need three cuts or one two-finger combo swipe · **tap** yeast clouds to disperse them · drive into the **Afikoman golden shield** |
-| **Tzedaka Blast** | Rambam's eight levels of giving, *dei machsoro*, matan b'seter, aniyei ircha kodmin, giving before being asked, the kupah and its gabbai, words when the purse is empty, matanos l'evyonim (all of it on the cards — the banners during play stay short and plain) | **Hold to aim a DROP** — a dotted line shows exactly where the coin will fall, bent by the wind, and how long you hold sets how fast it goes · **pull back to SLING** an arc at somebody your own column cannot reach · **tap** a bird to shoo it off your coin · with an empty purse, **tap** somebody and speak to him. The target is the **opening** — his palm, the slot in the tin — and a coin that misses is gone in the dark |
+| **Tzedaka Blast** | Rambam's eight levels of giving, *dei machsoro*, matan b'seter, aniyei ircha kodmin, giving before being asked, the kupah and its gabbai, words when the purse is empty, matanos l'evyonim (all of it on the cards — the banners during play stay short and plain) | **Hold and slide to aim a DROP** — sliding sideways leans the throw, a dotted line shows exactly where the coin will fall, and how long you hold sets how fast it goes · **pull UP for power**, shown on a force meter under the window · **tap** a bird to shoo it off your coin · with an empty purse, **tap** somebody and speak to him. The target is the **opening** — his palm, the slot in the tin — and a coin that misses is gone in the dark |
 
 Each minigame keeps its own combo, level and score, and hands a **Halacha flash card** to the
 player between levels and on game over. Four of them have lives; Tzedaka Blast deliberately has
@@ -148,15 +149,10 @@ Two rules keep swipes honest across all four games:
   to be a gap between the two thresholds where a short deliberate flick produced nothing at
   all, which read as the game ignoring you.
 * **Kosher Sort biases horizontal.** Its bins sit left and right of a belt that runs *down*,
-  so a flick toward a side bin nearly always drifts downward on the way — the thumb arcs, and
-  you are chasing an item that is itself moving. Picking "whichever axis is larger" turned
-  honest left-flicks into pareve calls. Horizontal now wins unless the stroke is genuinely
-  steep (past about 56°).
-* **The dish you touched is the dish that moves.** Selection happens on *touch-down*, not from
-  the stroke's path — a downward flick sweeps over every item below the one you grabbed, so
-  scoring by the path could pick up a dish three slots away. A stroke that starts on empty
-  belt now does nothing at all rather than guessing. (The keyboard shim, which has no
-  touch-down, falls back to the start point rewound by however far the belt moved.)
+  so a flick toward a side bin nearly always drifts downward on the way. Horizontal wins unless
+  the stroke is genuinely steep. The dish you touched is the dish that moves.
+* **Kitchen Match swaps the dish you started on.** Any two uncovered neighbours can trade
+  places, including meat and dairy — they just never plate together. A clear flick **up** dumps treif or mixed dishes into the chute.
 
 Matzah Havoc's truck likewise uses a real hitbox traced to its drawn body and pulled in a
 little, tested circle-against-rectangle. The old check was "past this line and roughly
@@ -241,11 +237,85 @@ canvas roof sits below every opening in the two far lanes, so it can only ever b
 closest to you, and it rolls straight through in about two seconds. Nothing hangs over the
 road and nothing stands still.
 
+**One gesture, and you can always see how hard you are throwing.** There used to be a charge
+meter that ping-ponged up and down on its own while you held, so the speed you got depended on
+catching it at the right instant — which from the player's side looks like the coin sometimes
+going much slower for no reason at all. That is gone. Press, then move: sideways aims it, and
+**pulling UP powers it**, like drawing a slingshot back. A notched force meter sits directly
+under your window, fills as you pull, reads out a percentage, and never moves on its own —
+what you see is exactly what the coin gets. A test pulls to nothing, half and full travel and
+fails the build if the meter and the coin's actual speed ever disagree.
+
+**Depth of field: a man further up the street cannot block one standing in front of him.**
+A gentleman's box is 150px tall, so one walking the far pavement used to intercept coins meant
+for somebody in the near lane — which is nonsense, he is yards further away. Gentlemen now
+only ever get in the way in the lane **nearest you**, exactly like the wagon; anywhere further
+up the street the coin passes in front of them. And people are now tested *before* obstacles,
+so a throw that is on target lands, full stop — no bystander gets to steal a coin that was
+going into somebody's hand. A test stands a gentleman in each far lane directly over a man in
+the near lane and fails if the coin does not get through.
+
+**The quiet one is gone.** He looked exactly like everybody else and paid 300 points for it,
+which is not a thing a player can be expected to read. *Matan b'seter* now lives where it
+actually belongs — the porter's sack, which takes the coin over his shoulder so he never finds
+out who put it there — and the badge went with it.
+
+**Sixteen different men, no two the same size.** Sixteen coat, hat, beard and skin
+combinations for the poor, twelve for the gentlemen, three hat shapes (a cap, a homburg, a
+tall black hat) and brims that vary by a third. Everybody is scaled between 0.90× and 1.10×,
+and because the opening is built from the same size the drawing is, **a shorter man really
+does have a smaller hand to hit**. A test walks five streets for seventy seconds each and
+fails if fewer than five different men or five different heights turn up.
+
+**Aiming a drop follows your finger, and never snaps back to anything.** It used to not: a
+hold threw the coin *dead vertical out of the window whatever your finger was doing*, and any
+27px drag in any direction flipped it into a sling. So the aim appeared to magnetise onto one
+column, because it genuinely did. Now sliding sideways leans the throw, continuously from
+zero — `aimLean()` is one number that the throw, the dotted line and the tests all read, and
+sliding a pixel moves the landing about a pixel. The lean is an angle rather than a sideways
+speed, so it reaches the same 283px whether you drop the coin gently or hard, and it stops at
+full travel instead of running away. Only a deliberate pull straight *down* arms the sling, so
+aiming sideways can never tip into a different throw by accident. A test slides the finger one
+pixel at a time across the whole range and fails the build if the landing point ever jumps
+more than 4px, goes backwards, or stops following.
+
+**The opening you can see is the opening the coin is tested against.** The man bobs as he
+walks, hops a little when you reach him, and bends right down when a coin lands in the dust
+beside him. All of that used to move the *drawing* and leave the hit box standing where he
+had been — so at up to fourteen pixels of disagreement on a fourteen-pixel-tall palm, you
+could watch a coin pass through the middle of an open hand and score nothing. There is now
+one `personLift(p)`, settled once per frame, that both the drawing and `targetBox` are built
+from; `drawHolding` no longer shifts anything. The street also updates before the coins do,
+so a coin is tested against where everybody is standing *this* frame rather than last one.
+A sweep of 6,318 dead-centre shots — every kind of recipient, every lane, every walking
+speed, every charge — lands 6,318 of them, and a permanent test fires at the middle of each
+opening while its owner is bobbing, hopping and bent over.
+
+**And a coin can no longer step over what it is aimed at.** The hit test is a point test, so
+the substep count is now derived from how fast the coin is actually moving: never more than
+three pixels between two tests, against a smallest opening of fourteen. At full charge that
+is sixteen steps a frame. The catch radius went from 3px to 4px in the same pass.
+
 **Not everybody on the street is poor.** From street 2 there are gentlemen about: good coat,
 silk hat, stick, both hands busy. They never put a hand out, so there is nothing on them to
 aim into, and a coin that catches one bounces off his shoulder and ends up in the road. They
 crowd the street, which is the point of them — and the halacha underneath is on card t13:
 tzedaka money is for *achicha ha'evyon*, your brother who is in need. Look for the hand.
+
+There is only ever **one poor man on the street at a time** from street 5 on — two before
+that, and two again on Purim — while the pavement around him fills with five or six
+gentlemen. That is the point: he is the whole street, and what makes it hard is landing the
+coin rather than finding somebody to land it on. The gentlemen spawn on their own clock, so a
+busy pavement can never cost him his place, and when the street does empty the next man is
+already on his way in. The quota came down to match — three on street 1 rising to six on
+Purim — and the audit proves each street still sends between 1.8× and 6× as many people as
+its own quota needs, computing supply from how fast his slot frees up rather than from the
+spawn rate.
+
+**They get quicker every single street.** 52–80 px/s on street 1, 118–163 by street 12 —
+near enough twice as fast, which halves the moment you have to judge, from about half a
+second down to a quarter. The audit fails the build if any street walks no faster than the one
+before it, or if the release window on the narrowest opening ever drops below 0.22s.
 
 **The wagon and the gentleman are drawn exactly the size of the box that stops a coin.** Not
 approximately — a test renders each of them to an offscreen canvas, scans for the topmost,
@@ -504,10 +574,8 @@ loose enough to reach and tight enough to miss.
 * jelly stacks clear the flame below and the HUD above at every night, and the jug row with its
   labels stays on screen under a safe-area inset
 * gusts cross in 8.0s on night 1 and 2.4s on night 8 — enough to react to, tight enough to hurt
-* Kosher Sort's four bins sit on the sides its gestures claim, the chutes tuck exactly between
-  the two belts without overlapping either, and even at maximum shift speed *inside* a Kashrus
-  Rush consecutive items are ~190px apart against a 120px grab radius, so a touch is never
-  ambiguous
+* Kosher Sort's four bins sit on the sides its gestures claim, and grabs stay unambiguous in a rush
+* Kitchen Match's 6×8 board fits on screen, pareve plates with either side, and meat-and-dairy never plates
 * Matzah Havoc's four lane centres all sit on the road and inside the truck's reachable range,
   and the truck's hitbox is strictly inside its drawn body
 
@@ -577,8 +645,8 @@ distinct in luminance from every skin tone, so none of them can ever read as bar
   otherwise stay out of the way — no Hebrew, no citation, no sermon, and nothing at all when a
   coin misses or scores less than it could have. The score says that by itself. The teaching
   waits for the card at the end of the street, where the player is not busy.
-* **Teachable mistakes.** A wrong bin in Kosher Sort names the food and the reason
-  ("Basar b'chalav — flick it up to the disposal chute") before the strike lands.
+* **Teachable mistakes.** A wrong bin in Kosher Sort names the food. In Kitchen Match, meat
+  and dairy swap freely but never vanish as a plate. Overloading the top shelf is a kitchen fail.
 
 All halachic content is summary-level and cites its source; it is for learning, not for
 deciding a practical question — that is what a rav is for.
@@ -617,7 +685,7 @@ deciding a practical question — that is what a rav is for.
 
 ## Verified
 
-Automated Playwright pass against headless Chromium — 155/155 behaviour checks, zero console
+Automated Playwright pass against headless Chromium — 158/158 behaviour checks, zero console
 errors, steady 60 FPS across 30-second endurance runs per minigame:
 
 * every gesture path (tap, double-tap, swipe in four directions, drag-and-hold, drag-steer,
@@ -644,11 +712,12 @@ errors, steady 60 FPS across 30-second endurance runs per minigame:
   stays rare, and — the corner regression — a truck that carries you off the kerb sets you
   down one square inward with a beat of grace, so nothing can pick you straight back up in a
   loop, while a ride after the grace lapses still scores exactly once
-* Kosher Sort: a covered dish refuses a swipe until it is tapped open, a dish left covered to
-  the end names what was under the lid, and the Kashrus Rush speeds the belts, tightens the
-  gaps and doubles the score for its eight seconds
-* sorting-swipe accuracy across nine stroke angles, plus the two reported failures end to end:
-  salami flicked left-and-down landing in MEAT, and steak dragged left from the far belt
+* Kosher Sort: covered dishes refuse a swipe until tapped open, the dish you grabbed is the one
+  that moves, and the Kashrus Rush speeds the belts and doubles the score. Twelve named belt
+  shifts, shift-12 victory
+* Kitchen Match: matching is the kashrus — pareve plates with either side, meat and dairy never
+  do, fish does not plate with meat, treif and mixed flick up, Kashrus Rush speeds the rise.
+  Twelve named shifts, quota to card, shift-12 victory, overload knocks the top two rows off
 * Matzah Havoc hitboxes: chametz on the body counts, chametz beside, above or already fallen
   past the truck does not; the same for yeast clouds and for traffic in an adjacent lane
 * the night-8 boss end to end: the fake victory before he arrives, the gift box opening and
