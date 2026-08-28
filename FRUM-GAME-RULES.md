@@ -166,6 +166,14 @@ read it. Cards are separate from the game and can be as rich as you like.
   Mitzvah Dash does not roll like that — here you fight for every last flame."* Never let
   a game mechanic silently misrepresent the halacha.
 
+### Hebrew is a language of the game, not a decoration
+Every user-facing string has a Hebrew side, written by hand in `Lang.he`. English is the
+key. **Do not machine-translate.** Write it the way a kid would hear it in the kitchen:
+short, spoken, not biblical and not English word-order in Hebrew letters. Add both
+sides in the same change. A Hebrew UI is not a mid-play lecture — it is the same
+directions in the player's language. Unexplained terms still belong on the card, with
+a glossary line, in whichever language the card is showing.
+
 ---
 
 ## 6. Sources

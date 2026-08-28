@@ -70,14 +70,20 @@ npm i @capacitor/haptics
 
 ## The six minigames
 
+The Play tab menu shows six tiles. Kitchen Match is still in the code and still
+fully tested (`qa2.js`) - it is just hidden from the menu grid (`hidden: true`
+in the `GAMES` array, filtered out into `VISIBLE_GAMES`) in favor of Camp Kosh,
+which now sits in its old spot. Un-hide it by dropping that flag.
+
 | Game | Halacha it teaches | Controls |
 |---|---|---|
 | **Menorah Keeper** | Ner Chanukah must burn a full half hour after nightfall; a lighting the wind will kill is not a valid lighting; olive oil, the shamash, lighting one light from another, and *me'ikkar hadin* — one light a night is already the mitzvah | Every light has **its own jug directly beneath it** — **tap the jug** (or the light) to top it up · **Swipe against the wind** along the marked lane — *window closed* — and the gust blows back out the way it came · **Swipe** jelly off the glass and burning latkes off the cups · **Tap** dreidels before they knock a jug over · **Tap the shamash** to lift it off its pin, then **drag it onto a dark wick and hold it there** to relight — the cup needs oil in it first |
 | **Shul Crossing** | Sof Zman Tefillah, Plag HaMincha, zerizin makdimin, schar pesios, kavod Shabbos | **Tap** to leap forward · **Swipe left/right/down** to steer · the **food truck lane** is uncommon and mixed: ride a **KOSHER FOOD** truck for a free lift and invincibility, but a **NOT KOSHER** truck flattens you — read the label · dodge the sprinklers, because one soaking leaves you with a **WET HAT** and the dry hat bonus is gone for the whole crossing · beat the zman to the shul for a **Mitzvah Multiplier** |
 | **Kosher Sort** | Basar b'chalav (cooking, eating and benefit), pareve, waiting between meat and milk, fins-and-scales, the two signs, hechsher, checking for insects | Dual conveyor: **swipe left** → meat bin · **right** → dairy · **down** → pareve · **flick up** → disposal. **Tap** a lid before you swipe. Survive the **Kashrus Rush**. Twelve named belt shifts |
-| **Kitchen Match** | The same kashrus: what can share a plate | **Swipe** neighbouring dishes to swap. **Three that can share a plate** vanish — meat with meat, dairy with dairy, pareve with either side. Meat and dairy never match (the swap bounces). **Flick up** treif or mixed dishes. **Tap** a lid. Plate the quota before the stack **overloads**. Twelve named kitchen shifts |
 | **Matzah Delivery Havoc** | The fourth halachic hour on Erev Pesach, bedikas chametz, bittul, eighteen minutes, matzah shemura, bal yeira'eh | **Drag the bottom-left slider** (or the truck) to steer · **slash** with your other hand to cut flying chametz · **giant croissants** need three cuts or one two-finger combo swipe · **tap** yeast clouds to disperse them · drive into the **Afikoman golden shield** |
 | **Tzedaka Blast** | Rambam's eight levels of giving, *dei machsoro*, matan b'seter, aniyei ircha kodmin, giving before being asked, the kupah and its gabbai, words when the purse is empty, matanos l'evyonim (all of it on the cards — the banners during play stay short and plain) | **Hold and slide to aim a DROP** — sliding sideways leans the throw, a dotted line shows exactly where the coin will fall, and how long you hold sets how fast it goes · **pull UP for power**, shown on a force meter under the window · **tap** a bird to shoo it off your coin · with an empty purse, **tap** somebody and speak to him. The target is the **opening** — his palm, the slot in the tin — and a coin that misses is gone in the dark |
+| **Camp Kosh** | Meat/dairy/fish/pareve grouping; fish-with-dairy by nusach (Ashkenaz, Sefard, Edot HaMizrach, Chabad) — where it is allowed, a fish-and-dairy plate fills both orders at once with a dual simcha bonus, and Edot HaMizrach rinse between the two the rest of the way round, same as fish and meat; six hours after meat on a clock that moves two hours a plate, explained to the player as **three pareve meals**, not a raw hour count; milchig never at a fleishig meal, so the boys **bentch** first; wash, drink and something pareve after milchig; netilas yadayim for bread, one washing for the whole meal; a rinse between fish and meat, either order. Every refusal flashes the card that teaches it, with the source on it | **Own engine** in `kosher-chain/` — you run the camp dining hall: drag a chain through neighbouring dishes that may share a plate, and keep the simcha bar off zero. The bar drains on the wall clock, faster every week, so slow plates cost you. **WASH**, **RINSE** and **BENTCH** are free actions. Six weeks, three days each. On the Mitz Mode Play tab it sits in Kitchen Match's old spot; the host swaps to `kosher-chain.html`. Sync with `npm run sync:app`. |
+| ~~**Kitchen Match**~~ *(hidden from the menu, code and tests intact)* | Meat with meat, dairy with dairy, pareve with pareve | **Swipe** neighbouring dishes to swap. **Three of the same side** vanish. Meat and dairy never plate together. **Flick up** treif or mixed dishes. **Tap** a lid. Plate the quota before the stack **overloads**. Twelve named kitchen shifts |
 
 Each minigame keeps its own combo, level and score, and hands a **Halacha flash card** to the
 player between levels and on game over. Four of them have lives; Tzedaka Blast deliberately has
@@ -152,7 +158,8 @@ Two rules keep swipes honest across all four games:
   so a flick toward a side bin nearly always drifts downward on the way. Horizontal wins unless
   the stroke is genuinely steep. The dish you touched is the dish that moves.
 * **Kitchen Match swaps the dish you started on.** Any two uncovered neighbours can trade
-  places, including meat and dairy — they just never plate together. A clear flick **up** dumps treif or mixed dishes into the chute.
+  places, including meat and dairy — they just never plate together. Three of the same
+  side vanish. A mixed row stays put. A clear flick **up** dumps treif or mixed dishes into the chute.
 
 Matzah Havoc's truck likewise uses a real hitbox traced to its drawn body and pulled in a
 little, tested circle-against-rectangle. The old check was "past this line and roughly
@@ -575,7 +582,7 @@ loose enough to reach and tight enough to miss.
   labels stays on screen under a safe-area inset
 * gusts cross in 8.0s on night 1 and 2.4s on night 8 — enough to react to, tight enough to hurt
 * Kosher Sort's four bins sit on the sides its gestures claim, and grabs stay unambiguous in a rush
-* Kitchen Match's 6×8 board fits on screen, pareve plates with either side, and meat-and-dairy never plates
+* Kitchen Match's 6×8 board fits on screen, three of the same side plate, and meat-and-dairy never plates
 * Matzah Havoc's four lane centres all sit on the road and inside the truck's reachable range,
   and the truck's hitbox is strictly inside its drawn body
 
@@ -679,7 +686,8 @@ deciding a practical question — that is what a rav is for.
   call `this.award('id')` from wherever the player earns it.
 * **A new minigame:** subclass `MiniGame`, implement `reset / update / render / handle`
   (plus optional `renderHud` and `stats`), add it to the `GAMES` array and to the constructor
-  map in `Game.startGame`.
+  map in `Game.startGame`. A separate full game (like Camp Kosh) is an `external`
+  tile that asks the Play tab host via `mitz://game/…` instead.
 
 ---
 
@@ -715,8 +723,9 @@ errors, steady 60 FPS across 30-second endurance runs per minigame:
 * Kosher Sort: covered dishes refuse a swipe until tapped open, the dish you grabbed is the one
   that moves, and the Kashrus Rush speeds the belts and doubles the score. Twelve named belt
   shifts, shift-12 victory
-* Kitchen Match: matching is the kashrus — pareve plates with either side, meat and dairy never
-  do, fish does not plate with meat, treif and mixed flick up, Kashrus Rush speeds the rise.
+* Kitchen Match: matching is three of the same side — meat with meat, dairy with dairy, pareve
+  with pareve. Meat and dairy never vanish as one plate. Fish matches fish. Treif and mixed
+  flick up. Kashrus Rush speeds the rise.
   Twelve named shifts, quota to card, shift-12 victory, overload knocks the top two rows off
 * Matzah Havoc hitboxes: chametz on the body counts, chametz beside, above or already fallen
   past the truck does not; the same for yeast clouds and for traffic in an adjacent lane

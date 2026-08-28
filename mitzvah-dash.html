@@ -346,9 +346,6 @@ var Lang = {
     'MITZVAH': 'מצווה',
     'DASH': 'דאש',
     'Six arcade minigames. Real halacha.': 'שש משחקים. הלכה אמיתית.',
-    'Seven arcade minigames. Real halacha.': 'שבע משחקים. הלכה אמיתית.',
-    'Camp Kosh': 'קעמפ כשר',
-    'Feed the boys, keep it kosher': 'תאכיל את הבחורים, תשמור על כשרות',
     'HALACHA GALLERY': 'גלריית ההלכה',
     'BACK': 'חזרה',
     'PLAY': 'שחק',
@@ -870,11 +867,6 @@ var Lang = {
     'Set 5 people back on their own feet so they no longer need to ask.': 'העמידו 5 אנשים על הרגליים כדי שלא יצטרכו לבקש.',
     'Gabbai Tzedakah': 'גבאי צדקה',
     'Bank 15 coins into the community kupah cart.': 'הכניסו 15 מטבעות לעגלת הקופה.',
-    'POLO MATCH': 'משחק פולו',
-    'I SPEND MY TIME YACHTING': 'אני מפליג עם היאכטה שלי',
-    'NOT IN MY TAX BRACKET': 'אני לא במדרגת המס שלך',
-    'MY CAT IS A BILLIONAIRE': 'החתול שלי מיליארדר',
-    'I OWN HORSES, BRO': 'יש לי סוסים, אחי',
     'Into the Wind': 'מול הרוח',
     'Land 12 coins in somebody\'s hand while a strong gust is blowing across the street.': 'הנחיתו 12 מטבעות ביד בזמן שרוח חזקה חוצה את הרחוב.',
     'Wait, Then Give': 'חכו, ואז תנו',
@@ -1014,7 +1006,7 @@ var Lang = {
     'The usual measure is a tenth of what you earn. A fifth is the generous upper limit - and it IS a limit. The Sages actively stopped people giving away more than that, so that someone who is giving today does not end up needing to receive tomorrow.': 'המידה הרגילה היא עשירית ממה שמרוויחים. חומש זה הגבול הנדיב למעלה - וזה גבול. חכמים עצרו אנשים מליתן יותר, כדי שמי שנותן היום לא יצטרך לקבל מחר.',
     'Here is a question worth asking: is tzedaka money for ANYBODY? No. The Torah says achicha ha\'evyon - your brother who is in need. That is who the money is for. The man strolling past in the fine coat with a silver-topped stick is not asking you for anything and is not short of anything, and a coin thrown at him is simply a coin you no longer have for the person who is. How do you tell? Usually you do not have to work very hard: the one who needs it is the one with his hand out.': 'שאלה ששווה לשאול: כסף צדקה זה לכל אחד? לא. התורה אומרת אחיך האביון - האח שצריך. זה למי הכסף. האיש שטייל במעיל יפה עם מקל כסף לא מבקש כלום ולא חסר לו כלום, ומטבע שנזרק עליו הוא פשוט מטבע שכבר אין למי שכן צריך. איך יודעים? בדרך כלל לא צריך לעבוד קשה: מי שצריך זה מי עם היד בחוץ.',
     'So really you were finished the second you lit. Mitzvah Dash does not roll like that - here you fight for every last flame until the clock runs out.': 'אז בעצם סיימתם בשנייה שהדלקתם. מצווה דאש לא עובד ככה - פה נלחמים על כל להבה עד שהשעון נגמר.',
-    'Purim is the one day this changes - everyone who asks gets something, no checking needed. Every other day, look for the hand.': 'בפורים זה משתנה - כל מי שמושיט יד מקבל, בלי לבדוק. בכל יום אחר, מחפשים את היד.'
+    'Purim is the exception, and it is a big one - see On Purim, No Questions. Every other day of the year, look for the hand.': 'פורים זה החריג, וזה חריג גדול - ראו ״בפורים בלי שאלות״. בכל יום אחר בשנה, חפשו את היד.'
   }
 };
 
@@ -2325,7 +2317,7 @@ var Halacha = {
       terms:[['Evyon','somebody who really has nothing - the neediest word the Torah uses'],
              ['Ani','a poor person - the one tzedaka money is meant for'],
              ['Tzedakah','giving to someone in need; the word means "justice", not "charity"']],
-      note:'Purim is the one day this changes - everyone who asks gets something, no checking needed. Every other day, look for the hand.',
+      note:'Purim is the exception, and it is a big one - see On Purim, No Questions. Every other day of the year, look for the hand.',
       source:'Devarim 15:7-8; Rambam Hilchos Matnos Aniyim 7:1-2' }
   ],
 
@@ -2773,15 +2765,10 @@ var Game = {
 
   /* ------------------------------------------------------ game lifecycle */
   startGame: function (id) {
-    if (id === 'chain') {
-      MitzHost.open('kosher-chain');
-      return;
-    }
     FX.reset();
     Input.clear();
     var ctor = { menorah: MenorahKeeper, shul: ShulCrossing, kosher: KosherSort,
                  kitchen: KitchenMatch, matzah: MatzahHavoc, tzedaka: TzedakaBlast }[id];
-    if (!ctor) return;
     Game.scene = new ctor();
     Game.scene.reset();
     Game.gameover = null;
@@ -3125,33 +3112,13 @@ MiniGame.prototype.interstitial = function (cb) {
    16. SCREENS - MAIN MENU + HALACHA GALLERY
    ========================================================================== */
 var GAMES = [
-  { id:'menorah', name:'Menorah Keeper', tag:'Chanukah survival',         icon:'lamp',  color:'#ffcf5c' },
-  { id:'shul',    name:'Shul Crossing',  tag:'Thirty-walk dash',          icon:'run',   color:'#7fc8ff' },
-  { id:'kosher',  name:'Kosher Sort',    tag:'Dual-belt dash',            icon:'split', color:'#8ee06a' },
-  /* own engine - the Play tab host swaps HTML; standalone opens the sibling.
-     Sits in Kitchen Match's old spot in the menu grid - see hidden below. */
-  { id:'chain',   name:'Camp Kosh',      tag:'Feed the boys, keep it kosher', icon:'fish', color:'#ffcf5c', external: true },
-  /* hidden from the menu, not deleted - may bring it back later */
-  { id:'kitchen', name:'Kitchen Match',  tag:'Make a kosher plate',       icon:'leaf',  color:'#5ee0c0', hidden: true },
-  { id:'matzah',  name:'Matzah Havoc',   tag:'Twelve-route dash',         icon:'truck', color:'#ff8a6b' },
-  { id:'tzedaka', name:'Tzedaka Blast',  tag:'Into their hands',          icon:'coin',  color:'#c9adff' }
+  { id:'menorah', name:'Menorah Keeper', tag:'Chanukah survival',   icon:'lamp',  color:'#ffcf5c' },
+  { id:'shul',    name:'Shul Crossing',  tag:'Thirty-walk dash',    icon:'run',   color:'#7fc8ff' },
+  { id:'kosher',  name:'Kosher Sort',    tag:'Dual-belt dash',      icon:'split', color:'#8ee06a' },
+  { id:'kitchen', name:'Kitchen Match',  tag:'Make a kosher plate', icon:'leaf',  color:'#5ee0c0' },
+  { id:'matzah',  name:'Matzah Havoc',   tag:'Twelve-route dash',   icon:'truck', color:'#ff8a6b' },
+  { id:'tzedaka', name:'Tzedaka Blast',  tag:'Into their hands',    icon:'coin',  color:'#c9adff' }
 ];
-/* what the Play tab grid actually shows */
-var VISIBLE_GAMES = GAMES.filter(function (g) { return !g.hidden; });
-
-/* Ask the Mitz Mode Play tab (or a sibling page) to open another game. */
-var MitzHost = {
-  open: function (game) {
-    if (window.MITZ_MODE === true) {
-      try { location.href = 'mitz://game/' + game; } catch (e) {}
-      return true;
-    }
-    if (game === 'kosher-chain' || game === 'chain') {
-      try { location.href = 'kosher-chain/index.html'; return true; } catch (e) {}
-    }
-    return false;
-  }
-};
 
 var Screens = {
   introBtns: [], pauseBtns: [], overBtns: [], popupBtns: [],
@@ -3216,7 +3183,7 @@ var Screens = {
         size: 64, color: C.cream, align: 'center', weight: '900',
         stroke: 'rgba(0,0,0,.6)', strokeW: 8, shadow: 'rgba(120,200,255,.4)', shadowBlur: 24
       });
-      Draw.text(ctx, 'Seven arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
+      Draw.text(ctx, 'Six arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
         size: 22, color: 'rgba(255,255,255,.72)', align: 'center', weight: '600'
       });
 
@@ -3322,34 +3289,29 @@ var Screens = {
 
   buildMenu: function () {
     var b = [];
-    var list = VISIBLE_GAMES;
-    /* an odd tile count shrinks a little so the wide leftover still fits a
-       short phone. Six lands as three even pairs - no leftover needed. */
-    var tall = list.length > 6;
-    var cw = 300, ch = tall ? 128 : 152, gap = tall ? 10 : 12;
-    var wideH = tall ? 112 : 128;
+    var cw = 300, ch = 152, gap = 12;
     var x0 = (CFG.W - (cw * 2 + gap)) / 2;
-    var y0 = View.safe.t + (tall ? 292 : 312);
-    var pairs = Math.floor(list.length / 2);
+    var y0 = View.safe.t + 312;
+    var pairs = Math.floor(GAMES.length / 2);
     var i, btn;
     for (i = 0; i < pairs * 2; i++) {
       var col = i % 2, row = (i / 2) | 0;
-      btn = new Button(x0 + col * (cw + gap), y0 + row * (ch + gap), cw, ch, list[i].name,
-        (function (id) { return function () { Game.startGame(id); }; })(list[i].id),
-        { data: list[i], pad: 0 });
+      btn = new Button(x0 + col * (cw + gap), y0 + row * (ch + gap), cw, ch, GAMES[i].name,
+        (function (id) { return function () { Game.startGame(id); }; })(GAMES[i].id),
+        { data: GAMES[i], pad: 0 });
       btn.kind = 'game';
       b.push(btn);
     }
     /* an odd game out gets the full width rather than a lonely half-row */
     var y = y0 + pairs * (ch + gap);
-    for (i = pairs * 2; i < list.length; i++) {
-      btn = new Button(x0, y, cw * 2 + gap, wideH, list[i].name,
-        (function (id) { return function () { Game.startGame(id); }; })(list[i].id),
-        { data: list[i], pad: 0 });
+    for (i = pairs * 2; i < GAMES.length; i++) {
+      btn = new Button(x0, y, cw * 2 + gap, 128, GAMES[i].name,
+        (function (id) { return function () { Game.startGame(id); }; })(GAMES[i].id),
+        { data: GAMES[i], pad: 0 });
       btn.kind = 'game';
       btn.wide = true;
       b.push(btn);
-      y += wideH + gap;
+      y += 128 + gap;
     }
 
     var gy = y + 4;
@@ -12357,12 +12319,10 @@ TzedakaBlast.prototype.tune = function () {
     /* One poor man crossing at a time from street 5 on, two before that and
        two again on Purim. He is the only one who needs you, so he is the whole
        point of the street, and the quota comes down to match. */
-    goal:      Math.round(2.5 + n * 0.28) + (purim ? 2 : 0),             /* people to help     */
+    goal:      Math.round(2.5 + n * 0.28) + (purim ? 7 : 0),             /* people to help     */
     maxPoor:   (n <= 4 || purim || n >= 11) ? 2 : 1,
     gentMax:   n >= 10 ? 8 : (n >= 7 ? 7 : (n >= 4 ? 5 : 4)),
-    /* the clock ramps up to the old flat 74s by street 6 - the early streets
-       have a low goal and do not need a full 74 seconds to clear it */
-    dur:       Math.min(74, 46 + n * 5) + (n > 6 ? 8 : 0) + (n >= 10 ? 4 : 0),
+    dur:       74 + (n > 6 ? 8 : 0) + (n >= 10 ? 4 : 0),
     spawnEvery: Math.max(1.05, 3.4 - n * 0.19),
     /* They get properly quick, and by a step every single street. From street 5
        the cobbles pick up a bit extra; the audit still holds the street-8
@@ -12485,6 +12445,9 @@ TzedakaBlast.prototype.setupStreet = function () {
   this.hungry = false;
   this.drySaid = false;
   if (this.gents.length) this.metGent = true;
+  var sc = this.scene();
+  var sub = sc.hook || sc.sub;
+  this.say(sc.name, sub, C.gold, 3);
 };
 
 /* Nothing hangs over the road. An awning on a shopfront cannot stop a coin
@@ -12556,7 +12519,7 @@ TzedakaBlast.prototype.introduce = function (kind) {
     hand:   ['OPEN HAND!', 'that is the jackpot - drop it in the palm'],
     pushka: ['A PUSHKA!', 'tiny slot. clink!'],
     basket: ['GIANT SACK!', 'wide open. dunk it!'],
-    kupah:  ['TOWN CART!'],
+    kupah:  ['TOWN CART!', 'one box for the whole street - drop it in'],
     loan:   ['BROKEN CART!', 'lend him GOLD. he pays you back. top move!']
   };
   var l = lines[kind];
@@ -12621,20 +12584,19 @@ TzedakaBlast.GENT_QUIPS = [
   'I\'M RICH, RICH I TELL YOU!',
   'I\'M THE CEO',
   'I DON\'T EVEN PUMP MY OWN GAS',
-  'POLO MATCH',
+  'I\'M LATE FOR MY POLO GAME',
   'I DON\'T LOOK AT PRICE TAGS',
-  'I SPEND MY TIME YACHTING',
+  'SORRY, MY YACHT IS WAITING',
   'I DON\'T CARRY COINS',
   'PLATINUM STATUS',
-  'NOT IN MY TAX BRACKET',
+  'YOU\'RE NOT IN MY TAX BRACKET',
   'I ONLY FLY FIRST CLASS',
-  'MY CAT IS A BILLIONAIRE',
+  'MY CAT COST MORE THAN YOUR LIFE',
   'I SUMMER IN THE HAMPTONS',
   'I BOUGHT BITCOIN AT 3 CENTS',
   'MY HOUSE HAS MORE THAN 1 POOL',
   'I INVENTED THE TACO',
-  'MY NAME IS ON THAT BUILDING, BRO',
-  'I OWN HORSES, BRO'
+  'MY NAME IS ON THAT BUILDING, BRO'
 ];
 
 TzedakaBlast.prototype.gentBounceLine = function () {
@@ -13472,7 +13434,7 @@ TzedakaBlast.TOWERS = [
    shape, how many storeys you can see, the palette, the weather and the cart
    standing in the road. No two streets in a row look alike. */
 TzedakaBlast.SCENES = [
-  { id:'city',
+  { id:'city',   name:'LOOK FOR THE HAND', sub:'fancy coat? keep walking. open palm? JACKPOT',
     sky:[[0,'#050a18'],[0.3,'#091530'],[0.55,'#0e2044'],[0.72,'#132741'],[1,'#0b0f1c']],
     wallA:'#141b30', wallB:'#101728', mine:'#1a2138',
     lit:'rgba(255,196,96,.85)', lit2:'rgba(255,214,132,.62)', dark:'rgba(6,10,20,.72)',
@@ -13481,7 +13443,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,196,110,.16)', cart:'#3a3550', weather:null,
     tops:[244,168,296,116,212,152,268], rows:9 },
 
-  { id:'west',
+  { id:'west',   name:'COWBOY STREET',     sub:'same rule out west: no hand out, no coin',
     sky:[[0,'#0d0a16'],[0.3,'#1a1220'],[0.55,'#2a1a24'],[0.72,'#33202a'],[1,'#140f18']],
     wallA:'#3a2a1e', wallB:'#2e2118', mine:'#463020',
     lit:'rgba(255,186,84,.88)', lit2:'rgba(255,206,120,.6)', dark:'rgba(22,14,10,.78)',
@@ -13490,7 +13452,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,176,90,.20)', cart:'#6b4a28', weather:null,
     tops:[512,470,534,452,520,486,542], rows:2 },
 
-  { id:'stone',
+  { id:'stone',  name:'OLD CITY',          sub:'same game as always: open hands win',
     sky:[[0,'#070c1c'],[0.3,'#0d1730'],[0.55,'#152741'],[0.72,'#1d3348'],[1,'#0d1220']],
     wallA:'#3b3527', wallB:'#2f2a1f', mine:'#4a4231',
     lit:'rgba(255,208,132,.86)', lit2:'rgba(255,226,168,.6)', dark:'rgba(16,14,10,.75)',
@@ -13499,7 +13461,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,214,140,.18)', cart:'#5c5340', weather:null,
     tops:[380,318,410,286,364,330,402], rows:4 },
 
-  { id:'port',
+  { id:'port',   name:'HARBOR HUSTLE',     sub:'wind off the water. aim like you mean it',
     sky:[[0,'#04101a'],[0.3,'#071c2c'],[0.55,'#0b2b3e'],[0.72,'#103546'],[1,'#07131c']],
     wallA:'#152a33', wallB:'#102028', mine:'#1b3540',
     lit:'rgba(170,232,255,.7)', lit2:'rgba(255,206,120,.55)', dark:'rgba(5,16,22,.76)',
@@ -13508,7 +13470,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(150,220,255,.15)', cart:'#22454f', weather:null,
     tops:[436,378,458,350,416,392,468], rows:3 },
 
-  { id:'narrow',
+  { id:'narrow', name:'THE SQUEEZE',       sub:'wind picked a side. throw INTO it',
     sky:[[0,'#0a0610'],[0.3,'#140b1a'],[0.55,'#1d1024'],[0.72,'#241528'],[1,'#0c0812']],
     wallA:'#3a1f1e', wallB:'#2c1717', mine:'#482724',
     lit:'rgba(255,168,96,.8)', lit2:'rgba(255,196,128,.55)', dark:'rgba(14,7,7,.8)',
@@ -13517,7 +13479,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,150,90,.17)', cart:'#4a2c26', weather:null,
     tops:[96,60,130,40,110,72,120], rows:11 },
 
-  { id:'village',
+  { id:'village',name:'QUIET LANE',        sub:'sshhh - give before he even asks',
     sky:[[0,'#06121a'],[0.3,'#0a2028'],[0.55,'#123038'],[0.72,'#1a3d3c'],[1,'#0a1a18']],
     wallA:'#5a5142', wallB:'#494134', mine:'#6a5c48',
     lit:'rgba(255,214,140,.88)', lit2:'rgba(255,232,180,.6)', dark:'rgba(20,18,12,.74)',
@@ -13526,7 +13488,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,222,150,.19)', cart:'#6a5230', weather:null,
     tops:[548,520,560,506,540,528,566], rows:2 },
 
-  { id:'snow',
+  { id:'snow',   name:'SLIPPERY STREET',   sub:'ice is a trickster. throw where he is GOING',
     sky:[[0,'#0b1020'],[0.3,'#131c33'],[0.55,'#1d2a45'],[0.72,'#26364f'],[1,'#141a28']],
     wallA:'#2a3244', wallB:'#222938', mine:'#333c50',
     lit:'rgba(255,224,168,.8)', lit2:'rgba(206,232,255,.55)', dark:'rgba(12,16,26,.72)',
@@ -13535,7 +13497,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(200,226,255,.18)', cart:'#3e4860', weather:'snow',
     tops:[330,282,352,258,318,296,364], rows:6 },
 
-  { id:'adobe',
+  { id:'adobe',  name:'BIRD TOWN',         sub:'pigeons are not tzedaka. tap them!',
     sky:[[0,'#140a12'],[0.3,'#241016'],[0.55,'#361a1a'],[0.72,'#42251c'],[1,'#180d10']],
     wallA:'#6a4028', wallB:'#563220', mine:'#7a4c30',
     lit:'rgba(255,190,100,.88)', lit2:'rgba(255,212,140,.6)', dark:'rgba(26,14,8,.76)',
@@ -13544,7 +13506,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,186,104,.20)', cart:'#7a5232', weather:null,
     tops:[470,424,492,404,452,436,500], rows:3 },
 
-  { id:'canal',
+  { id:'canal',  name:'RAINY BRIDGE',      sub:'umbrellas bounce coins. wait for the gap',
     sky:[[0,'#04120f'],[0.3,'#082019'],[0.55,'#0d3025'],[0.72,'#123a2e'],[1,'#061412']],
     wallA:'#1d3a30', wallB:'#152c26', mine:'#254a3c',
     lit:'rgba(190,255,214,.66)', lit2:'rgba(255,214,140,.5)', dark:'rgba(5,18,14,.78)',
@@ -13553,7 +13515,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(160,255,206,.15)', cart:'#28503f', weather:'rain',
     tops:[356,300,378,272,340,314,392], rows:5 },
 
-  { id:'market',
+  { id:'market', name:'MARKET NIGHT',      sub:'lots of coats, one pushka. find the slot',
     sky:[[0,'#0e0818'],[0.3,'#180d26'],[0.55,'#241436'],[0.72,'#2c1a3e'],[1,'#100a1a']],
     wallA:'#402a3a', wallB:'#33212e', mine:'#4e3446',
     lit:'rgba(255,200,140,.82)', lit2:'rgba(226,180,255,.55)', dark:'rgba(16,10,20,.76)',
@@ -13562,7 +13524,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(236,180,255,.16)', cart:'#523a4a', weather:null,
     tops:[402,350,424,330,388,364,436], rows:5 },
 
-  { id:'hill',
+  { id:'hill',   name:'UP THE HILL',       sub:'hold onto your hat. they walk FAST',
     sky:[[0,'#080b20'],[0.3,'#101638'],[0.55,'#1a2350'],[0.72,'#222c5c'],[1,'#0c0f24']],
     wallA:'#3c4058', wallB:'#2f3348', mine:'#4a4e68',
     lit:'rgba(255,206,132,.84)', lit2:'rgba(196,214,255,.55)', dark:'rgba(10,12,22,.74)',
@@ -13571,7 +13533,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(210,222,255,.16)', cart:'#454a66', weather:null,
     tops:[286,214,340,180,262,224,318], rows:7 },
 
-  { id:'purim',
+  { id:'purim',  name:'PURIM PARTY',       sub:'today you just GIVE. no checking, no waiting',
     sky:[[0,'#150a1e'],[0.3,'#25102c'],[0.55,'#38183a'],[0.72,'#452046'],[1,'#180c1e']],
     wallA:'#4a2f4a', wallB:'#3c2540', mine:'#5c3a56',
     lit:'rgba(255,222,140,.95)', lit2:'rgba(255,180,220,.7)', dark:'rgba(30,16,30,.5)',

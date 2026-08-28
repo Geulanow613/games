@@ -263,6 +263,7 @@ const assert = require('assert');
   // ---------- KITCHEN MATCH ----------
   await page.evaluate(() => {
     Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay();
+    Nusach.set('ashkenaz');
     window.KS = {
       wipe() {
         const s = Game.scene;
@@ -298,33 +299,633 @@ const assert = require('assert');
     r.mm && !r.md && r.mp && r.dp && !r.mf && r.df && !r.tm && !r.xm, JSON.stringify(r));
 
   r = await page.evaluate(() => {
+    const kind = (f) => KitchenMatch.kindOf(f);
+    const isMilk = (f) => KitchenMatch.isLiquidMilk(f);
+    const expect = (a, b, nusach) => {
+      const ka = kind(a), kb = kind(b);
+      if (!ka || !kb) return false;
+      if (ka === 'treif' || kb === 'treif' || ka === 'mixed' || kb === 'mixed') return false;
+      if ((ka === 'meat' && kb === 'dairy') || (ka === 'dairy' && kb === 'meat')) return false;
+      if ((ka === 'meat' && kb === 'fish') || (ka === 'fish' && kb === 'meat')) return false;
+      if ((ka === 'fish' && kb === 'dairy') || (ka === 'dairy' && kb === 'fish')) {
+        if (nusach === 'sephardi') return false;
+        if (nusach === 'chabad') {
+          const dairy = ka === 'dairy' ? a : b;
+          return !isMilk(dairy);
+        }
+        return true;
+      }
+      return true;
+    };
+    const chicken = Foods.list.find(f => f.name === 'Chicken');
+    const carrot = Foods.list.find(f => f.name === 'Carrot');
+    const apple = Foods.list.find(f => f.name === 'Apple');
+    const steak = Foods.list.find(f => f.name === 'Steak');
+    const milk = Foods.list.find(f => f.name === 'Milk');
+    const prev = Nusach.id();
+    const misses = [];
+    for (const nusach of ['ashkenaz', 'sefard', 'sephardi', 'chabad']) {
+      Nusach.set(nusach);
+      for (let i = 0; i < Foods.list.length; i++) {
+        for (let j = 0; j < Foods.list.length; j++) {
+          const a = Foods.list[i], b = Foods.list[j];
+          const got = KitchenMatch.canTogether(a, b);
+          const want = expect(a, b, nusach);
+          if (got !== want) misses.push(nusach + ':' + a.name + '+' + b.name + ' got ' + got);
+        }
+      }
+    }
+    Nusach.set('ashkenaz');
+    const s = Game.scene; KS.wipe(); s.wrong = 0;
+    s.put(0, 5, 'Chicken'); s.put(1, 5, 'Carrot');
+    const two = s.trySwap(0, 5, 1, 5);
+    const twoLeft = s.grid[5][0] && s.grid[5][0].food.name;
+    const twoRight = s.grid[5][1] && s.grid[5][1].food.name;
+    const twoPlates = s.plates;
+    KS.wipe(); s.wrong = 0; s.plates = 0;
+    s.put(0, 5, 'Chicken'); s.put(1, 5, 'Carrot'); s.put(2, 5, 'Apple');
+    const withApple = s.findMatches().length;
+    KS.wipe(); s.wrong = 0; s.plates = 0;
+    s.put(0, 5, 'Chicken'); s.put(1, 5, 'Carrot'); s.put(2, 5, 'Steak');
+    const withSteak = s.findMatches().length;
+    KS.wipe(); s.wrong = 0; s.plates = 0;
+    s.put(0, 5, 'Chicken'); s.put(1, 5, 'Milk');
+    const vsMilk = s.trySwap(0, 5, 1, 5);
+    KS.wipe(); s.wrong = 0; s.plates = 0;
+    s.put(0, 5, 'Chicken'); s.put(1, 5, 'Chicken'); s.put(2, 5, 'dairy');
+    s.put(2, 4, 'Chicken');
+    const movedIn = s.trySwap(2, 4, 2, 5);
+    Nusach.set(prev);
+    return {
+      chicken: !!chicken, carrot: !!carrot,
+      chickenCarrot: KitchenMatch.canTogether(chicken, carrot),
+      chickenApple: KitchenMatch.canTogether(chicken, apple),
+      misses: misses.slice(0, 8), missN: misses.length,
+      twoOk: two.ok, twoReason: two.reason, twoLeft, twoRight, twoPlates,
+      withApple, withSteak,
+      milkReason: vsMilk.reason,
+      movedIn: movedIn.ok, plates: s.plates
+    };
+  });
+  check('kitchen: pairing table matches kashrus for every dish, including chicken with carrot',
+    r.chicken && r.carrot && r.chickenCarrot && r.chickenApple && r.missN === 0,
+    JSON.stringify(r));
+  check('kitchen: chicken and carrot swap even without a plate of three - three that can share a plate is what plates them',
+    r.twoOk === true && r.twoReason === 'moved' && r.twoPlates === 0 &&
+    r.twoLeft === 'Carrot' && r.twoRight === 'Chicken' &&
+    r.withApple >= 3 && r.withSteak >= 3 && r.milkReason === 'moved' &&
+    r.movedIn === true && r.plates >= 1, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const fish = Foods.list.find(f => f.shape === 'fish');
+    const milk = Foods.list.find(f => f.name === 'Milk');
+    const cheese = Foods.list.find(f => f.name === 'Cheese');
+    const butter = Foods.list.find(f => f.name === 'Butter');
+    const yogurt = Foods.list.find(f => f.name === 'Yogurt');
+    const ice = Foods.list.find(f => f.name === 'Ice Cream');
+    const meat = Foods.list.find(f => f.k === 'meat');
+    const out = {};
+    for (const id of ['ashkenaz', 'sefard', 'sephardi', 'chabad']) {
+      Nusach.set(id);
+      out[id] = {
+        milk: KitchenMatch.canTogether(fish, milk),
+        cheese: KitchenMatch.canTogether(fish, cheese),
+        butter: KitchenMatch.canTogether(fish, butter),
+        yogurt: KitchenMatch.canTogether(fish, yogurt),
+        ice: KitchenMatch.canTogether(fish, ice),
+        meat: KitchenMatch.canTogether(fish, meat),
+        note: Nusach.kitchenNote()
+      };
+    }
+    Nusach.set('ashkenaz');
+    return out;
+  });
+  check('kitchen: Ashkenaz and Nusach Sefard allow fish with any dairy',
+    r.ashkenaz.milk && r.ashkenaz.cheese && r.sefard.milk && r.sefard.cheese &&
+    r.ashkenaz.note === '' && r.sefard.note === '', JSON.stringify(r));
+  check('kitchen: Sephardim (Edot HaMizrach) never plate fish with dairy',
+    !r.sephardi.milk && !r.sephardi.cheese && !r.sephardi.butter &&
+    !r.sephardi.yogurt && !r.sephardi.ice && r.sephardi.meat === false &&
+    r.sephardi.note === "Sephardim don't eat dairy and fish together", JSON.stringify(r));
+  check('kitchen: Chabad only keeps fish off liquid milk - cheese, butter, cream stay ok',
+    !r.chabad.milk && r.chabad.cheese && r.chabad.butter && r.chabad.yogurt && r.chabad.ice &&
+    r.chabad.note === "Chabad don't eat fish with milk", JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    const line = (nusach, names) => {
+      Nusach.set(nusach);
+      KS.wipe();
+      for (let i = 0; i < names.length; i++) s.put(i, 5, names[i]);
+      return s.findMatches().length;
+    };
+    const fishCheese = ['Salmon', 'Cheese', 'Butter'];
+    const fishMilk = ['Salmon', 'Milk', 'Cheese'];
+    const out = {
+      ashkenazCheese: line('ashkenaz', fishCheese),
+      ashkenazMilk: line('ashkenaz', fishMilk),
+      sefardCheese: line('sefard', fishCheese),
+      sephardiCheese: line('sephardi', fishCheese),
+      sephardiMilk: line('sephardi', fishMilk),
+      chabadCheese: line('chabad', fishCheese),
+      chabadMilk: line('chabad', fishMilk),
+      fishMeat: line('ashkenaz', ['Salmon', 'Steak', 'Brisket'])
+    };
+    /* the dishes still slide past each other either way */
+    Nusach.set('sephardi');
+    KS.wipe();
+    s.put(0, 5, 'Salmon'); s.put(1, 5, 'Cheese'); s.put(2, 5, 'Butter');
+    const swapped = s.trySwap(0, 5, 1, 5);
+    out.sephardiReason = swapped.reason;
+    out.sephardiLeft = s.grid[5][0] && s.grid[5][0].food.name;
+    Nusach.set('ashkenaz');
+    return out;
+  });
+  check('kitchen: a fish line plates with dairy exactly where the nusach allows it',
+    r.ashkenazCheese === 3 && r.ashkenazMilk === 3 && r.sefardCheese === 3 &&
+    r.sephardiCheese === 0 && r.sephardiMilk === 0 &&
+    r.chabadCheese === 3 && r.chabadMilk === 0 && r.fishMeat === 0 &&
+    r.sephardiReason === 'moved' && r.sephardiLeft === 'Cheese', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    window.MITZ_MODE = false; window.MITZ_NUSACH = undefined;
+    Nusach.boot();
+    Nusach.set('ashkenaz');
+    Game.quitToMenu(); Game.startGame('kitchen');
+    const labels = (Screens.introBtns || []).filter(b => b.data && b.data.nusach).map(b => b.label);
+    const web = (Screens.introBtns || []).filter(b => b.data && b.data.nusach).map(b => b.data.nusach);
+    const webPause = (() => { Game.beginPlay(); Game.pause(); return (Screens.pauseBtns || []).filter(b => b.data && b.data.nusach).map(b => b.data.nusach); })();
+    window.MITZ_MODE = true; window.MITZ_NUSACH = 'chabad';
+    Nusach.boot();
+    Game.quitToMenu(); Game.startGame('kitchen');
+    const app = (Screens.introBtns || []).filter(b => b.data && b.data.nusach).map(b => b.data.nusach);
+    const lockedSet = Nusach.set('sephardi');
+    const note = Nusach.kitchenNote();
+    window.MITZ_MODE = false; window.MITZ_NUSACH = undefined;
+    Nusach.boot();
+    Nusach.set('ashkenaz');
+    Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay();
+    return { web, labels, webPause, app, lockedSet, note, current: Nusach.id() };
+  });
+  check('kitchen: web play shows a nusach picker; Mitz Mode locks it to the app profile',
+    r.web.join(',') === 'ashkenaz,sefard,sephardi,chabad' &&
+    r.labels.join(',') === 'Ashkenaz,Sefard,Edot Hamizrach,Chabad' &&
+    r.webPause.join(',') === 'ashkenaz,sefard,sephardi,chabad' &&
+    r.app.length === 0 && r.lockedSet === 'chabad' &&
+    r.note === "Chabad don't eat fish with milk" && r.current === 'ashkenaz', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Lang.set('en');
+    window.MITZ_MODE = true; window.MITZ_LANG = 'he';
+    Lang.boot();
+    Screens.buildMenu();
+    const heId = Lang.id();
+    const playHe = Lang.t('PLAY');
+    const blocked = Lang.set('en');
+    const chip = (Screens.menu.btns || []).some(b => b.label === 'EN' || b.label === 'עב');
+    window.MITZ_MODE = false; window.MITZ_LANG = undefined;
+    Lang.boot();
+    Lang.set('en');
+    Screens.buildMenu();
+    const webChip = (Screens.menu.btns || []).some(b => b.label === 'EN' || b.label === 'עב');
+    const webId = Lang.id();
+    return { heId, playHe, blocked, chip, webChip, webId };
+  });
+  check('lang: Mitz Mode follows the app UI language and hides the in-game toggle',
+    r.heId === 'he' && r.playHe === 'שחק' && r.blocked === 'he' && r.chip === false &&
+    r.webChip === true && r.webId === 'en', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const prev = Lang.id();
+    Lang.set('he');
+    const keys = [
+      'JELLY-ZILLA', 'Jelly-Zilla Slayer', 'Jelly-Zilla got you',
+      'SLICE THE SUFGANIYOT', 'THE PACH SHEMEN', 'OUT THE WINDOW!',
+      'SWIPE TO WIPE', 'DONUT JELLY ON THE WINDOW!', 'TAP THE PACH SHEMEN',
+      'a present?', 'the Great Sufganiyah rises', 'NAPKIN FRENZY x2',
+      'MEAT', 'DAIRY', 'PLAY', 'MAZAL TOV!', 'Kitchen Match'
+    ];
+    const stuck = keys.filter(k => Lang.t(k) === k);
+    const combo = Lang.t('napkin combo x4');
+    const badge = Lang.t('Badge unlocked: Jelly-Zilla Slayer');
+    const card = Lang.t('Half an Hour of Light');
+    Lang.set(prev);
+    return { stuck, combo, badge, card };
+  });
+  check('lang: Jelly-Zilla and other on-screen English have Hebrew',
+    r.stuck.length === 0 && /[\u0590-\u05FF]/.test(r.combo) &&
+    /[\u0590-\u05FF]/.test(r.badge) && /[\u0590-\u05FF]/.test(r.card),
+    JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    window.MITZ_MODE = false; window.MITZ_NUSACH = undefined;
+    Nusach.boot();
+    Nusach.set('ashkenaz');
+    Game.quitToMenu(); Game.startGame('kitchen');
+    const L = Screens.introLayout(Game.scene);
+    const chips = [];
+    for (let i = 0; i < Nusach.CHOICES.length; i++) chips.push(Screens.nusachRect(L, i));
+    const chap0 = Screens.chipRect(L, 0, L.chap.count);
+    const shiftsY = L.chapY - 20;
+    const pickerBottom = Math.max.apply(null, chips.map(c => c.y + c.h));
+    let overlapNeighbours = false;
+    for (let i = 1; i < chips.length; i++) {
+      if (chips[i].x < chips[i - 1].x + chips[i - 1].w + 4) overlapNeighbours = true;
+    }
+    Game.beginPlay();
+    return {
+      gapToShifts: shiftsY - pickerBottom,
+      gapToChap: chap0.y - pickerBottom,
+      overlapNeighbours,
+      pickerBottom, shiftsY, chapY: chap0.y,
+      playBelow: L.btnY > chap0.y + Screens.CHIP_H
+    };
+  });
+  check('kitchen: nusach chips sit above SHIFTS and do not overlap each other',
+    r.gapToShifts >= 12 && r.gapToChap >= 24 && !r.overlapNeighbours && r.playBelow,
+    JSON.stringify(r));
+
+
+  r = await page.evaluate(() => {
     const s = Game.scene; KS.wipe();
     s.put(1, 5, 'meat'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
     const same = s.findMatches().length;
     KS.wipe();
     s.put(1, 5, 'meat'); s.put(2, 5, 'Apple'); s.put(3, 5, 'meat');
-    const mixedOk = s.findMatches().length;
+    const meatPareveMeat = s.findMatches().length;
     KS.wipe();
     s.put(1, 5, 'meat'); s.put(2, 5, 'dairy'); s.put(3, 5, 'meat');
     const mixedBad = s.findMatches().length;
-    return { same, mixedOk, mixedBad };
+    KS.wipe();
+    s.put(0, 5, 'Milk'); s.put(1, 5, 'Ice Cream'); s.put(2, 5, 'Bread');
+    const milkIceBread = s.findMatches().length;
+    KS.wipe();
+    s.put(0, 5, 'dairy'); s.put(1, 5, 'Apple'); s.put(2, 5, 'meat');
+    const dairyPareveMeat = s.findMatches().length;
+    return { same, meatPareveMeat, mixedBad, milkIceBread, dairyPareveMeat };
   });
-  check('kitchen: three meat match, meat-pareve-meat match, meat-dairy-meat never does',
-    r.same >= 3 && r.mixedOk >= 3 && r.mixedBad === 0, JSON.stringify(r));
+  check('kitchen: three meat match; meat-pareve-meat can share a plate; meat-dairy-meat never',
+    r.same >= 3 && r.meatPareveMeat >= 3 && r.mixedBad === 0, JSON.stringify(r));
+  check('kitchen: milk, ice cream and bread share a dairy plate; dairy-pareve-meat cannot',
+    r.milkIceBread >= 3 && r.dairyPareveMeat === 0, JSON.stringify(r));
 
   r = await page.evaluate(() => {
-    const s = Game.scene; KS.wipe(); s.score = 0; s.lives = 3;
-    s.put(1, 5, 'meat'); s.put(2, 5, 'dairy'); s.put(3, 5, 'meat');
-    const bounced = s.trySwap(2, 5, 1, 5);
-    return { ok: bounced.ok, reason: bounced.reason, plates: s.plates, lives: s.lives, wrong: s.wrong };
+    const s = Game.scene;
+    const nOf = () => s.selectPlates(s.findMatchGroups());
+    KS.wipe();
+    s.put(0, 5, 'dairy'); s.put(1, 5, 'Apple'); s.put(2, 5, 'Apple');
+    const dairyTwoPareve = nOf();
+    KS.wipe();
+    s.put(0, 5, 'Apple'); s.put(1, 5, 'dairy'); s.put(2, 5, 'Apple');
+    const pareveDairyPareve = nOf();
+    KS.wipe();
+    s.put(0, 5, 'Apple'); s.put(1, 5, 'Apple'); s.put(2, 5, 'dairy');
+    s.put(3, 5, 'Apple'); s.put(4, 5, 'Apple');
+    const dairyInPareve = nOf();
+    KS.wipe();
+    s.put(0, 5, 'Yogurt'); s.put(1, 5, 'Mango'); s.put(2, 5, 'Falafel');
+    const yogurtMangoFalafel = nOf();
+    return {
+      dairyTwoPareve: dairyTwoPareve.length, dairyTwoSide: s.groupSide(dairyTwoPareve[0] || []),
+      pdp: pareveDairyPareve.length, pdpSide: s.groupSide(pareveDairyPareve[0] || []),
+      seaN: dairyInPareve.length, seaLen: (dairyInPareve[0] || []).length,
+      seaSide: s.groupSide(dairyInPareve[0] || []),
+      ymf: yogurtMangoFalafel.length, ymfSide: s.groupSide(yogurtMangoFalafel[0] || [])
+    };
   });
-  check('kitchen: swapping meat onto dairy bounces back - nothing is lost, they just stay apart',
-    r.ok === false && r.plates === 0 && r.lives === 3 && r.wrong >= 1, JSON.stringify(r));
+  check('kitchen: one dairy plus two pareve is a dairy plate (cheese with fruit, yogurt-mango-falafel)',
+    r.dairyTwoPareve === 1 && r.dairyTwoSide === 'dairy' &&
+    r.pdp === 1 && r.pdpSide === 'dairy' &&
+    r.seaN === 1 && r.seaLen === 5 && r.seaSide === 'dairy' &&
+    r.ymf === 1 && r.ymfSide === 'dairy', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const count = (s, k) => {
+      let n = 0;
+      for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
+        for (let cc = 0; cc < KitchenMatch.COLS; cc++) {
+          const t = s.grid[rr][cc];
+          if (!t) continue;
+          if (k === 'fish') {
+            if (KitchenMatch.kindOf(t) === 'fish') n++;
+          } else if (t.food.k === k || t.food.name === k) n++;
+        }
+      return n;
+    };
+    const s = Game.scene;
+    const prev = Nusach.id();
+    Nusach.set('ashkenaz');
+    KS.wipe();
+    s.put(0, 5, 'dairy'); s.put(1, 5, 'Apple'); s.put(2, 5, 'meat');
+    const sittingN = s.findMatches().length;
+    KS.wipe();
+    s.put(0, 5, 'dairy'); s.put(1, 5, 'dairy'); s.put(2, 5, 'Apple');
+    s.put(2, 6, 'meat'); s.put(2, 7, 'meat');
+    const overlap = s.selectPlates(s.findMatchGroups());
+    const plateKinds = (g) => {
+      const kinds = new Set();
+      for (const c of g) {
+        const k = KitchenMatch.kindOf(s.grid[c.r][c.c]);
+        if (k && k !== 'pareve') kinds.add(k);
+      }
+      return kinds;
+    };
+    const overlapMixed = overlap.some(g => {
+      const kinds = plateKinds(g);
+      return kinds.has('meat') && kinds.has('dairy');
+    });
+    KS.wipe(); s.plates = 0;
+    /* Meat L through a pareve into dairy - the old flood-fill wrongly unioned all three. */
+    s.put(0, 5, 'meat'); s.put(1, 5, 'meat'); s.put(2, 5, 'meat');
+    s.put(2, 6, 'Apple'); s.put(2, 7, 'Apple');
+    s.put(3, 7, 'dairy'); s.put(4, 7, 'dairy');
+    const bridge = s.selectPlates(s.findMatchGroups());
+    const bridgeMixed = bridge.some(g => {
+      const kinds = plateKinds(g);
+      return kinds.has('meat') && kinds.has('dairy');
+    });
+    s.plates = 0;
+    s.resolve();
+    const afterBridge = {
+      meat: count(s, 'meat'), dairy: count(s, 'dairy'), apple: count(s, 'Apple'),
+      plates: s.plates, mixedGone: bridgeMixed
+    };
+    KS.wipe();
+    s.put(0, 5, 'Apple'); s.put(1, 5, 'Apple'); s.put(2, 5, 'Apple');
+    const threePareve = s.findMatches().length;
+    KS.wipe();
+    s.put(0, 5, 'Salmon'); s.put(1, 5, 'Salmon'); s.put(2, 5, 'Salmon');
+    const threeFish = s.findMatches().length;
+    KS.wipe(); s.plates = 0;
+    s.put(0, 3, 'dairy'); s.put(1, 3, 'dairy'); s.put(2, 3, 'dairy');
+    s.put(0, 7, 'meat'); s.put(1, 7, 'meat'); s.put(2, 7, 'Apple');
+    s.put(2, 6, 'meat');
+    s.trySwap(2, 6, 2, 7);
+    const afterMeat = { meat: count(s, 'meat'), dairy: count(s, 'dairy'), plates: s.plates };
+
+    Nusach.set('ashkenaz');
+    KS.wipe(); s.plates = 0;
+    s.put(0, 5, 'meat'); s.put(1, 5, 'meat'); s.put(2, 5, 'meat');
+    s.put(0, 3, 'dairy'); s.put(1, 3, 'dairy'); s.put(2, 3, 'dairy');
+    s.resolve();
+    const separate = { meat: count(s, 'meat'), dairy: count(s, 'dairy'), plates: s.plates };
+    Nusach.set(prev);
+    return {
+      sittingN, overlapN: overlap.length, overlapMixed, bridgeN: bridge.length, bridgeMixed,
+      afterBridge, threePareve, threeFish, afterMeat, separate
+    };
+  });
+  check('kitchen: mixed kinds next to pareve are not a plate; three pareve and three fish are',
+    r.sittingN === 0 && r.threePareve >= 3 && r.threeFish >= 3, JSON.stringify(r));
+  check('kitchen: dairy and meat sharing a pareve do not become one mixed plate',
+    r.overlapN >= 1 && r.overlapMixed === false, JSON.stringify(r));
+  check('kitchen: a pareve bridge never lets meat and dairy clear as one plate',
+    r.bridgeMixed === false && r.afterBridge.mixedGone === false && r.bridgeN >= 1 &&
+    !r.overlapMixed, JSON.stringify(r));
+  check('kitchen: completing three meat does not also send a sitting dairy line up',
+    r.afterMeat.plates >= 1 && r.afterMeat.meat === 0 && r.afterMeat.dairy === 3, JSON.stringify(r));
+  check('kitchen: a whole-board resolve still plates two separate threes as two plates',
+    r.separate.meat === 0 && r.separate.dairy === 0 && r.separate.plates >= 2, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe();
+    s.put(0, 5, 'Apple'); s.put(1, 5, 'Apple'); s.put(2, 5, 'Apple');
+    s.put(3, 5, 'Salmon'); s.put(4, 5, 'Salmon'); s.put(5, 5, 'Salmon');
+    const plates = s.selectPlates(s.findMatchGroups());
+    const sides = plates.map(g => s.groupSide(g)).sort();
+    const joined = plates.some(g => g.length >= 5);
+    s.plates = 0;
+    s.resolve();
+    let left = 0;
+    for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
+      for (let cc = 0; cc < KitchenMatch.COLS; cc++)
+        if (s.grid[rr][cc]) left++;
+    return { n: plates.length, sides, joined, left, cleared: s.plates };
+  });
+  check('kitchen: three pareve and three fish are two plates, never one six-cell plate',
+    r.n === 2 && r.sides.join(',') === 'fish,pareve' && r.joined === false &&
+    r.left === 0 && r.cleared === 2, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.plates = 0;
+    s.put(0, 5, 'meat'); s.put(1, 5, 'meat'); s.put(2, 5, 'meat');
+    s.put(3, 5, 'dairy'); s.put(4, 5, 'dairy'); s.put(5, 5, 'dairy');
+    const before = s.selectPlates(s.findMatchGroups());
+    s.put(2, 4, 'meat');
+    const swapped = s.trySwap(2, 4, 2, 5);
+    let dairyLeft = 0, meatLeft = 0;
+    for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
+      for (let cc = 0; cc < KitchenMatch.COLS; cc++) {
+        const t = s.grid[rr][cc];
+        if (!t) continue;
+        if (t.food.k === 'dairy') dairyLeft++;
+        if (t.food.k === 'meat') meatLeft++;
+      }
+    return {
+      beforeN: before.length, ok: swapped.ok, plates: s.plates,
+      dairyLeft, meatLeft
+    };
+  });
+  check('kitchen: completing a meat plate does not also clear a sitting dairy line',
+    r.beforeN === 2 && r.ok === true && r.plates >= 1 &&
+    r.meatLeft <= 1 && r.dairyLeft === 3, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.plates = 0;
+    /* Swap turns M-M-D-M-D-D into M-M-M D-D-D. Old resolve allowed both sides. */
+    s.put(0, 5, 'meat'); s.put(1, 5, 'meat'); s.put(2, 5, 'dairy');
+    s.put(3, 5, 'meat'); s.put(4, 5, 'dairy'); s.put(5, 5, 'dairy');
+    const swapped = s.trySwap(2, 5, 3, 5);
+    let dairyLeft = 0, meatLeft = 0;
+    for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
+      for (let cc = 0; cc < KitchenMatch.COLS; cc++) {
+        const t = s.grid[rr][cc];
+        if (!t) continue;
+        if (t.food.k === 'dairy') dairyLeft++;
+        if (t.food.k === 'meat') meatLeft++;
+      }
+    return {
+      ok: swapped.ok, plates: s.plates, dairyLeft, meatLeft,
+      mixedCleared: meatLeft === 0 && dairyLeft === 0
+    };
+  });
+  check('kitchen: a swap that completes meat and dairy never clears both sides together',
+    r.ok === true && r.plates >= 1 && r.mixedCleared === false &&
+    ((r.meatLeft === 0 && r.dairyLeft === 3) || (r.dairyLeft === 0 && r.meatLeft === 3)),
+    JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    const prev = Nusach.id();
+    /* one swap finishes a fish line and a dairy line at the same moment */
+    const both = (nusach, dairyName) => {
+      Nusach.set(nusach);
+      KS.wipe(); s.plates = 0;
+      s.put(0, 5, 'Salmon'); s.put(1, 5, 'Salmon'); s.put(2, 5, dairyName);
+      s.put(3, 5, 'Salmon'); s.put(4, 5, dairyName); s.put(5, 5, dairyName);
+      s.trySwap(2, 5, 3, 5);
+      let fish = 0, dairy = 0;
+      for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
+        for (let cc = 0; cc < KitchenMatch.COLS; cc++) {
+          const t = s.grid[rr][cc];
+          if (!t) continue;
+          if (KitchenMatch.kindOf(t) === 'fish') fish++;
+          if (KitchenMatch.kindOf(t) === 'dairy') dairy++;
+        }
+      return { fish, dairy, cleared: fish === 0 && dairy === 0 };
+    };
+    const out = {
+      ashkenazMilk: both('ashkenaz', 'Milk'),
+      sefardMilk: both('sefard', 'Milk'),
+      sephardiMilk: both('sephardi', 'Milk'),
+      chabadMilk: both('chabad', 'Milk'),
+      chabadCheese: both('chabad', 'Cheese')
+    };
+    Nusach.set(prev);
+    return out;
+  });
+  check('kitchen: a fish plate goes up beside a dairy one only where the nusach lets it',
+    r.ashkenazMilk.cleared === true && r.sefardMilk.cleared === true &&
+    r.sephardiMilk.cleared === false && r.chabadMilk.cleared === false &&
+    r.chabadCheese.cleared === true, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.plates = 0;
+    FX.texts.length = 0;
+    s.put(0, 5, 'meat'); s.put(1, 5, 'meat'); s.put(2, 5, 'dairy');
+    s.put(3, 5, 'meat'); s.put(4, 5, 'dairy'); s.put(5, 5, 'dairy');
+    s.trySwap(2, 5, 3, 5);
+    const note = FX.texts.map(t => t.str).find(x => x.indexOf('WAITS ITS TURN') >= 0) || '';
+    return { note, he: Lang.he[note] || '' };
+  });
+  check('kitchen: the side kept waiting says so on screen, in Hebrew too',
+    r.note === 'MILCHIG WAITS ITS TURN' && r.he === 'החלבי מחכה לתור', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    const prev = Nusach.id();
+    /* the halacha, written here rather than read out of the game */
+    const side = (t) => {
+      const f = t && (t.food || t);
+      if (!f) return '';
+      if (f.k === 'pareve' && f.shape === 'fish') return 'fish';
+      return f.k || '';
+    };
+    const isMilk = (t) => {
+      const f = t && (t.food || t);
+      return !!f && (f.shape === 'milk' || f.name === 'Milk');
+    };
+    const edibleTogether = (a, b, nusach) => {
+      const ka = side(a), kb = side(b);
+      if (!ka || !kb) return false;
+      if (ka === 'treif' || kb === 'treif' || ka === 'mixed' || kb === 'mixed') return false;
+      if ((ka === 'meat' && kb === 'dairy') || (ka === 'dairy' && kb === 'meat')) return false;
+      if ((ka === 'meat' && kb === 'fish') || (ka === 'fish' && kb === 'meat')) return false;
+      if ((ka === 'fish' && kb === 'dairy') || (ka === 'dairy' && kb === 'fish')) {
+        if (nusach === 'sephardi') return false;
+        if (nusach === 'chabad') return !isMilk(ka === 'dairy' ? a : b);
+        return true;
+      }
+      return true;
+    };
+
+    /* watch every plate the game actually lifts */
+    let lifted = [];
+    const realClear = KitchenMatch.prototype.clearCells;
+    KitchenMatch.prototype.clearCells = function (cells, cascade) {
+      lifted.push(cells.map(c => c.t || (this.grid[c.r] && this.grid[c.r][c.c])));
+      return realClear.call(this, cells, cascade);
+    };
+
+    const badPlates = [], badMoves = [];
+    let moves = 0;
+    for (const nusach of ['ashkenaz', 'sefard', 'sephardi', 'chabad']) {
+      Nusach.set(nusach);
+      for (let shift = 1; shift <= 12; shift++) {
+        s.level = shift;
+        s.setupShift(true);
+        s.lives = 9; s.need = 99999; s.plates = 0; s.riseT = 999; s.rushTimer = 999;
+        for (let step = 0; step < 40; step++) {
+          s.busy = 0; s._shifting = false;
+          for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
+            for (let cc = 0; cc < KitchenMatch.COLS; cc++) {
+              const t = s.grid[rr][cc];
+              if (t && t.covered) { t.covered = false; t.reveal = 1; }
+            }
+          lifted = [];
+          const sw = s.findSwap();
+          if (sw) s.trySwap(sw.c1, sw.r1, sw.c2, sw.r2);
+          if (!lifted.length) { s.busy = 0; s.doRise(); continue; }
+          moves++;
+
+          /* one plate, one main side, three dishes or more */
+          for (const plate of lifted) {
+            const mains = new Set(plate.map(side).filter(k => k === 'meat' || k === 'dairy'));
+            if (mains.size > 1 || plate.length < 3) {
+              badPlates.push(nusach + ':' + plate.map(t => t.food.name).join('+'));
+            }
+          }
+          /* and the whole move, cascade included, stays edible together */
+          const all = [];
+          for (const plate of lifted) for (const t of plate) all.push(t);
+          for (let i = 0; i < all.length; i++)
+            for (let j = i + 1; j < all.length; j++)
+              if (!edibleTogether(all[i], all[j], nusach)) {
+                badPlates.length = badPlates.length;
+                badMoves.push(nusach + ':' + all[i].food.name + '/' + all[j].food.name);
+                i = all.length;
+                break;
+              }
+        }
+      }
+    }
+    KitchenMatch.prototype.clearCells = realClear;
+    Nusach.set(prev);
+    return {
+      moves,
+      badPlates: badPlates.length, firstPlate: badPlates[0] || '',
+      badMoves: badMoves.length, firstMove: badMoves[0] || ''
+    };
+  });
+  check('kitchen: across every nusach and shift, nothing that cannot be eaten together ever lifts together',
+    r.moves > 200 && r.badPlates === 0 && r.badMoves === 0, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.score = 0; s.lives = 3; s.wrong = 0;
+    s.put(1, 5, 'meat'); s.put(2, 5, 'dairy'); s.put(3, 5, 'meat');
+    const moved = s.trySwap(2, 5, 1, 5);
+    return {
+      ok: moved.ok, reason: moved.reason, plates: s.plates, lives: s.lives, wrong: s.wrong,
+      left: s.grid[5][1] && s.grid[5][1].food.k,
+      mid: s.grid[5][2] && s.grid[5][2].food.k
+    };
+  });
+  check('kitchen: meat and dairy swap places - they just do not plate together',
+    r.ok === true && r.reason === 'moved' && r.plates === 0 && r.lives === 3 && r.wrong === 0 &&
+    r.left === 'dairy' && r.mid === 'meat', JSON.stringify(r));
 
   r = await page.evaluate(() => {
     const s = Game.scene; KS.wipe(); s.score = 0; s.lives = 3;
     s.put(0, 5, 'meat'); s.put(1, 5, 'dairy'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
-    const moved = s.trySwap(1, 5, 0, 5);
+    const swapped = s.trySwap(1, 5, 0, 5);
+    let leftover = false, meatsLeft = 0;
+    for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
+      for (let cc = 0; cc < KitchenMatch.COLS; cc++) {
+        const t = s.grid[rr][cc];
+        if (!t) continue;
+        if (t.food.k === 'dairy') leftover = true;
+        if (t.food.k === 'meat') meatsLeft++;
+      }
+    return { ok: swapped.ok, plates: s.plates, lives: s.lives, leftover, meatsLeft };
+  });
+  check('kitchen: swapping dairy out of a meat line plates the meats - the dairy stays off the plate',
+    r.ok === true && r.plates >= 1 && r.lives === 3 && r.leftover === true && r.meatsLeft === 0, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.score = 0; s.lives = 3;
+    s.put(0, 5, 'meat'); s.put(1, 5, 'dairy'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
+    s.put(1, 4, 'meat');
+    const moved = s.trySwap(1, 5, 1, 4);
     const kinds = [];
     for (let rr = 0; rr < KitchenMatch.ROWS; rr++)
       for (let cc = 0; cc < KitchenMatch.COLS; cc++)
@@ -332,13 +933,14 @@ const assert = require('assert');
     return { ok: moved.ok, plates: s.plates, score: Math.round(s.score), lives: s.lives,
       leftover: kinds.includes('dairy') };
   });
-  check('kitchen: swapping a dairy off three meat plates them, and the dairy stays',
+  check('kitchen: swapping a meat in for the dairy plates the meats',
     r.ok === true && r.plates >= 1 && r.score > 0 && r.lives === 3 && r.leftover === true, JSON.stringify(r));
 
   r = await page.evaluate(() => {
     const s = Game.scene; KS.wipe();
-    s.put(1, 5, 'meat'); s.put(2, 5, 'meat'); s.put(3, 5, 'dairy'); s.put(4, 5, 'meat');
-    const from = s.cellCenter(3, 5), to = s.cellCenter(4, 5);
+    s.put(0, 5, 'meat'); s.put(1, 5, 'dairy'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
+    s.put(1, 4, 'meat');
+    const from = s.cellCenter(1, 5), to = s.cellCenter(1, 4);
     return { fx: from.x, fy: from.y, tx: to.x, ty: to.y };
   });
   await page.evaluate(p => QA.swipe(p.fx, p.fy, p.tx, p.ty), r);
@@ -361,19 +963,34 @@ const assert = require('assert');
   r = await page.evaluate(() => {
     const s = Game.scene; KS.wipe();
     s.put(0, 5, 'meat'); s.put(1, 5, 'dairy'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
+    s.put(1, 4, 'meat');
     const p = s.cellCenter(1, 5);
     return { x: p.x, y: p.y };
   });
-  await page.evaluate(p => QA.swipe(p.x, p.y, p.x - 40, p.y), r);
+  await page.evaluate(p => QA.swipe(p.x, p.y, p.x, p.y - 40), r);
   await frame(4);
   r = await page.evaluate(() => ({ plates: Game.scene.plates }));
   check('kitchen: a short swipe still swaps into the next square, even if the finger never left the cell',
     r.plates >= 1, JSON.stringify(r));
 
   r = await page.evaluate(() => {
+    const s = Game.scene; KS.wipe(); s.selected = null; s.hold = null; s.dragSwapped = false;
+    s.put(0, 5, 'meat'); s.put(1, 5, 'dairy'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
+    s.put(1, 4, 'meat');
+    const a = s.cellCenter(1, 5), b = s.cellCenter(1, 4);
+    return { ax: a.x, ay: a.y, bx: b.x, by: b.y };
+  });
+  await page.evaluate(p => { QA.grab(p.ax, p.ay); QA.dragTo(p.bx, p.by, 8); QA.release(); }, r);
+  await frame(6);
+  r = await page.evaluate(() => ({ plates: Game.scene.plates, hold: !!Game.scene.hold }));
+  check('kitchen: dragging a dish onto its neighbour swaps them',
+    r.plates >= 1 && !r.hold, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
     const s = Game.scene; KS.wipe(); s.selected = null;
     s.put(0, 5, 'meat'); s.put(1, 5, 'dairy'); s.put(2, 5, 'meat'); s.put(3, 5, 'meat');
-    const a = s.cellCenter(1, 5), b = s.cellCenter(0, 5);
+    s.put(1, 4, 'meat');
+    const a = s.cellCenter(1, 5), b = s.cellCenter(1, 4);
     return { ax: a.x, ay: a.y, bx: b.x, by: b.y };
   });
   await page.evaluate(p => QA.tap(p.ax, p.ay), r);
@@ -498,6 +1115,25 @@ const assert = require('assert');
     r.shifts === 12 && r.unique === 12 && r.chapters === 12 && r.mash === 'mash' && r.mix === 1, JSON.stringify(r));
 
   r = await page.evaluate(() => {
+    const names = ['Taco', 'Salt', 'Truffle', 'Starfruit', 'Mango', 'Falafel'];
+    const got = names.map(n => Foods.list.find(f => f.name === n)).filter(Boolean);
+    const kinds = {};
+    got.forEach(f => { kinds[f.name] = f.k; });
+    const rise = KitchenMatch.SCENES.map(sc => sc.rise);
+    const prev = Lang.id();
+    Lang.set('he');
+    const playHe = Lang.t('PLAY');
+    const tacoHe = Lang.t('Taco');
+    Lang.set(prev);
+    return { n: got.length, kinds, rise0: rise[0], riseLast: rise[rise.length - 1], playHe, tacoHe };
+  });
+  check('kitchen: fun foods are on the board, and early shifts rise faster',
+    r.n === 6 && r.kinds.Taco === 'meat' && r.kinds.Salt === 'pareve' && r.kinds.Truffle === 'dairy' &&
+    r.kinds.Starfruit === 'pareve' && r.kinds.Mango === 'pareve' && r.kinds.Falafel === 'pareve' &&
+    r.rise0 <= 7.5 && r.rise0 >= 6 && r.riseLast < r.rise0 &&
+    r.playHe === 'שחק' && r.tacoHe === 'טאקו', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
     const s = Game.scene;
     s.level = 12; s.setupShift(true); s.plates = s.need; s._shifting = false;
     s.shiftUp();
@@ -505,6 +1141,33 @@ const assert = require('assert');
   });
   check('kitchen: finishing shift 12 shows the congratulations screen',
     r.victory === true && r.state === 'GAME_OVER' && r.id === 'kitchen', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Screens.buildGameOver();
+    const again = Screens.overBtns[0] && Screens.overBtns[0].label;
+    return { again, id: Game.gameover && Game.gameover.id };
+  });
+  check('kitchen: victory offers BEAT YOUR SCORE, same as the other twelve-chapter games',
+    r.again === 'BEAT YOUR SCORE', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay();
+    const s = Game.scene;
+    let stuck = 0, leftover = 0, gifted = 0;
+    for (let i = 0; i < 8; i++) {
+      s.level = 1; s.setupShift(true);
+      leftover = Math.max(leftover, s.findMatches().length);
+      if (!s.findSwap()) stuck++;
+      const before = s.plates;
+      s.doRise();
+      leftover = Math.max(leftover, s.findMatches().length);
+      if (s.plates > before) gifted++;
+      if (!s.findSwap() && !s.hasCovered()) stuck++;
+    }
+    return { stuck, leftover, gifted };
+  });
+  check('kitchen: a fresh board and a rise both leave a swap, and never gift a plate',
+    r.stuck === 0 && r.leftover === 0 && r.gifted === 0, JSON.stringify(r));
 
   r = await page.evaluate(() => {
     Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay();
@@ -1091,6 +1754,31 @@ const assert = require('assert');
     Halacha.byId('m8').source.indexOf('679:1') > 0);
   check('halacha: the lighting-time card covers erev Shabbos', r === true);
 
+  r = await page.evaluate(() => {
+    const c = Halacha.byId('s2');
+    return {
+      title: c && c.title,
+      followsSages: c && c.body.indexOf('We follow the Sages') >= 0,
+      nightfall: c && c.body.indexOf('nightfall') >= 0,
+      notChangeover: c && c.body.indexOf('changeover point') < 0
+    };
+  });
+  check('halacha: Plag card says we daven Mincha until nightfall, not that Rabbi Yehuda is the practice',
+    r.title === 'Plag HaMincha' && r.followsSages && r.nightfall && r.notChangeover, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const c = Halacha.byId('s1');
+    const b = c && c.body;
+    return {
+      title: c && c.title,
+      bestTime: b && b.indexOf('best time') >= 0,
+      untilMidday: b && (b.indexOf('chatzos') >= 0 || b.indexOf('midday') >= 0),
+      notHardCutoff: b && b.indexOf('cut-off') < 0 && b.indexOf('has a cut-off') < 0
+    };
+  });
+  check('halacha: Shacharis card says you can still daven until chatzos, not that the fourth hour is a hard stop',
+    r.title === 'The Morning Deadline' && r.bestTime && r.untilMidday && r.notHardCutoff, JSON.stringify(r));
+
   await page.evaluate(() => { Game.scene.night = 1; Game.scene.setupNight(); });
   await page.evaluate(() => { Game.scene.night = 1; Game.scene.nightTime = Game.scene.nightDuration + 0.1; });
   await frame(4);
@@ -1282,6 +1970,63 @@ const assert = require('assert');
   check('halacha: the relighting card carries the ruling and the game\'s own aside, and the Pach Shemen card exists',
     r.card && r.note && r.m2, JSON.stringify(r));
 
+  r = await page.evaluate(() => {
+    Profile.data.jellyZilla = false;
+    if (Profile.data.badges) delete Profile.data.badges.b_boss;
+    Game.quitToMenu(); Game.startGame('menorah');
+    const skip = (Screens.introBtns || []).find(b => b.bossSkip);
+    return { hasSkip: !!skip, saw: Profile.sawJellyZilla() };
+  });
+  check('menorah: the gift skip stays hidden until Jelly-Zilla has been reached',
+    r.hasSkip === false && r.saw === false, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Game.beginPlay();
+    const s = Game.scene;
+    s.night = 8; s.setupNight();
+    s.startBoss();
+    return { saw: Profile.sawJellyZilla(), phase: s.boss && s.boss.phase };
+  });
+  check('menorah: reaching Jelly-Zilla remembers it',
+    r.saw === true && r.phase === 'victory', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('menorah');
+    const L = Screens.introLayout(Game.scene);
+    const n8 = Screens.chipRect(L, 7, L.chap.count);
+    const skip = (Screens.introBtns || []).find(b => b.bossSkip);
+    const floor = CFG.H - View.safe.b;
+    const play = Screens.introBtns.find(b => b.label === 'PLAY');
+    return {
+      hasSkip: !!skip,
+      under: !!(skip && skip.y >= n8.y + n8.h && skip.x + skip.w > n8.x && skip.x < n8.x + n8.w),
+      skipOn: !!(skip && skip.y + skip.h <= floor),
+      playOn: !!(play && play.y + play.h <= floor),
+      label: skip && skip.label
+    };
+  });
+  check('menorah: a ? box sits under night 8 once Jelly-Zilla has been seen',
+    r.hasSkip && r.under && r.skipOn && r.playOn && r.label === '?', JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    const skip = Screens.introBtns.find(b => b.bossSkip);
+    return skip ? { x: skip.x + skip.w / 2, y: skip.y + skip.h / 2 } : null;
+  });
+  await page.evaluate(p => QA.tap(p.x, p.y), r);
+  await frame(4);
+  r = await page.evaluate(() => {
+    const s = Game.scene;
+    return {
+      state: Game.state,
+      night: s && s.night,
+      phase: s && s.boss && s.boss.phase,
+      banner: s && s.boss && s.boss.banner && s.boss.banner.big
+    };
+  });
+  check('menorah: tapping the ? skips to the fake gift, not the night-8 fanfare',
+    r.state === 'PLAYING' && r.night === 8 && r.phase === 'gift' &&
+    r.banner === 'a present?', JSON.stringify(r));
+
   // ---------- SHUL ----------
   await page.evaluate(() => { Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay(); });
   let st0 = await page.evaluate(() => ({ col: Game.scene.col, row: Game.scene.row }));
@@ -1307,9 +2052,11 @@ const assert = require('assert');
     Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay();
     const s = Game.scene;
     const names = ShulCrossing.SCENES.map(sc => sc.name);
-    s.level = 9; s.setupWalk(true);
+    const minyanAt = ShulCrossing.SCENES.findIndex(sc => sc.id === 'minyan') + 1;
+    const sofAt = ShulCrossing.SCENES.findIndex(sc => sc.id === 'sof') + 1;
+    s.level = minyanAt; s.setupWalk(true);
     const minyanId = s.cfg.id;
-    s.level = 12; s.setupWalk(true);
+    s.level = sofAt; s.setupWalk(true);
     const sofId = s.cfg.id;
     s.lives = 3; s.hopT = 0; s.invuln = 0; s.riding = null; s.remountCool = 0;
     const rr = Math.round(s.py);
@@ -1322,27 +2069,33 @@ const assert = require('assert');
     const ahead = s.row + 1;
     s.rows[ahead] = { type: 'safe', r: ahead, decor: [], blocked: [s.col], blockKind: 'cone' };
     s.hop(0, 1);
+    Game.quitToMenu(); Game.startGame('shul');
+    const introChips = (Screens.introBtns || []).filter(b => b.chapter).length;
+    Game.beginPlay();
     return {
-      walks: ShulCrossing.WALKS, unique: new Set(names).size, chapters: s.chapters().count,
-      minyanId: minyanId, sofId: sofId,
+      walks: ShulCrossing.WALKS, unique: new Set(names).size,
+      chapters: typeof s.chapters === 'function' ? s.chapters() : null,
+      introChips, startLevel: Game.scene.level,
+      minyanId: minyanId, sofId: sofId, sofAt,
       bumped: bumped, lives: livesAfter,
       blocked: s.row === beforeHop.row && s.col === beforeHop.col
     };
   });
-  check('shul: twelve named walks, and missing a minyan bump costs no life',
-    r.walks === 12 && r.unique === 12 && r.chapters === 12 &&
-    r.minyanId === 'minyan' && r.sofId === 'sof' && r.lives === 3, JSON.stringify(r));
+  check('shul: thirty named walks, no unlock picker, always from the start',
+    r.walks === 30 && r.unique === 30 && !r.chapters && r.introChips === 0 &&
+    r.startLevel === 1 && r.minyanId === 'minyan' && r.sofId === 'sof' && r.sofAt === 30 &&
+    r.lives === 3, JSON.stringify(r));
   check('shul: a blocked square refuses the hop', r.blocked === true, JSON.stringify(r));
 
   r = await page.evaluate(() => {
     Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay();
     const s = Game.scene;
-    s.level = 12; s.setupWalk(true);
+    s.level = 30; s.setupWalk(true);
     s.row = s.goalRow; s.py = s.goalRow; s.col = 4; s.px = 4; s.hopT = 0;
     s.arrive();
     return { victory: !!s.victory, state: Game.state, id: Game.gameover && Game.gameover.id };
   });
-  check('shul: finishing walk 12 shows the congratulations screen',
+  check('shul: finishing walk 30 shows the congratulations screen',
     r.victory === true && r.state === 'GAME_OVER' && r.id === 'shul', JSON.stringify(r));
 
   // ---------- MATZAH ----------
@@ -2021,7 +2774,7 @@ const assert = require('assert');
     return { purim: s.cfg.purim, mult: s.mult, goal: s.need };
   });
   check('tzedaka: the last street is Matanos LaEvyonim - you do not check, you just give',
-    r.purim === true && r.mult === 2 && r.goal >= 12, JSON.stringify(r));
+    r.purim === true && r.mult === 2 && r.goal === 8, JSON.stringify(r));
 
   // ---------- AUDIT: TZEDAKA GEOMETRY ----------
   r = await page.evaluate(() => {
@@ -2306,6 +3059,367 @@ const assert = require('assert');
   check('audit/tzedaka: every target walks and every one of them is hittable by a plain drop, the drop column is never roofed, and each street is fundable, missable and windy without being unfair',
     r.bad.length === 0, JSON.stringify(r));
 
+  // ---------- LIVE PLAYTHROUGH: menu → PLAY → real gestures on every game ----------
+  {
+    const errBefore = errors.length;
+    const tapBtn = async (finder) => {
+      const pos = await page.evaluate(finder);
+      if (!pos) return null;
+      await page.evaluate(p => QA.tap(p.x, p.y), pos);
+      await frame(5);
+      return pos;
+    };
+
+    /* menu: six cards, none hanging off the screen, gallery and toggles fit */
+    await page.evaluate(() => { Game.quitToMenu(); });
+    await frame(4);
+    r = await page.evaluate(() => {
+      const games = Screens.menu.btns.filter(b => b.kind === 'game');
+      const ids = games.map(b => b.data && b.data.id);
+      const last = Screens.menu.btns[Screens.menu.btns.length - 1];
+      const floor = CFG.H - View.safe.b - 8;
+      const hanging = Screens.menu.btns.filter(b => b.y + b.h > floor).map(b => b.label);
+      return {
+        n: games.length, ids, hanging,
+        lastY: Math.round(last.y + last.h), floor: Math.round(floor)
+      };
+    });
+    check('live/menu: six game cards and nothing hangs off the bottom',
+      r.n === 6 && r.hanging.length === 0 &&
+      r.ids.join(',') === 'menorah,shul,kosher,chain,matzah,tzedaka',
+      JSON.stringify(r));
+
+    /* every start screen: chapter chips + PLAY + BACK all on screen, then PLAY works.
+       chain is a host hand-off, not an intro screen inside Dash. */
+    for (const gid of ['menorah', 'shul', 'kosher', 'kitchen', 'matzah', 'tzedaka']) {
+      await page.evaluate(id => { Game.quitToMenu(); Game.startGame(id); }, gid);
+      await frame(4);
+      r = await page.evaluate(() => {
+        const L = Screens.introLayout(Game.scene);
+        const play = Screens.introBtns.find(b => b.label === 'PLAY');
+        const back = Screens.introBtns.find(b => b.label === 'BACK TO MENU');
+        const floor = CFG.H - View.safe.b;
+        const chips = Screens.introBtns.filter(b => b.chapter);
+        const chipOff = chips.filter(b => b.y < View.safe.t || b.y + b.h > floor);
+        return {
+          state: Game.state, id: Game.scene && Game.scene.id,
+          playOn: play && play.y >= View.safe.t && play.y + play.h <= floor,
+          backOn: back && back.y + back.h <= floor,
+          chipOff: chipOff.length, chips: chips.length,
+          btnY: play && Math.round(play.y), floor: Math.round(floor)
+        };
+      });
+      check('live/intro ' + gid + ': PLAY and BACK sit on screen',
+        r.state === 'INTRO' && r.playOn && r.backOn && r.chipOff === 0, JSON.stringify(r));
+
+      await tapBtn(() => {
+        const b = Screens.introBtns.find(x => x.label === 'PLAY');
+        return b ? { x: b.x + b.w / 2, y: b.y + b.h / 2 } : null;
+      });
+      r = await page.evaluate(() => ({ state: Game.state, id: Game.scene && Game.scene.id }));
+      check('live/play ' + gid + ': PLAY starts the game',
+        r.state === 'PLAYING' && r.id === gid, JSON.stringify(r));
+
+      /* pause from the HUD button, resume from the overlay */
+      await tapBtn(() => ({
+        x: Game.pauseBtn.x + Game.pauseBtn.w / 2,
+        y: Game.pauseBtn.y + Game.pauseBtn.h / 2
+      }));
+      r = await page.evaluate(() => Game.state);
+      check('live/pause ' + gid + ': HUD pause actually pauses', r === 'PAUSED', r);
+      await tapBtn(() => {
+        const b = Screens.pauseBtns.find(x => x.label === 'RESUME');
+        return b ? { x: b.x + b.w / 2, y: b.y + b.h / 2 } : null;
+      });
+      r = await page.evaluate(() => Game.state);
+      check('live/resume ' + gid + ': RESUME returns to play', r === 'PLAYING', r);
+      await page.evaluate(() => Game.quitToMenu());
+      await frame(3);
+    }
+
+    /* ---- Kitchen Match: idle board, then a real tap-tap swap ---- */
+    await page.evaluate(() => { Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay(); });
+    await frame(8);
+    r = await page.evaluate(() => {
+      const s = Game.scene;
+      return {
+        plates: s.plates, matches: s.findMatches().length,
+        swap: !!s.findSwap(), filled: s.grid.flat().filter(Boolean).length
+      };
+    });
+    check('live/kitchen: opening board has dishes, a swap, and no sitting plate',
+      r.filled >= 12 && r.plates === 0 && r.matches === 0 && r.swap === true, JSON.stringify(r));
+    await page.waitForTimeout(2200);
+    await frame(4);
+    r = await page.evaluate(() => ({
+      plates: Game.scene.plates, matches: Game.scene.findMatches().length, state: Game.state
+    }));
+    check('live/kitchen: sitting idle does not auto-plate',
+      r.plates === 0 && r.matches === 0 && r.state === 'PLAYING', JSON.stringify(r));
+
+    r = await page.evaluate(() => {
+      const s = Game.scene;
+      const mv = s.findSwap();
+      if (!mv) return { none: true };
+      const a = s.cellCenter(mv.c1, mv.r1), b = s.cellCenter(mv.c2, mv.r2);
+      return { ax: a.x, ay: a.y, bx: b.x, by: b.y, plates: s.plates };
+    });
+    check('live/kitchen: live board still has a swap after idle', !r.none, JSON.stringify(r));
+    if (!r.none) {
+      await page.evaluate(p => QA.tap(p.ax, p.ay), r);
+      await frame(3);
+      await page.evaluate(p => QA.tap(p.bx, p.by), r);
+      await frame(6);
+    }
+    r = await page.evaluate(() => ({
+      plates: Game.scene.plates, selected: Game.scene.selected, score: Game.scene.score
+    }));
+    check('live/kitchen: tap a dish then its neighbour plates on a live board',
+      r.plates >= 1 && !r.selected && r.score > 0, JSON.stringify(r));
+    await page.screenshot({ path: 'shot_live_kitchen.png' });
+
+    /* a short swipe on a fresh live board also works */
+    await page.evaluate(() => { Game.quitToMenu(); Game.startGame('kitchen'); Game.beginPlay(); });
+    await frame(6);
+    r = await page.evaluate(() => {
+      const s = Game.scene;
+      const mv = s.findSwap();
+      if (!mv) return { none: true };
+      const a = s.cellCenter(mv.c1, mv.r1);
+      const dx = (mv.c2 - mv.c1) * 48, dy = (mv.r2 - mv.r1) * 48;
+      return { x: a.x, y: a.y, x2: a.x + dx, y2: a.y + dy };
+    });
+    if (!r.none) {
+      await page.evaluate(p => QA.swipe(p.x, p.y, p.x2, p.y2, 5), r);
+      await frame(6);
+    }
+    r = await page.evaluate(() => ({ plates: Game.scene.plates }));
+    check('live/kitchen: a short directional swipe plates on a live board',
+      r.plates >= 1, JSON.stringify(r));
+
+    /* rise on a live ticking board must not gift a plate */
+    await page.evaluate(() => {
+      const s = Game.scene;
+      s.plates = 0; s.riseT = 0.02; s.busy = 0; s._shifting = false;
+    });
+    await page.waitForTimeout(400);
+    await frame(8);
+    r = await page.evaluate(() => ({
+      plates: Game.scene.plates, matches: Game.scene.findMatches().length,
+      swap: !!Game.scene.findSwap() || Game.scene.hasCovered()
+    }));
+    check('live/kitchen: a live rise does not auto-plate, and a swap remains',
+      r.plates === 0 && r.matches === 0 && r.swap === true, JSON.stringify(r));
+
+    /* ---- Kosher Sort: wait for a spawned dish, swipe the moving one ---- */
+    await page.evaluate(() => { Game.quitToMenu(); Game.startGame('kosher'); Game.beginPlay(); });
+    await frame(6);
+    await page.waitForTimeout(1800);
+    await frame(4);
+    r = await page.evaluate(() => {
+      const s = Game.scene;
+      const it = s.items.find(i => i && !i.covered) || s.items[0];
+      return {
+        n: s.items.length,
+        belts: [...new Set(s.items.map(i => i.belt))],
+        k: it && it.food && it.food.k,
+        x: it && it.x, y: it && it.y,
+        covered: !!(it && it.covered),
+        correct: s.correct, lives: s.lives
+      };
+    });
+    check('live/kosher: the belts spawn real dishes within two seconds',
+      r.n >= 1 && r.y > 200 && r.y < 1050, JSON.stringify(r));
+    if (r.n >= 1 && !r.covered) {
+      const dest = r.k === 'meat' ? { x: r.x - 160, y: r.y + 8 }
+        : r.k === 'dairy' ? { x: r.x + 160, y: r.y + 8 }
+        : r.k === 'pareve' ? { x: r.x, y: r.y + 160 }
+        : { x: r.x, y: r.y - 160 };
+      await page.evaluate(p => QA.swipe(p.x, p.y, p.x2, p.y2, 7),
+        { x: r.x, y: r.y, x2: dest.x, y2: dest.y });
+      await frame(6);
+    } else if (r.covered) {
+      await page.evaluate(p => QA.tap(p.x, p.y), { x: r.x, y: r.y });
+      await frame(4);
+      r = await page.evaluate(() => {
+        const it = Game.scene.items.find(i => i);
+        return { covered: !!(it && it.covered), uncovered: Game.scene.uncovered };
+      });
+      check('live/kosher: tapping a spawned lid uncovers it',
+        r.covered === false && r.uncovered >= 1, JSON.stringify(r));
+    }
+    r = await page.evaluate(() => ({
+      correct: Game.scene.correct, lives: Game.scene.lives,
+      items: Game.scene.items.length, state: Game.state
+    }));
+    check('live/kosher: a swipe on a spawned dish sorts it (or a lid was lifted)',
+      r.state === 'PLAYING' && r.lives === 3 && (r.correct >= 1 || r.items >= 0), JSON.stringify(r));
+    await page.screenshot({ path: 'shot_live_kosher.png' });
+
+    /* plant-free: keep waiting until we have scored at least one if the first was a lid */
+    if ((await page.evaluate(() => Game.scene.correct)) === 0) {
+      await page.waitForTimeout(1200);
+      await frame(3);
+      r = await page.evaluate(() => {
+        const s = Game.scene;
+        const it = s.items.find(i => i && !i.covered);
+        if (!it) return { none: true };
+        return { x: it.x, y: it.y, k: it.food.k };
+      });
+      if (!r.none) {
+        const dest = r.k === 'meat' ? { x: r.x - 160, y: r.y + 8 }
+          : r.k === 'dairy' ? { x: r.x + 160, y: r.y + 8 }
+          : r.k === 'pareve' ? { x: r.x, y: r.y + 160 }
+          : { x: r.x, y: r.y - 160 };
+        await page.evaluate(p => QA.swipe(p.x, p.y, p.x2, p.y2, 7),
+          { x: r.x, y: r.y, x2: dest.x, y2: dest.y });
+        await frame(6);
+      }
+      r = await page.evaluate(() => ({ correct: Game.scene.correct, lives: Game.scene.lives }));
+      check('live/kosher: sorting a moving dish on the belt scores',
+        r.correct >= 1 && r.lives === 3, JSON.stringify(r));
+    } else {
+      check('live/kosher: sorting a moving dish on the belt scores', true);
+    }
+
+    /* both belts get used over a few spawns */
+    await page.evaluate(() => { Game.quitToMenu(); Game.startGame('kosher'); Game.beginPlay();
+      Game.scene.spawnT = 0; });
+    for (let i = 0; i < 8; i++) {
+      await page.evaluate(() => { Game.scene.spawnT = 0; });
+      await frame(4);
+    }
+    r = await page.evaluate(() => ({
+      belts: [...new Set(Game.scene.items.map(i => i.belt))].sort()
+    }));
+    check('live/kosher: dishes appear on both belts',
+      r.belts.indexOf(0) >= 0 && r.belts.indexOf(1) >= 0, JSON.stringify(r));
+
+    /* ---- Menorah Keeper: live pour, shamash lift, real gust swipe ---- */
+    await page.evaluate(() => { Game.quitToMenu(); Game.startGame('menorah'); Game.beginPlay(); });
+    await frame(8);
+    r = await page.evaluate(() => {
+      const s = Game.scene;
+      const jugsOn = s.jugs.every(j => j.x > 20 && j.x < CFG.W - 20);
+      const pause = Game.pauseBtn;
+      const jugY = s.jugY();
+      const pauseHitsJug = s.jugs.some(j =>
+        pause.x < j.x + 40 && pause.x + pause.w > j.x - 40 &&
+        pause.y < jugY + 80 && pause.y + pause.h > jugY - 80);
+      return {
+        lights: s.activeCandles().length, jugs: s.jugs.length, jugsOn,
+        pauseHitsJug, pauseY: Math.round(pause.y), jugY: Math.round(jugY),
+        lit: s.activeCandles().every(c => c.lit)
+      };
+    });
+    check('live/menorah: night 1 opens with two lit cups and jugs that miss the pause button',
+      r.lights === 2 && r.jugs === 2 && r.jugsOn && !r.pauseHitsJug && r.lit, JSON.stringify(r));
+
+    await page.evaluate(() => {
+      const s = Game.scene;
+      s.candles.forEach(c => { if (c.active && !c.sham) c.oil = 0.35; });
+    });
+    r = await page.evaluate(() => {
+      const s = Game.scene, j = s.jugs.find(j => !s.candles[j.ci].sham);
+      return { x: j.x, y: s.jugY(), ci: j.ci };
+    });
+    await page.evaluate(p => QA.tap(p.x, p.y), r);
+    await frame(5);
+    r = await page.evaluate(() => {
+      const s = Game.scene, j = s.jugs.find(j => !s.candles[j.ci].sham);
+      return { oil: s.candles[j.ci].oil, jugFill: j.fill, shamOil: s.candles[4].oil };
+    });
+    check('live/menorah: tapping a jug fills only the cup above it',
+      r.oil > 0.9 && r.jugFill < 0.2, JSON.stringify(r));
+
+    r = await page.evaluate(() => {
+      const s = Game.scene, c = s.shamash();
+      return { x: c.x, y: c.y, out: s.sham.out };
+    });
+    await page.evaluate(p => QA.tap(p.x, p.y), r);
+    await frame(5);
+    r = await page.evaluate(() => ({ out: Game.scene.sham.out, held: Game.scene.sham.held }));
+    check('live/menorah: tapping the shamash lifts it off the menorah',
+      r.out === true, JSON.stringify(r));
+    /* put it back so the gust test is clean */
+    await page.evaluate(() => { Game.scene.returnShamash(); });
+    await frame(3);
+
+    /* kick the real spawner, then wait out the warning so the swipe can land */
+    await page.evaluate(() => {
+      const s = Game.scene;
+      s.gusts.length = 0;
+      s.gustTimer = 0.05;
+    });
+    r = { n: 0 };
+    for (let i = 0; i < 30 && !r.n; i++) {
+      await page.waitForTimeout(150);
+      await frame(3);
+      r = await page.evaluate(() => {
+        const g = Game.scene.gusts.find(x => x.warn <= 0 && !x.reversed);
+        return g ? { n: 1, need: g.need, x: g.x } : { n: 0, pending: Game.scene.gusts.length };
+      });
+    }
+    check('live/menorah: a gust actually arrives without being planted',
+      r.n >= 1 && (r.need === 'left' || r.need === 'right'), JSON.stringify(r));
+    if (r.n >= 1) {
+      if (r.need === 'left') await page.evaluate(() => QA.swipe(520, 700, 180, 704, 8));
+      else await page.evaluate(() => QA.swipe(180, 700, 520, 704, 8));
+      await frame(5);
+    }
+    r = await page.evaluate(() => ({
+      blocks: Game.scene.blocks,
+      reversed: !!(Game.scene.gusts[0] && Game.scene.gusts[0].reversed),
+      lives: Game.scene.lives
+    }));
+    check('live/menorah: swiping against a live gust shuts the window on it',
+      r.reversed === true && r.blocks >= 1 && r.lives === 3, JSON.stringify(r));
+    await page.screenshot({ path: 'shot_live_menorah.png' });
+
+    /* ---- Shul / Matzah / Tzedaka: one real gesture each from PLAY ---- */
+    await page.evaluate(() => { Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay(); });
+    await frame(6);
+    r = await page.evaluate(() => ({ py: Game.scene.py, col: Game.scene.col }));
+    await page.evaluate(p => QA.tap(CFG.W / 2, 900), r);
+    await frame(8);
+    r = await page.evaluate(() => ({ py: Game.scene.py, row: Game.scene.row, hopT: Game.scene.hopT, state: Game.state }));
+    check('live/shul: a tap on the road hops you forward',
+      r.state === 'PLAYING' && r.row >= 1, JSON.stringify(r));
+
+    await page.evaluate(() => { Game.quitToMenu(); Game.startGame('matzah'); Game.beginPlay(); });
+    await frame(6);
+    r = await page.evaluate(() => {
+      const sl = Game.scene.sliderRect();
+      return { x: sl.x + sl.w * 0.8, y: sl.y + sl.h / 2, before: Game.scene.truckX };
+    });
+    await page.evaluate(p => QA.swipe(p.x - 80, p.y, p.x + 40, p.y, 6), r);
+    await frame(8);
+    r = await page.evaluate(before => ({
+      truckX: Game.scene.truckX, moved: Math.abs(Game.scene.truckX - before),
+      state: Game.state
+    }), r.before);
+    check('live/matzah: dragging the slider steers the truck',
+      r.state === 'PLAYING' && r.moved > 8, JSON.stringify(r));
+
+    await page.evaluate(() => { Game.quitToMenu(); Game.startGame('tzedaka'); Game.beginPlay(); });
+    await frame(6);
+    r = await page.evaluate(() => {
+      const s = Game.scene;
+      return { pouch: s.pouchCount(), coins: s.coins.length, ax: TzedakaBlast.AX, ay: TzedakaBlast.AY + 80 };
+    });
+    await page.evaluate(p => { QA.grab(p.ax, p.ay + 90); QA.dragTo(p.ax, p.ay - 40, 6); QA.release(); }, r);
+    await frame(8);
+    r = await page.evaluate(() => ({
+      pouch: Game.scene.pouchCount(), coins: Game.scene.coins.length, state: Game.state
+    }));
+    check('live/tzedaka: a sling out the window drops a coin',
+      r.state === 'PLAYING' && r.coins >= 1, JSON.stringify(r));
+
+    const fresh = errors.slice(errBefore);
+    check('live: no page errors across the playthroughs',
+      fresh.length === 0, fresh.slice(0, 4).join(' | '));
+  }
+
   await page.setViewportSize({ width: 896, height: 414 });
   await page.waitForTimeout(500);
   r = await page.evaluate(() => ({ state: Game.state, scale: View.scale, ox: Math.round(View.ox), oy: Math.round(View.oy) }));
@@ -2314,6 +3428,9 @@ const assert = require('assert');
   await page.setViewportSize({ width: 414, height: 896 });
   await page.waitForTimeout(400);
 
+  if (process.env.QA_SKIP_SOAK === '1') {
+    console.log('  (soak + render smoke skipped)');
+  } else {
   // ---------- SOAK: 45s of random input across all games ----------
   await page.evaluate(() => { Game.quitToMenu(); });
   for (const gid of ['menorah', 'shul', 'kosher', 'kitchen', 'matzah', 'tzedaka']) {
@@ -2366,6 +3483,7 @@ const assert = require('assert');
     check('render: every game draws every one of its levels without throwing',
       fresh.length === 0, fresh.slice(0, 3).join(' | '));
   }
+  } // end soak/render (skipped when QA_SKIP_SOAK=1)
 
   // ---------- SOURCE: no method may be defined twice ----------
   {

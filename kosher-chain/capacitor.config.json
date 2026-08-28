@@ -1,0 +1,25 @@
+{
+  "appId": "com.mitzvahdash.game",
+  "appName": "Camp Kosh",
+  "webDir": "www",
+  "backgroundColor": "#05070d",
+  "android": {
+    "backgroundColor": "#05070d",
+    "allowMixedContent": false,
+    "captureInput": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "backgroundColor": "#05070d",
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "limitsNavigationsToAppBoundDomains": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "backgroundColor": "#05070d",
+      "launchAutoHide": true,
+      "showSpinner": false
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "appId": "com.mitzvahdash.game",
+  "appName": "Mitzvah Dash",
+  "webDir": ".",
+  "backgroundColor": "#05070f",
+  "android": {
+    "backgroundColor": "#05070f",
+    "allowMixedContent": false
+  },
+  "ios": {
+    "backgroundColor": "#05070f",
+    "contentInset": "never",
+    "scrollEnabled": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "backgroundColor": "#05070f",
+      "launchAutoHide": true,
+      "showSpinner": false
+    }
+  }
+}
