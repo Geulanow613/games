@@ -141,9 +141,13 @@ var Profile = {
       plays: 0,
       opts: { sound: true, music: true, haptics: true },
       /* web / Fourthwall / GitHub: kitchen fish+dairy follows this pick.
-         Mitz Mode injects window.MITZ_NUSACH and locks the picker. */
+         Mitz Mode injects window.MITZ_NUSACH and locks the picker.
+         window.MITZ_LANG locks the games to the app UI language. */
       nusach: 'ashkenaz',
-      lang: 'en'
+      lang: 'en',
+      /* set the first time Night 8 turns into Jelly-Zilla, so the intro can
+         offer a skip back to the fake gift without replaying the half hour */
+      jellyZilla: false
     };
   },
   load: function () {
@@ -166,6 +170,8 @@ var Profile = {
       }
       if (d.nusach) base.nusach = d.nusach;
       if (d.lang) base.lang = d.lang === 'he' ? 'he' : 'en';
+      if (d.jellyZilla) base.jellyZilla = true;
+      if (d.badges && d.badges.b_boss) base.jellyZilla = true;
     }
     Profile.data = base;
     return base;
@@ -211,6 +217,15 @@ var Profile = {
   },
   noteBest: function (key, value) {
     if (value > (Profile.data.best[key] || 0)) { Profile.data.best[key] = Math.floor(value); Profile.save(); }
+  },
+  sawJellyZilla: function () {
+    return !!(Profile.data && (Profile.data.jellyZilla || (Profile.data.badges && Profile.data.badges.b_boss)));
+  },
+  markJellyZilla: function () {
+    if (!Profile.data || Profile.data.jellyZilla) return false;
+    Profile.data.jellyZilla = true;
+    Profile.save();
+    return true;
   }
 };
 
@@ -220,18 +235,37 @@ var Profile = {
    Never machine-translate, never paste a dictionary line. If you cannot
    hear it out loud in the kitchen, rewrite it. Add both sides together. */
 var Lang = {
+  lockedFromHost: false,
   parse: function (v) { return v === 'he' ? 'he' : 'en'; },
+  parseHost: function (v) {
+    if (v == null || v === '') return '';
+    var s = String(v).trim().toLowerCase().replace(/_/g, '-');
+    if (s === 'he' || s === 'iw' || s.indexOf('he-') === 0 || s.indexOf('iw-') === 0) return 'he';
+    return 'en';
+  },
   id: function () { return Lang.parse(Profile.data && Profile.data.lang); },
   rtl: function () { return Lang.id() === 'he'; },
+  locked: function () { return !!Lang.lockedFromHost; },
   hasHe: function (s) { return /[\u0590-\u05FF]/.test(String(s || '')); },
-  set: function (id) {
+  apply: function (id) {
     id = Lang.parse(id);
     if (Profile.data) { Profile.data.lang = id; Profile.save(); }
     try { document.documentElement.lang = id === 'he' ? 'he' : 'en'; } catch (e) {}
     return id;
   },
+  set: function (id) {
+    if (Lang.lockedFromHost && window.MITZ_MODE === true) return Lang.id();
+    return Lang.apply(id);
+  },
   boot: function () {
-    Lang.set(Lang.id());
+    var fromHost = Lang.parseHost(window.MITZ_LANG);
+    if (window.MITZ_MODE === true && fromHost) {
+      Lang.lockedFromHost = true;
+      Lang.apply(fromHost);
+      return fromHost;
+    }
+    Lang.lockedFromHost = false;
+    return Lang.apply(Lang.id());
   },
   t: function (s) {
     if (s == null || s === '') return s;
@@ -246,6 +280,10 @@ var Lang = {
     if (m) return 'לילה ' + m[1];
     m = /^SHIFT (\d+)$/.exec(s);
     if (m) return 'משמרת ' + m[1];
+    m = /^ROUTE (\d+)$/.exec(s);
+    if (m) return 'מסלול ' + m[1];
+    m = /^STREET (\d+)$/.exec(s);
+    if (m) return 'רחוב ' + m[1];
     m = /^(SHIFT|NIGHT|WALK|ROUTE|STREET)S  -  (\d+) OF (\d+) OPEN$/.exec(s);
     if (m) {
       var words = { SHIFT: 'משמרות', NIGHT: 'לילות', WALK: 'הליכות', ROUTE: 'מסלולים', STREET: 'רחובות' };
@@ -255,14 +293,62 @@ var Lang = {
     if (m) return m[1] + ' מתוך ' + m[2] + ' עדיין דולקים - המצווה התקיימה.';
     m = /^(\d+)\/(\d+) badges$/.exec(s);
     if (m) return m[1] + '/' + m[2] + ' אותות';
+    m = /^(\d+) \/ (\d+) badges/.exec(s);
+    if (m) return m[1] + ' / ' + m[2] + ' אותות' + s.slice(m[0].length);
     m = /^(.*) MP$/.exec(s);
     if (m) return m[1] + ' נק״מ';
+    m = /^Badge unlocked: (.*)$/.exec(s);
+    if (m) return 'אות חדש: ' + Lang.t(m[1]);
+    m = /^napkin combo x(\d+)$/.exec(s);
+    if (m) return 'רצף מפיות x' + m[1];
+    m = /^NAPKIN FRENZY x2\s+([\d.]+)s$/.exec(s);
+    if (m) return 'טירוף מפיות x2  ' + m[1] + 'ש׳';
+    m = /^MEHADRIN STREAK x(\d+)\s+\+(\d+)$/.exec(s);
+    if (m) return 'רצף מהדרין x' + m[1] + '  +' + m[2];
+    m = /^NIGHT (\d+) UNLOCKED$/.exec(s);
+    if (m) return 'לילה ' + m[1] + ' נפתח';
+    m = /^SHIFT (\d+) UNLOCKED$/.exec(s);
+    if (m) return 'משמרת ' + m[1] + ' נפתחה';
+    m = /^ROUTE (\d+) UNLOCKED$/.exec(s);
+    if (m) return 'מסלול ' + m[1] + ' נפתח';
+    m = /^STREET (\d+) UNLOCKED$/.exec(s);
+    if (m) return 'רחוב ' + m[1] + ' נפתח';
+    m = /^Night (\d+)\s+\+(\d+)$/.exec(s);
+    if (m) return 'לילה ' + m[1] + '  +' + m[2];
+    m = /^SHIFT (\d+)\s+\+(\d+)$/.exec(s);
+    if (m) return 'משמרת ' + m[1] + '  +' + m[2];
+    m = /^YOU MADE IT!\s+\+(\d+)$/.exec(s);
+    if (m) return 'הגעתם!  +' + m[1];
+    m = /^DELIVERED!\s+\+(\d+)$/.exec(s);
+    if (m) return 'המשלוח הגיע!  +' + m[1];
+    m = /^Finish one and the next opens\. Tap any open (\w+) to start there\.$/.exec(s);
+    if (m) {
+      var chap = { night: 'לילה', shift: 'משמרת', walk: 'הליכה', route: 'מסלול', street: 'רחוב' };
+      return 'סיימתם אחד - הבא נפתח. לחצו על ' + (chap[m[1]] || m[1]) + ' פתוח כדי להתחיל משם.';
+    }
+    m = /^Wrong way - swipe (.*)$/.exec(s);
+    if (m) return 'הכיוון ההפוך - החליקו ' + Lang.t(m[1]);
+    m = / \(session save only\)$/.exec(s);
+    if (m) return s.slice(0, m.index) + '  (נשמר רק בסשן הזה)';
+    m = /^(KOSHER L'MEHADRIN|KOSHER|ME'IKKAR HADIN|NOT FULFILLED) - (.*)$/.exec(s);
+    if (m) return Lang.t(m[1]) + ' - ' + Lang.t(m[2]);
+    m = /^Total  (.+) MP  •  (.+)$/.exec(s);
+    if (m) return 'סה״כ  ' + m[1] + ' נק״מ  •  ' + Lang.t(m[2]);
+    m = /^Mitzvah Multiplier x([\d.]+)$/.exec(s);
+    if (m) return 'מכפיל מצווה x' + m[1];
+    m = /^FIRE OUT \+(\d+)$/.exec(s);
+    if (m) return 'האש כבתה +' + m[1];
+    m = /^STREET COMPLETE \+(\d+)$/.exec(s);
+    if (m) return 'הרחוב הושלם +' + m[1];
     return s;
   },
   he: {
     'MITZVAH': 'מצווה',
     'DASH': 'דאש',
     'Six arcade minigames. Real halacha.': 'שש משחקים. הלכה אמיתית.',
+    'Seven arcade minigames. Real halacha.': 'שבע משחקים. הלכה אמיתית.',
+    'Camp Kosh': 'קעמפ כשר',
+    'Feed the boys, keep it kosher': 'תאכיל את הבחורים, תשמור על כשרות',
     'HALACHA GALLERY': 'גלריית ההלכה',
     'BACK': 'חזרה',
     'PLAY': 'שחק',
@@ -303,6 +389,11 @@ var Lang = {
     'Edot Hamizrach': 'עדות המזרח',
     'Chabad': 'חב״ד',
     'Halacha cards appear as you progress.': 'כרטיס הלכה בסוף כל שלב.',
+    'Plag is a late-afternoon marker - one and a quarter halachic hours before the day ends. Rabbi Yehuda held it is the last moment for Mincha, and the earliest you could start Maariv. We follow the Sages: Mincha stays until close to nightfall. Plag is still the earliest time for Maariv, and for lighting Shabbat candles.': 'פלג הוא סימן אחר הצהריים - שעה ורבע זמניות לפני סוף היום. רבי יהודה סובר שזה סוף זמן מנחה, והזמן הכי מוקדם למעריב. אנחנו נוהגים כחכמים: מנחה נמשכת עד סמוך ללילה. פלג עדיין הזמן הכי מוקדם למעריב, ולהדלקת נרות שבת.',
+    'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday. After midday it is a makeup, not the morning tefillah. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year.': 'לכתחילה אומרים שמונה עשרה של שחרית עד סוף השעה הרביעית של היום. מי שפספס עדיין יכול להתפלל עד חצות. אחרי חצות זו תשלומין, לא תפילת הבוקר. ו״שעה״ כאן אינה שישים דקות: מחלקים את האור לשניים-עשר חלקים שווים, והזמן זז כל השנה.',
+    'the ideal last time for morning Shemoneh Esrei': 'הזמן האידיאלי האחרון לשמונה עשרה של שחרית',
+    'halachic midday': 'חצות היום',
+    'Chatzos': 'חצות',
     "Chabad don't eat fish with milk": 'בחב״ד לא אוכלים דג עם חלב',
     "Sephardim don't eat dairy and fish together": 'ספרדים לא אוכלים דג עם חלבי',
     'FLEISHIG': 'בשרי',
@@ -321,6 +412,10 @@ var Lang = {
     'BIG MILCHIG PLATE!': 'צלחת חלבית גדולה!',
     'BIG FISH PLATE!': 'צלחת דגים גדולה!',
     'BIG PAREVE PLATE!': 'צלחת פרווה גדולה!',
+    'FLEISHIG WAITS ITS TURN': 'הבשרי מחכה לתור',
+    'MILCHIG WAITS ITS TURN': 'החלבי מחכה לתור',
+    'FISH WAITS ITS TURN': 'הדגים מחכים לתור',
+    'PAREVE WAITS ITS TURN': 'הפרווה מחכה לתור',
     'CASCADE!': 'רצף!',
     'TRIPLE!': 'שלוש!',
     'MEHADRIN!': 'מהדרין!',
@@ -338,9 +433,9 @@ var Lang = {
     'ME\'IKKAR HADIN': 'מעיקר הדין',
     'NOT FULFILLED': 'לא התקיימה',
     'FIRST PLATES': 'צלחות ראשונות',
-    'swap dishes that can share a plate. line up three and they plate': 'החליפו מנות שיכולות לשבת יחד. שלוש ברצף - נעלמות',
+    'swap neighbours. three that can share a plate': 'החליפו שכנות. שלוש שיכולות לחלוק צלחת',
     'PAREVE MIXER': 'פרווה באמצע',
-    'fruit and bread can sit with EITHER side': 'פרי ולחם יושבים עם בשרי ועם חלבי',
+    'pareve sits with meat or dairy - or three pareve together': 'פרווה עולה עם בשרי או חלבי - או שלושה פרווה יחד',
     'LIDS ON': 'מכסים',
     'tap a lid before you swap. you cannot plate what you cannot see': 'קודם המכסה. אי אפשר להחליט על מה שלא רואים',
     'TWO SIDES': 'שני צדדים',
@@ -450,9 +545,9 @@ var Lang = {
     'Anything that mixes meat and milk together - basar b’chalav - or is not kosher at all gets flicked UP into the chute.': 'בשר וחלב ביחד, או משהו לא כשר - למעלה, לפח.',
     'Some dishes turn up hidden under a lid. TAP to lift it, because you cannot decide about food you cannot see. A dish that reaches the end still covered counts as a strike.': 'יש מנות תחת מכסה. לחצו להרים - אי אפשר להחליט על מה שלא רואים. אם זה מגיע לסוף מכוסה, זה פסילה.',
     'Nothing may fall off the end of the belt unsorted. When the KASHRUS RUSH starts the belts speed right up and every call is worth double.': 'כלום לא נופל מסוף המסוע בלי מיון. כשהכל מאיץ - כל אחד שווה כפול.',
-    'DRAG a dish onto a neighbour to swap - any neighbour. Or tap one, then the next. Line up THREE that can sit on the same plate and they vanish.': 'גררו מנה על השכנה - כל שכנה. או לחצו אחת ואז את השנייה. שלוש שיכולות לשבת יחד - נעלמות.',
-    'A plate: meat with meat, dairy with dairy, pareve (fruit, vegetables, bread, eggs) with either side. Meat and milk can trade places, they just never plate together - pareve cannot pull meat onto a dairy plate, or dairy onto a meat one.': 'בשרי עם בשרי, חלבי עם חלבי, פרווה עם שניהם. בשרי וחלבי מחליפים מקום - רק לא עולים יחד לצלחת. פרווה לא מושכת בשר לחלבי, ולא חלבי לבשרי.',
-    'Fish is pareve but never sits with meat. Flick UP anything treif or mixed. TAP a lid before you decide.': 'דג זה פרווה, אבל לא עם בשר. טרף או תערובת - למעלה. קודם המכסה.',
+    'DRAG a dish onto a neighbour to swap. Or tap one, then the next. Three that can share a plate vanish.': 'גררו מנה על השכנה. או לחצו אחת ואז את השנייה. שלוש שיכולות לחלוק צלחת נעלמות.',
+    'Pareve can sit with meat or dairy. Meat and milk never plate together.': 'פרווה יכולה לשבת עם בשרי או חלבי. בשר וחלב לא עולים יחד לצלחת.',
+    'Fish matches fish, never meat. Flick UP treif or mixed. TAP a lid first.': 'דג עם דג, לא עם בשר. טרף או תערובת - למעלה. קודם המכסה.',
     'Hit the red top shelf and the kitchen overloads - a life gone. Twelve kitchens, each one stays open once you finish it.': 'המדף האדום למעלה התמלא? יורדים חיים. שנים עשר מטבחים, וכל אחד נשאר פתוח אחרי שסיימתם.',
     'Steer with the slider (or grab the truck). Slash flying bread with your other hand.': 'ההגה למטה (או תפסו את המשאית). ביד השנייה חתכו לחם שעף.',
     'Bread that rose is chametz - it cannot touch the shemura cargo.': 'לחם שתפח זה חמץ. אסור שייגע במצה השמורה.',
@@ -498,7 +593,428 @@ var Lang = {
     'THE DASH': 'הריצה',
     'SOF ZMAN': 'סוף זמן',
     'badges': 'אותות',
-    ' MP': ' נק״מ'
+    ' MP': ' נק״מ',
+    'MEAT': 'בשרי',
+    'DAIRY': 'חלבי',
+    'MIXED': 'תערובת',
+    'TREIF': 'טרף',
+    'NEW': 'חדש',
+    'READ': 'קראו',
+    'LOCKED': 'נעול',
+    'TAP': 'לחצו',
+    'Oops': 'אוי',
+    'NUSACH': 'נוסח',
+    'SCORE': 'ניקוד',
+    'HALACHA CARD': 'כרטיס הלכה',
+    'MAZAL TOV!': 'מזל טוב!',
+    'NEW BEST!': 'שיא חדש!',
+    'scroll for more': 'גללו עוד',
+    'Tap an earned badge to re-read its halacha.': 'לחצו על אות שכבר הרווחתם כדי לקרוא שוב.',
+    'You helped all twelve!': 'עזרתם לכל השנים עשר!',
+    'You delivered all twelve!': 'סיימתם את כל השנים עשר!',
+    'You plated all twelve!': 'צלחתם את כל השנים עשר!',
+    'You kept every belt clear!': 'שמרתם על כל המסועים נקיים!',
+    'times you gave tzedaka': 'פעמים שנתתם צדקה',
+    'pieces of chametz sliced': 'חתיכות חמץ שחתכתם',
+    'steps on the way to shul': 'צעדים בדרך לבית הכנסת',
+    'shifts on the belts': 'משמרות על המסועים',
+    'plates that could share a dish': 'צלחות שיכלו לחלוק מנה',
+    'Mitzvah Points earned': 'נקודות מצווה',
+    'Level reached': 'שלב שהגעתם',
+    'Nights completed': 'לילות שסיימתם',
+    'Kosher L\'Mehadrin nights': 'לילות כשר למהדרין',
+    'Windows closed on gusts': 'חלונות שנסגרו על הרוח',
+    'Sputtering flames steadied': 'להבות רועדות שיוצבו',
+    'Latke fires put out': 'שריפות לביבה שכבו',
+    'Cats shooed / moths swatted': 'חתולים שגורשו / עשים שהופלו',
+    'Cups cracked': 'כוסות שהתפוצצו',
+    'Relit from the shamash': 'הודלקו מהשמש',
+    'Sufganiyot sliced from Jelly-Zilla': 'סופגניות שנחתכו מג\'לי־זילה',
+    'Jelly-Zilla Slayer': 'מנצח ג\'לי־זילה',
+    'JELLY-ZILLA': 'ג\'לי־זילה',
+    'Jelly-Zilla got you': 'ג\'לי־זילה תפס אתכם',
+    'Jelly-Zilla is out the window and all eight lights are burning.': 'ג\'לי־זילה עף מהחלון, וכל שמונת הנרות דולקים.',
+    'Jelly-Zilla defeated - all eight lights burning': 'ג\'לי־זילה הובס - כל שמונת הנרות דולקים',
+    'Reach the end of Night 8 and send the Great Sufganiyah out the window.': 'הגיעו לסוף לילה 8 ושלחו את הסופגנייה הגדולה מהחלון.',
+    'NIGHT 8 COMPLETE!': 'לילה 8 הושלם!',
+    'every light still burning': 'כל נר עדיין דולק',
+    'a present?': 'מתנה?',
+    'one of the boys has something for you': 'אחד הילדים הביא לכם משהו',
+    'the Great Sufganiyah rises': 'הסופגנייה הגדולה עולה',
+    'SLICE THE SUFGANIYOT': 'חתכו את הסופגניות',
+    'the halves fly back at him': 'החצאים עפים חזרה עליו',
+    'THE PACH SHEMEN': 'פך השמן',
+    'tap the sealed flask': 'לחצו על הפך החתום',
+    'OUT THE WINDOW!': 'מהחלון!',
+    'and not a drop of jam on the glass': 'ובלי טיפת ריבה על הזכוכית',
+    'EVERY LIGHT BACK ON': 'כל נר חזר לדלוק',
+    'the miracle held': 'הנס החזיק',
+    'POWDERED SUGAR BLIZZARD': 'סופת אבקת סוכר',
+    'swipe it away': 'החליקו אותה החוצה',
+    'HE IS LUNGING': 'הוא מתנפל',
+    'tap him fast!': 'לחצו עליו מהר!',
+    'SUFGANIYOT VOLLEY': 'מטח סופגניות',
+    'slice them out of the air': 'חתכו אותן באוויר',
+    'JELLY TIDAL WAVE': 'גל ריבה',
+    'scrub it off in circles': 'נגבו בעיגולים',
+    'NAPKIN FRENZY x2': 'טירוף מפיות x2',
+    'every half hits twice as hard': 'כל חצי מכה כפול',
+    'THE LIGHTS BURN ON': 'הנרות ממשיכים לדלוק',
+    'SCRUB IN CIRCLES': 'נגבו בעיגולים',
+    'SWIPE THE SUGAR AWAY': 'החליקו את הסוכר',
+    'TAP! TAP! TAP!': 'לחצו! לחצו! לחצו!',
+    'TAP THE PACH SHEMEN': 'לחצו על פך השמן',
+    'SWIPE TO WIPE': 'החליקו כדי לנגב',
+    'THE JELLY IS ABOUT TO DRIP!': 'הריבה עומדת לטפטף!',
+    'DONUT JELLY ON THE WINDOW!': 'ריבת סופגנייה על החלון!',
+    'THE JELLY IS DRIPPING!': 'הריבה מטפטפת!',
+    'DOUSED BY JELLY': 'כבה מריבה',
+    'Smothered in jam': 'נחנק מריבה',
+    'SPLAT!': 'פלאץ!',
+    'SWIPE IT AWAY': 'החליקו החוצה',
+    'SWIPE IT OFF!': 'העיפו אותה!',
+    'FLYING LATKE!': 'לביבה עפה!',
+    'GREASE FIRE!': 'שריפת שומן!',
+    'big one - keep swiping': 'גדולה - תמשיכו להחליק',
+    'THE GLASS CRACKED': 'הכוס נסדקה',
+    'SHAMASH CUP CRACKED': 'כוס השמש נסדקה',
+    'the glass is cracked': 'הכוס סדוקה',
+    'GLASS IS CRACKING!': 'הכוס נסדקת!',
+    'A cup cracked from the heat': 'כוס התפוצצה מהחום',
+    'That light is gone for the rest of the night': 'הנר הזה נגמר עד סוף הלילה',
+    'No relighting from it tonight - what counts is the lights still burning': 'אין הדלקה ממנו הלילה - מה שחשוב זה הנרות שעדיין דולקים',
+    'Never pour oil onto a grease fire! Swipe the latke off first': 'אל תמזגו שמן על שריפת שומן! קודם תעיפו את הלביבה',
+    'Swipe the latke off before the glass cracks': 'תעיפו את הלביבה לפני שהכוס נסדקת',
+    'Swipe the latke off - do not pour oil on a grease fire': 'תעיפו את הלביבה - לא יוצקים שמן על שריפת שומן',
+    'spilled!': 'נשפך!',
+    'still full': 'עדיין מלא',
+    'IT DIED DOWN': 'כבה לבד',
+    'out of oil': 'נגמר השמן',
+    'BLOWN OUT': 'כבה מהרוח',
+    'SPUTTERING - POUR!': 'רועדות - תמזגו!',
+    'OIL SPILLED': 'השמן נשפך',
+    'THE CAT GOT THE OIL': 'החתול לקח את השמן',
+    'MOTH PUT IT OUT': 'עש כיבה אותו',
+    'SHAMASH LIT': 'השמש דולק',
+    'light the shamash first': 'קודם תדליקו את השמש',
+    'FILL THIS CUP FIRST': 'קודם תמלאו את הכוס',
+    'THE MENORAH IS DARK': 'המנורה כבויה',
+    'relight before the half hour is up, or the night is lost': 'הדליקו מחדש לפני שחצי השעה נגמרת, או שהלילה אבוד',
+    'A sputtering flame gives up unless you pour fresh oil in': 'להבה רועדת כבה אם לא מוזגים שמן חדש',
+    'Refill it, then relight it from the shamash': 'מלאו שמן, ואז הדליקו מהשמש',
+    'Tap the shamash, carry it over and hold it on the wick': 'לחצו על השמש, תעבירו והחזיקו על הפתיל',
+    'The shamash cup cracked - nothing to relight from tonight': 'כוס השמש נסדקה - אין ממה להדליק הלילה',
+    'Light the shamash first - it is the helper candle you carry the flame with': 'קודם השמש - זה הנר שמעבירים איתו את האש',
+    'Now drag the shamash onto a dark wick. Careful - out in the open it burns twice as fast': 'עכשיו גררו את השמש לפתיל כבוי. בזהירות - באוויר הוא נשרף כפול מהר',
+    'The shamash burned out in your hand. Put it back, fill it and light it again': 'השמש כבה ביד. תחזירו, תמלאו ותדליקו שוב',
+    'The shamash needs oil - tap its jug': 'לשמש צריך שמן - לחצו על הפך שלו',
+    'That cup cracked - it is out for the night': 'הכוס הזאת נסדקה - נגמרה ללילה',
+    'Relight it from the shamash - double-tap the shamash': 'הדליקו מהשמש - לחצו פעמיים על השמש',
+    'Draft from both sides!': 'רוח משני הצדדים!',
+    'LEFT TO RIGHT': 'משמאל לימין',
+    'RIGHT to LEFT': 'מימין לשמאל',
+    'LEFT to RIGHT': 'משמאל לימין',
+    'WINDOW CLOSED! +70': 'החלון נסגר! +70',
+    'RELIT +70': 'הודלק מחדש +70',
+    'WIPED +35': 'נוגב +35',
+    'STEADIED +45': 'יוצב +45',
+    'SHOOED +60': 'גורש +60',
+    'FIRE OUT +': 'האש כבתה +',
+    'POUR!': 'תמזגו!',
+    'Every light still burning - the way almost every family keeps Chanukah.': 'כל נר עדיין דולק - ככה כמעט כל משפחה מדליקה.',
+    'One light left - by the letter of the law that still fulfils the mitzvah.': 'נר אחד נשאר - מעיקר הדין המצווה התקיימה.',
+    'Every light was dark by the end of the half hour.': 'כל הנרות כבו עד סוף חצי השעה.',
+    'Night 8 ran out with every light dark': 'לילה 8 נגמר וכל הנרות כבויים',
+    'Clear View': 'זכוכית נקייה',
+    'Wipe 15 sufganiyot splats off the glass.': 'נגבו 15 טיפות סופגנייה מהזכוכית.',
+    'Dreidel Guard': 'שומר סביבון',
+    'Knock away 20 bouncing dreidels before they hit the oil.': 'העיפו 20 סביבונים לפני שהם פוגעים בשמן.',
+    'Eighth Night': 'לילה שמיני',
+    'Survive all the way to Night 8.': 'הגיעו עד לילה 8.',
+    'Finish a night from Night 3 on with every single light still burning.': 'סיימו לילה מלילה 3 והלאה עם כל נר דולק.',
+    'Fire Marshal': 'כבאי',
+    'Fling 10 burning latkes off the menorah before the glass cracks.': 'העיפו 10 לביבות בוערות לפני שהכוס נסדקת.',
+    'BLOCKED!': 'חסום!',
+    'WEAVE!': 'תתחמקו!',
+    'KEEP GOING!': 'תמשיכו!',
+    'ZERIZUS!': 'זריזות!',
+    'BUS!': 'אוטובוס!',
+    'HOP ON!': 'קפצו!',
+    'EXCUSE ME!': 'סליחה!',
+    'WET HAT!': 'כובע רטוב!',
+    'WETTER!': 'עוד יותר רטוב!',
+    'Flattened by a treif truck': 'נדרסתם ממשאית לא כשרה',
+    'Hit by traffic': 'נפגעתם מתנועה',
+    'Missed the zman': 'פספסתם את הזמן',
+    'stalls and cones close a square': 'דוכן או קונוס סוגרים משבצת',
+    'wide and slow - hop the gap': 'רחב ואיטי - קפצו ברווח',
+    'ride with them across': 'תסעו איתם לצד השני',
+    'Beat the Zman': 'לפני הזמן',
+    'Reach the shul before the zman runs out.': 'הגיעו לבית הכנסת לפני שנגמר הזמן.',
+    'Kavod Shabbos': 'כבוד שבת',
+    'Reach shul with your hat still dry - no sprinklers.': 'הגיעו עם כובע יבש - בלי ממטרות.',
+    'Kosher Ride': 'טרמפ כשר',
+    'Hitch a ride on a kosher food truck.': 'תפסו טרמפ על משאית אוכל כשר.',
+    'Reward of Steps': 'שכר פסיעות',
+    'Take 50 forward hops in a single run.': 'עשו 50 קפיצות קדימה בריצה אחת.',
+    'Minyan Maker': 'מניין',
+    'Reach the shul three times in one run.': 'הגיעו לבית הכנסת שלוש פעמים בריצה אחת.',
+    'Zerizus': 'זריזות',
+    'Reach shul on all thirty walks before the zman.': 'הגיעו בכל שלושים ההליכות לפני הזמן.',
+    'KOSHER FOOD': 'אוכל כשר',
+    'NOT KOSHER': 'לא כשר',
+    'KOSHER FOOD RIDE!': 'טרמפ אוכל כשר!',
+    'SHOVED BACK!': 'נדחפתם אחורה!',
+    'DRY HAT': 'כובע יבש',
+    'WET HAT': 'כובע רטוב',
+    'TAP TO UNCOVER IT': 'לחצו להרים את המכסה',
+    'KASHRUS RUSH!': 'ריצת כשרות!',
+    'KASHRUS RUSH  x2': 'ריצת כשרות  x2',
+    'the belts surge - every call is worth double': 'המסועים מאיצים - כל אחד שווה כפול',
+    'the stack rises faster - plates are worth double': 'הערימה עולה מהר - צלחות שוות כפול',
+    'END OF BELT!': 'סוף המסוע!',
+    'Wrong bin': 'פח לא נכון',
+    'Left covered to the end': 'הגיע מכוסה עד הסוף',
+    'Reached the end unsorted': 'הגיע לסוף בלי מיון',
+    'Kitchen overloaded': 'המטבח עלה על גדותיו',
+    'CLEARED THE TOP': 'פינינו את הראש',
+    'NOT KOSHER +40': 'לא כשר +40',
+    'NOT TOGETHER +40': 'לא ביחד +40',
+    'SHARE A PLATE': 'צלחת משותפת',
+    'Clean Streak': 'רצף נקי',
+    'Sort 20 items in a row without a mistake.': 'מיינו 20 ברצף בלי טעות.',
+    'Basar b’Chalav': 'בשר בחלב',
+    'Flick 10 meat-and-milk mixtures up into the chute.': 'העיפו 10 תערובות בשר וחלב למעלה לפח.',
+    'Sharp Eye': 'עין חדה',
+    'Flick 15 non-kosher items up into the chute.': 'העיפו 15 דברים לא כשרים למעלה לפח.',
+    'Pareve Pro': 'אלוף פרווה',
+    'Send 30 pareve foods to the right bin.': 'שלחו 30 מנות פרווה לפח הנכון.',
+    'Reach shift 5 on the conveyor.': 'הגיעו למשמרת 5 על המסוע.',
+    'Belt Keeper': 'שומר המסוע',
+    'Clear all twelve conveyor shifts with nothing falling off the end.': 'סיימו את כל שתים־עשרה המשמרות בלי שמשהו ייפול מהקצה.',
+    'Two Kitchens': 'שני מטבחים',
+    'Plate every matching shift - all twelve kitchens, meat and milk never sharing a dish.': 'צלחו כל משמרת - שנים עשר מטבחים, בשר וחלב אף פעם לא על אותה צלחת.',
+    'UNSTOPPABLE!': 'לא עוצרים!',
+    'CHAMETZ TWISTER!': 'סופת חמץ!',
+    'ANOTHER TWISTER!': 'עוד סופה!',
+    'here they come': 'הנה הם באים',
+    'slash everything!': 'חתכו הכל!',
+    'BAKERY BURST!': 'פיצוץ מאפייה!',
+    'slash the flying batch': 'חתכו את מה שעף',
+    'THE AFIKOMAN HELD THE HOUR': 'האפיקומן שמר על השעה',
+    'The fourth hour passed': 'השעה הרביעית עברה',
+    'Shemura matzah ruined': 'המצה השמורה נפגעה',
+    'Chametz Slicer': 'חותך חמץ',
+    'Slice 50 pieces of flying chametz.': 'חתכו 50 חתיכות חמץ עפות.',
+    'Giant Slayer': 'מנצח ענקים',
+    'Destroy 10 giant croissants with combo swipes.': 'הרסו 10 קרואסונים ענקיים בהחלקות רצף.',
+    'Dust Buster': 'מפזר אבק',
+    'Disperse 10 yeast clouds before they reach the cargo.': 'פזרו 10 ענני שמרים לפני שהם מגיעים למטען.',
+    'Afikoman Shield': 'מגן אפיקומן',
+    'Collect 5 Afikoman golden shields.': 'אספו 5 מגני אפיקומן זהובים.',
+    'Special Delivery': 'משלוח מיוחד',
+    'Complete a delivery run before the fourth hour is up.': 'סיימו משלוח לפני שהשעה הרביעית נגמרת.',
+    'Before the Hour': 'לפני השעה',
+    'Deliver shemura matzah down all twelve routes.': 'הביאו מצה שמורה בכל שנים־עשר המסלולים.',
+    'SLASH THE CHAMETZ': 'חתכו את החמץ',
+    'AFIKOMAN SHIELD!': 'מגן אפיקומן!',
+    'COMBO SWIPE': 'החלקת רצף',
+    'STEER': 'הגה',
+    'PIGEON ALERT!': 'יונה!',
+    'tap him or he eats your coin for lunch': 'לחצו עליו או שהוא אוכל לכם את המטבע',
+    'DIVE BOMB!': 'צלילה!',
+    'now they swoop - tap fast!': 'עכשיו הם צוללים - לחצו מהר!',
+    'NICE COAT, NO THANKS': 'מעיל יפה, לא תודה',
+    'he already ate - save it for an open hand!': 'הוא כבר אכל - שמרו לכף פתוחה!',
+    'WHOA, UMBRELLA!': 'וואו, מטריה!',
+    'wait till Mr. Fancy walks past': 'חכו עד שהמגונדר יעבור',
+    'TWO WAGONS?!': 'שתי עגלות?!',
+    'the near lane is a parade - wait them out': 'הנתיב הקרוב זו תהלוכה - חכו',
+    'WAGON ROLLING!': 'עגלה נוסעת!',
+    'it only blocks the near lane. sip tea. wait.': 'חוסמת רק את הנתיב הקרוב. לגימה. חכו.',
+    'POCKET\'S EMPTY!': 'הכיס ריק!',
+    'six seconds - full reload': 'שש שניות - מתמלא',
+    'hang tight - more coins are coming': 'חכו - עוד מטבעות בדרך',
+    'POCKET\'S FULL!': 'הכיס מלא!',
+    'go go go!': 'יאללה יאללה!',
+    'COMBO PARTY!': 'מסיבת רצף!',
+    'keep going keep going!': 'תמשיכו תמשיכו!',
+    'WHOOPS, ICE!': 'אופס, קרח!',
+    'he is sliding - throw AHEAD of him': 'הוא מחליק - זרקו לפניו',
+    'SHOO!': 'קשש!',
+    'GOLD! costs 3': 'זהב! עולה 3',
+    'WAITING FOR COINS...': 'מחכים למטבעות...',
+    'OPEN HAND!': 'כף פתוחה!',
+    'PULL BACK TO THROW': 'משכו אחורה לזריקה',
+    'LOOK FOR THE HAND': 'חפשו את היד',
+    'PACE YOURSELF...': 'לאט לאט...',
+    'A PUSHKA!': 'קופה!',
+    'PUSHKA +80': 'קופה +80',
+    'TOWN CART!': 'עגלת הקהילה!',
+    'GIANT SACK!': 'שק ענק!',
+    'BROKEN CART!': 'עגלה שבורה!',
+    'PAID YOU BACK +300': 'החזיר לכם +300',
+    'DISPERSED +60': 'פוזר +60',
+    'GOLD ONLY +60': 'רק זהב +60',
+    'Into His Hand': 'לתוך היד',
+    'Land 25 coins in an open hand without one hitting the street.': 'הנחיתו 25 מטבעות בכף פתוחה בלי שאחד ייפול לרחוב.',
+    'Matan B\'Seter': 'מתן בסתר',
+    'Slip 10 coins into a porter\'s sack, so he never finds out who it was.': 'החליקו 10 מטבעות לשק הסבל, שהוא לעולם לא יידע מי זה היה.',
+    'A Thousand Times': 'אלף פעמים',
+    'Reach a giving streak of 20 without a single miss.': 'הגיעו לרצף 20 נתינות בלי פספוס.',
+    'Just in Time': 'ברגע האחרון',
+    'Catch 8 people who were already calling out - they were about to walk off!': 'תפסו 8 אנשים שכבר קראו - הם כמעט הלכו!',
+    'Before He Asked': 'לפני שביקש',
+    'Reach 15 people before they even have to call out.': 'הגיעו ל־15 לפני שהם בכלל צריכים לקרוא.',
+    'The Highest Rung': 'המדרגה הגבוהה',
+    'Set 5 people back on their own feet so they no longer need to ask.': 'העמידו 5 אנשים על הרגליים כדי שלא יצטרכו לבקש.',
+    'Gabbai Tzedakah': 'גבאי צדקה',
+    'Bank 15 coins into the community kupah cart.': 'הכניסו 15 מטבעות לעגלת הקופה.',
+    'POLO MATCH': 'משחק פולו',
+    'I SPEND MY TIME YACHTING': 'אני מפליג עם היאכטה שלי',
+    'NOT IN MY TAX BRACKET': 'אני לא במדרגת המס שלך',
+    'MY CAT IS A BILLIONAIRE': 'החתול שלי מיליארדר',
+    'I OWN HORSES, BRO': 'יש לי סוסים, אחי',
+    'Into the Wind': 'מול הרוח',
+    'Land 12 coins in somebody\'s hand while a strong gust is blowing across the street.': 'הנחיתו 12 מטבעות ביד בזמן שרוח חזקה חוצה את הרחוב.',
+    'Wait, Then Give': 'חכו, ואז תנו',
+    'Run out of coins, wait for more, then still land 10 gifts.': 'נגמרו המטבעות, חכו לעוד, ועדיין תנו 10.',
+    'Look for the Hand': 'חפשו את היד',
+    'Finish 5 streets without wasting a single coin on a man who did not need it.': 'סיימו 5 רחובות בלי לבזבז מטבע על מי שלא צריך.',
+    'No Questions Asked': 'בלי שאלות',
+    'Fill every single hand during a Matanos LaEvyonim rush.': 'מלאו כל יד בריצת מתנות לאביונים.',
+    'Talmid Chacham': 'תלמיד חכם',
+    'Read every Halacha card in the game.': 'קראו כל כרטיס הלכה במשחק.',
+    'Baal Mitzvos': 'בעל מצוות',
+    'Bank 1,000 Mitzvah Points.': 'צברו 1,000 נקודות מצווה.',
+    'SHAMASH': 'שמש',
+    'SHEMURA': 'שמורה',
+    'SHEMURA CARGO': 'מטען שמורה',
+    'AFIKOMAN': 'אפיקומן',
+    '4TH HOUR': 'שעה רביעית',
+    'DELIVERY': 'משלוח',
+    'HARD': 'קשה',
+    'GENTLE': 'עדין',
+    'WIND!': 'רוח!',
+    'CART': 'עגלה',
+    'SACK': 'שק',
+    'READY': 'מוכנים',
+    'CRACKED': 'סדוק',
+    'SPILLED': 'נשפך',
+    'UNCOVERED': 'נחשף',
+    'SHIELDED': 'מוגן',
+    'THANKS!': 'תודה!',
+    'AGAIN!': 'עוד פעם!',
+    'DIVING!': 'צולל!',
+    'OPEN HAND': 'כף פתוחה',
+    'DISPOSAL  ↑': 'פח  ↑',
+    'Half an Hour of Light': 'חצי שעה של אור',
+    'If It Goes Out By Itself': 'אם כבה לבד',
+    'Do Not Light in a Wind Tunnel': 'לא מדליקים במקום שהרוח שולטת',
+    'Why Olive Oil Wins': 'למה שמן זית',
+    'The Shamash Is the Helper': 'השמש הוא המשרת',
+    'Put It Where People Can See': 'שייראו את הנס',
+    'Up, Never Down': 'מוסיף והולך',
+    'One Light Is Already Enough': 'נר איש וביתו',
+    'Set It Up Somewhere Safe': 'מקום הנחה',
+    'The One Sealed Jug': 'פך השמן',
+    'Lighting One From Another': 'מדליקין נר מנר',
+    'When to Light': 'זמן ההדלקה',
+    'The Morning Deadline': 'סוף זמן תפילה',
+    'Do It Early': 'זריזין מקדימין',
+    'Run There, Stroll Back': 'לרוץ לבית הכנסת',
+    'Every Step Counts': 'שכר פסיעות',
+    'Daven With Everyone Else': 'תפילה בציבור',
+    'Your Shabbos Hat': 'הכובע של שבת',
+    'Meat and Milk: Three Rules': 'בשר בחלב: שלושה איסורים',
+    'Written Three Times': 'כתוב שלוש פעמים',
+    'Pareve: The Neutral Team': 'פרווה: הקבוצה הניטרלית',
+    'The Wait In Between': 'ההמתנה באמצע',
+    'Fins and Scales': 'סנפיר וקשקשת',
+    'You Need Both Signs': 'צריך את שני הסימנים',
+    'Why a Hechsher': 'למה הכשר',
+    'Check the Lettuce': 'בדקו את החסה',
+    'Two Sets of Everything': 'שתי מערכות',
+    'The Morning It All Stops': 'ערב פסח',
+    'The Search by Candlelight': 'בדיקת חמץ',
+    'Saying It Is Not Mine': 'ביטול חמץ',
+    'Eighteen Minutes': 'שמונה עשרה דקות',
+    'Guarded Matzah': 'מצה שמורה',
+    'One Kezayis': 'כזית אחד',
+    'Chametz After Pesach': 'חמץ שעבר עליו הפסח',
+    'Not Seen, Not Found': 'בל יראה ובל ימצא',
+    'Learning Beats Doing (Because)': 'תלמוד גדול',
+    'One Mitzvah Drags Another': 'מצווה גוררת מצווה',
+    'Enough for What He Is Missing': 'די מחסורו',
+    'Into His Hand, Not the Dust': 'אל ישוב דך נכלם',
+    'So Neither One Knows': 'מתן בסתר',
+    'Who Comes First': 'עניי עירך קודמין',
+    'Before He Has to Ask': 'קודם שישאל',
+    'The Very Top Rung': 'להחזיק ביד',
+    'The Community Fund': 'קופה של צדקה',
+    'Leave the Corner': 'פאה, לקט, שכחה',
+    'When You Have Nothing': 'ופייסו בדברים',
+    'On Purim, No Questions': 'מתנות לאביונים',
+    'A Tenth, Not a Half': 'מעשר כספים',
+    'Money for Somebody Who Needs It': 'אחיך האביון',
+    'TAP TO LIGHT': 'לחצו להדליק',
+    'OUT': 'כבוי',
+    'BIG FLYING LATKE!': 'לביבה גדולה עפה!',
+    'Think you can help even more people? Go beat your high score!': 'חושבים שאפשר לעזור לעוד אנשים? תשברו את השיא!',
+    'Think you can slice even more? Go beat your high score!': 'חושבים שאפשר לחתוך עוד? תשברו את השיא!',
+    'Think you can get there even faster? Go beat your high score!': 'חושבים שאפשר להגיע מהר יותר? תשברו את השיא!',
+    'Think you can sort even faster? Go beat your high score!': 'חושבים שאפשר למיין מהר יותר? תשברו את השיא!',
+    'Think you can plate even faster? Go beat your high score!': 'חושבים שאפשר לצלח מהר יותר? תשברו את השיא!',
+    'Here is the deal with Chanukah lights: they have a job to do, and the job takes half an hour. So before you light, put in enough oil (or use a long enough candle) to burn for a full half hour after dark. Light a stubby little candle that fizzles out in ten minutes and you have not done the mitzvah - even if you lit at exactly the right second.': 'לנרות חנוכה יש עבודה, והעבודה לוקחת חצי שעה. לפני שמדליקים שמים מספיק שמן (או נר ארוך) שידלק חצי שעה אחרי החשיכה. נר קטן שכבה אחרי עשר דקות? לא קיימתם את המצווה - גם אם הדלקתם בדיוק בזמן.',
+    'Surprising one: the mitzvah happens at the moment you light. If you lit properly - good oil, enough of it, in a safe spot where it could have burned the whole half hour - then you are done. Finished. If the flame later blows out on its own, you are not obligated to relight it. The Mishnah Berurah says it is a lovely thing to relight anyway (no new bracha), just to keep the miracle on show. Lovely, not required.': 'הפתעה: המצווה קורה ברגע ההדלקה. הדלקתם כמו שצריך - שמן טוב, מספיק ממנו, במקום בטוח שיכול לדלוק חצי שעה - סיימתם. אם אחר כך כבה לבד, אין חובה להדליק שוב. המשנה ברורה אומרת שזה יפה להדליק בכל זאת (בלי ברכה חדשה), כדי שהנס יישאר נראה. יפה, לא חובה.',
+    'You may not light somewhere the wind is definitely going to blow it out. And this is not "oops, try again" - the lighting does not count at all, because it was never a light that had a chance. That is the whole reason outdoor menorahs live inside a glass box.': 'אסור להדליק במקום שהרוח בטוח תכבה. וזה לא ״אופס, ננסה שוב״ - ההדלקה לא נחשבת בכלל, כי זה אף פעם לא היה נר שהיה לו סיכוי. לכן מנורה בחוץ יושבת בקופסת זכוכית.',
+    'Any oil works. Any wick works. Wax candles work. But olive oil is the champion, because the miracle in the Beis HaMikdash happened with one little sealed jug of pure olive oil - so when you use it, you are using the same stuff the story is about.': 'כל שמן עובד. כל פתיל עובד. נרות שעווה עובדים. אבל שמן זית זה האלוף, כי הנס בבית המקדש היה עם פך קטן חתום של שמן זית טהור - אז כשמשתמשים בו, זה אותו דבר שהסיפור מדבר עליו.',
+    'The lights are not decoration and they are not for you - they are an announcement. That is why they go by the doorway or in a window facing the street, low enough that somebody walking past actually notices and thinks: something happened here.': 'הנרות לא לקישוט ולא בשבילכם - הם הודעה. לכן שמים ליד הדלת או בחלון לרחוב, מספיק נמוך שמי שעובר באמת ישים לב ויחשוב: משהו קרה פה.',
+    'There was a real argument about this. Beis Shammai said start with eight and count down. Beis Hillel said start with one and add one every night, because when it comes to holy things you go UP, you do not go down. Beis Hillel won - which is why night eight is the big one.': 'היתה מחלוקת אמיתית. בית שמאי אמרו להתחיל משמונה ולרדת. בית הלל אמרו להתחיל מאחד ולהוסיף כל לילה, כי בקדושה עולים, לא יורדים. בית הלל ניצחו - לכן לילה שמונה זה הגדול.',
+    'Strictly speaking? A single light per household, per night. That is the whole mitzvah, done. Then people started making it more beautiful: one light for every person in the house. Then even more beautiful: adding one every night. That last version is what nearly everybody does now - but the basic rule underneath is still one single flame.': 'מעיקר הדין? נר אחד למשפחה, ללילה. זו כל המצווה. אחר כך התחילו לייפות: נר לכל אחד בבית. ואחר כך עוד יותר יפה: מוסיפים אחד כל לילה. ככה כמעט כולם עושים עכשיו - אבל מתחת לכל זה עדיין נר אחד.',
+    'The lights need a spot where they can burn quietly for their whole half hour without anyone knocking them, spilling them or setting the tablecloth on fire. Glass holders, away from the edge, away from flying elbows. A menorah you had to rescue halfway through was never set up right in the first place.': 'הנרות צריכים מקום שידלקו בשקט חצי שעה בלי שיפילו אותם, ישפכו או ידליקו את המפה. מעמדי זכוכית, רחוק מהקצה, רחוק ממרפקים. מנורה שהייתם צריכים להציל באמצע - לא הונחה כמו שצריך מההתחלה.',
+    'When the Chashmonaim finally took the Beis HaMikdash back, the place was wrecked. They dug through the mess looking for oil and found exactly one small jug still sealed with the seal of the Kohen Gadol - untouched. Enough for one day. It burned for eight. The next year, those eight days became Chanukah.': 'כשהחשמונאים החזירו את בית המקדש, המקום היה הרוס. חיפשו שמן ומצאו פך אחד קטן חתום בחותם של הכהן הגדול - לא נגע בו. מספיק ליום אחד. הוא דלק שמונה. בשנה שאחרי זה, שמונת הימים האלה נהיו חנוכה.',
+    'Can you light one Chanukah candle straight off another one? The Shulchan Aruch says yes - but not by lighting a stick first and carrying the flame over on that. The Rema records the custom to just avoid the whole question. Which is exactly what the shamash is for: it is the flame you carry from wick to wick.': 'אפשר להדליק נר חנוכה מנר חנוכה? השולחן ערוך אומר כן - אבל לא על ידי קיסם שמעבירים איתו. הרמ״א כותב את המנהג פשוט לא להיכנס לשאלה. בשביל זה יש שמש: זו האש שמעבירים מפתיל לפתיל.',
+    'Light at nightfall (some families light right at sunset), and do not start a meal or get stuck into something in the half hour before - you will forget. Erev Shabbos (Friday afternoon) is different: we light BEFORE the Shabbos candles and before sunset, because you cannot light once Shabbos has started. And since the lights still have to last half an hour past nightfall, Friday needs extra oil.': 'מדליקים עם חשיכה (יש שמדליקים בשקיעה), ואל תתחילו ארוחה או משהו בחצי השעה שלפני - תשכחו. ערב שבת זה אחרת: מדליקים לפני נרות שבת ולפני השקיעה, כי אחרי כניסת שבת אי אפשר להדליק. והנרות עדיין צריכים לדלוק חצי שעה אחרי צאת הכוכבים, אז בשישי שמים יותר שמן.',
+    'One extra candle sits off to the side, usually a bit higher. Why? Because you are not allowed to USE the Chanukah lights for anything - not to read by, not to find your shoe, not to count your gelt. So the shamash stands there and says: whatever light you just used, you used mine. Its name literally means "servant".': 'נר נוסף בצד, בדרך כלל קצת יותר גבוה. למה? אסור להשתמש בנרות חנוכה לכלום - לא לקרוא, לא לחפש נעל, לא לספור דמי חנוכה. השמש עומד ואומר: האור שהשתמשתם בו עכשיו היה שלי. השם שלו ממש אומר ״משרת״.',
+    'People who are keen do a mitzvah at the FIRST chance, not the last one. Leaving for shul early is not just being sensible about the clock - the eagerness is itself part of how the mitzvah is supposed to be done.': 'מי שזריז עושה מצווה בהזדמנות הראשונה, לא באחרונה. לצאת מוקדם לבית הכנסת זה לא רק חכם עם השעון - הזריזות עצמה היא חלק מהמצווה.',
+    'The Gemara says: hurry on the way TO shul, but walk home calmly. Why? Because if you sprint out afterwards it looks like you could not wait to escape. Running toward something says you wanted to be there.': 'הגמרא אומרת: ממהרים בדרך אל בית הכנסת, ובחזרה הולכים רגוע. למה? אם רצים החוצה אחר כך נראה שלא יכולתם לחכות לברוח. לרוץ אל משהו אומר שרציתם להיות שם.',
+    'Living far from shul is not bad luck - the Gemara counts the steps. Each one on the way to a mitzvah gets its own reward. So the long way round is worth more, not less.': 'לגור רחוק מבית הכנסת זה לא חוסר מזל - הגמרא סופרת את הצעדים. כל אחד בדרך למצווה מקבל שכר. אז הדרך הארוכה שווה יותר, לא פחות.',
+    'Hashem never turns away the prayer of a whole community. So try hard to daven with a minyan - and to daven in the same regular spot, rather than wherever you happen to land.': 'השם לא מחזיר תפילה של ציבור. אז תשתדלו להתפלל במניין - ובאותו מקום קבוע, לא איפה שנחתתם.',
+    'You are meant to have clothes that are only for Shabbos and never get worn on a Tuesday - and that includes the hat. Kavod Shabbos is not only about the food on the table; it is about walking to shul looking like today is different from every other day. So yes, it matters that you turned up with a soaking wet hat. Watch the sprinklers.': 'צריך בגדים שרק לשבת ולא לובשים ביום שלישי - כולל הכובע. כבוד שבת זה לא רק האוכל על השולחן; זה ללכת לבית הכנסת כאילו היום שונה. אז כן, זה משנה שהגעתם עם כובע רטוב. שימו לב לממטרות.',
+    'Meat and milk together is not one rule, it is three. You may not COOK them together. You may not EAT the mixture. And you may not get any BENEFIT from it at all - you cannot sell it, and you cannot even give it to your dog.': 'בשר וחלב זה לא כלל אחד, זה שלושה. אסור לבשל ביחד. אסור לאכול את התערובת. ואסור ליהנות מזה בכלל - אי אפשר למכור, ואי אפשר אפילו לתת לכלב.',
+    '"Do not cook a kid in its mother\'s milk" shows up three separate times in the Torah. The Sages asked the obvious question - why three? - and answered: one for cooking, one for eating, one for benefit. Nothing in the Torah is repeated for no reason.': '״לא תבשל גדי בחלב אמו״ מופיע שלוש פעמים בתורה. חכמים שאלו את השאלה הברורה - למה שלוש? - וענו: אחת לבישול, אחת לאכילה, אחת להנאה. כלום בתורה לא חוזר סתם.',
+    'Eggs, fish, fruit, vegetables and grains are neither meat nor milk. They are pareve, which means they can go with either side. Fish has its own thing though: we do not eat fish and meat on the same plate.': 'ביצים, דג, פרי, ירק ודגן הם לא בשר ולא חלב. הם פרווה - יכולים לשבת עם כל צד. לדג יש עניין משלו: לא אוכלים דג ובשר באותה צלחת.',
+    'After meat you wait before having anything dairy. Six hours is the most common custom; some families wait three, some one - it depends where your family is from, so ask. Going the other way (milk then meat) is much quicker. And hard cheese is the exception: many treat it like meat and wait the full time.': 'אחרי בשר מחכים לפני חלבי. שש שעות זה המנהג הכי נפוץ; יש משפחות שמחכות שלוש, יש שעה - תלוי מאיפה המשפחה, תשאל. הפוך (חלב ואז בשר) הרבה יותר מהר. וגבינה קשה היא החריג: הרבה מתייחסים אליה כמו בשר ומחכים את כל הזמן.',
+    'A fish is kosher only if it has BOTH fins and scales. Shrimp, lobster, crab, squid and octopus have neither, so no cooking trick in the world makes them kosher. Salmon and tuna have both. Easy test.': 'דג כשר רק אם יש לו גם סנפיר וגם קשקשת. שרימפס, לובסטר, סרטן, דיונון ותמנון אין להם כלום, אז אין טריק בישול בעולם שהופך אותם לכשרים. לסלמון ולטונה יש שניהם. בדיקה פשוטה.',
+    'A kosher land animal must chew its cud AND have fully split hooves. Both. The pig is the famous trap: split hooves, ticks one box, looks kosher from underneath - but it does not chew its cud, so it is not. One sign is never enough.': 'חיה כשרה חייבת להעלות גרה וגם פרסה שסועה לגמרי. שניהם. החזיר הוא המלכודת המפורסמת: פרסה שסועה, נראה כשר מלמטה - אבל לא מעלה גרה, אז לא. סימן אחד אף פעם לא מספיק.',
+    'Reading the ingredients is not enough. What machine was it made on? What was made on that machine yesterday? What is hiding inside the word "flavouring"? A hechsher is somebody whose job is to go and actually look.': 'לקרוא רכיבים זה לא מספיק. על איזו מכונה זה נעשה? מה עשו עליה אתמול? מה מתחבא בתוך המילה ״טעם״? הכשר זה מישהו שהעבודה שלו היא ללכת באמת לראות.',
+    'Swallowing one tiny bug can break several Torah prohibitions at the same time - which is a lot of trouble for something you did not even taste. That is why leafy greens, berries, and grains get washed and checked, usually against the light.': 'לבלוע חרק קטן יכול לשבור כמה איסורים בבת אחת - הרבה צרות על משהו שלא טעמתם. לכן עלים, פירות יער ודגנים שוטפים ובודקים, בדרך כלל מול האור.',
+    'Pots and pans soak up the taste of whatever was cooked in them - invisibly, but really. So meat and dairy get their own pots, plates and cutlery, and in most kitchens their own sinks and counter space too. That is why kosher kitchens have two of everything.': 'סירים סופגים את הטעם של מה שבישלו בהם - בלי לראות, אבל באמת. אז לבשר ולחלבי יש סירים, צלחות וסכו״ם משלהם, וברוב המטבחים גם כיורים ושיש. לכן במטבח כשר יש שתיים מכל דבר.',
+    'On Erev Pesach the clock runs out in two stages. You may EAT chametz until the end of the fourth halachic hour. You may still own it for one more hour. After that it has to be gone - burned, sold or destroyed. Your shul publishes the exact minutes every year, because they move.': 'בערב פסח השעון נגמר בשני שלבים. אפשר לאכול חמץ עד סוף השעה הרביעית. אפשר עוד להחזיק אותו שעה נוספת. אחר כך הוא צריך להיעלם - שרוף, מכור או מחוסל. בית הכנסת מפרסם את הדקות כל שנה, כי הן זזות.',
+    'The night before Erev Pesach, the lights go off and you search the whole house by the light of a single candle - every pocket, every shelf, anywhere a crumb could have travelled during the year. One candle, because it makes you look properly at one small place at a time.': 'בלילה לפני ערב פסח מכבים אורות ומחפשים את כל הבית לאור נר אחד - כל כיס, כל מדף, כל מקום שפירור יכול היה לטייל בשנה. נר אחד, כי ככה מסתכלים באמת על מקום קטן כל פעם.',
+    'After the search - and again after the burning the next morning - you say a declaration: any chametz I did not find is not mine, it is like the dust of the ground. Because the problem on Pesach is not only eating chametz, it is OWNING it. So you stop owning it out loud.': 'אחרי החיפוש - ושוב אחרי הביעור בבוקר - אומרים: כל חמץ שלא מצאתי אינו שלי, הוא כעפר הארץ. כי הבעיה בפסח היא לא רק לאכול חמץ, אלא להחזיק אותו. אז מפסיקים להחזיק אותו בקול.',
+    'Flour and water start turning into chametz once dough sits around unworked for the time it takes to walk a mil - which we hold is about eighteen minutes. That is why a matzah bakery is a sprint: mix, roll, bake, then stop everything and scrub every surface before the next batch.': 'קמח ומים מתחילים להיות חמץ כשהבצק יושב בלי עבודה כמה שלוקח ללכת מיל - אצלנו בערך שמונה עשרה דקות. לכן מאפיית מצה זה ספרינט: לשים, לרדד, לאפות, לעצור ולשפשף כל משטח לפני המנה הבאה.',
+    'Shemura matzah is watched to keep it away from water - from the moment the wheat is cut, or at the latest from when it is ground. The point is that at no moment along the way could that grain have quietly started rising without anyone noticing.': 'מצה שמורה שומרים מהמים - מרגע שקוצרים את החיטה, או לפחות מהטחינה. הנקודה היא שבשום רגע בדרך התבואה לא יכלה להתחיל לתפוח בשקט בלי שאף אחד ישים לב.',
+    'On the first night of Pesach there is a Torah obligation to eat a kezayis of matzah at the Seder. Here is what surprises people: for the rest of Pesach there is no obligation to eat matzah at all. There is only the rule against chametz. You eat matzah the other days because, well, what else is there.': 'בלילה הראשון של פסח יש חיוב מהתורה לאכול כזית מצה בסדר. מה שמפתיע: בשאר פסח אין חיוב לאכול מצה בכלל. יש רק את האיסור על חמץ. אוכלים מצה בשאר הימים כי... מה עוד יש.',
+    'If a Jew owned chametz right through Pesach, that chametz stays forbidden forever afterwards. The Sages made this rule as a deterrent - so nobody would think "I will just hide the crates for eight days and sell them on the ninth". Now the crates are worthless. Problem solved.': 'אם יהודי החזיק חמץ כל פסח, החמץ הזה נשאר אסור לעולם. חכמים תיקנו את זה כדי שאף אחד לא יחשוב ״אחביא את הארגזים לשמונה ימים ואמכור בתשיעי״. עכשיו הארגזים שווים אפס. הבעיה נפתרה.',
+    'Two separate rules, both about simply HAVING chametz: it must not be seen in your space, and it must not be found there. Every other forbidden food you just do not eat - you can own it all day. Chametz on Pesach is the one where keeping it is itself the problem.': 'שני כללים, שניהם על עצם זה שיש לכם חמץ: אסור שיראו אותו אצלכם, ואסור שימצאו אותו. כל אוכל אסור אחר פשוט לא אוכלים - אפשר להחזיק כל היום. חמץ בפסח הוא היחיד שההחזקה עצמה היא הבעיה.',
+    'The Sages had a whole debate: which is greater, learning or doing? They landed on learning - but only for one reason: learning is what leads you to do it right. A game is a small thing. But knowing WHY a mitzvah works the way it does is what makes it stay with you.': 'לחכמים היתה מחלוקת: מה גדול יותר, ללמוד או לעשות? הם נחתו על לימוד - אבל רק בגלל סיבה אחת: הלימוד הוא מה שמוביל לעשות נכון. משחק זה דבר קטן. אבל לדעת למה מצווה עובדת ככה - זה מה שנשאר איתכם.',
+    'Ben Azzai said: run to an easy mitzvah the same way you run to a hard one, because one mitzvah pulls the next one along behind it. And do not do it for the prize - the reward for a mitzvah IS the mitzvah.': 'בן עזאי אמר: רצים למצווה קלה כמו לקשה, כי מצווה אחת מושכת את הבאה אחריה. ואל תעשו בשביל הפרס - השכר של מצווה הוא המצווה.',
+    'The Torah does not say "give some money". It says open your hand and give him dei machsoro - enough for what HE is missing. Not a fixed amount. What this person is short of. The Gemara pushes it to an extreme: someone who used to be rich and is now embarrassed to walk everywhere might need a horse - so you get him a horse.': 'התורה לא אומרת ״תנו קצת כסף״. היא אומרת לפתוח את היד ולתת די מחסורו - מה שהוא חסר. לא סכום קבוע. מה שחסר לאדם הזה. הגמרא דוחפת לקיצון: מי שהיה עשיר ועכשיו מתבייש ללכת ברגל אולי צריך סוס - אז משיגים לו סוס.',
+    'Tzedakah is measured by what it does to the person getting it. A coin that lands in the dirt and has to be picked up in front of a street full of people has taken more from him than it gave. Get it into his hand.': 'צדקה נמדדת במה שהיא עושה למי שמקבל. מטבע שנפל לבוץ וצריך להרים מול רחוב מלא אנשים לקח ממנו יותר ממה שנתן. תכניסו ליד.',
+    'Rambam lists eight levels of giving, worst to best. Near the very top: the giver does not know who got it, and the receiver does not know who gave it. In the Beis HaMikdash there was a room for exactly this - the Chamber of Secrets. Quiet people put money in. Poor people from good families took money out. Nobody ever saw anybody.': 'הרמב״ם מונה שמונה מדרגות של נתינה, מהגרוע לטוב. קרוב לראש: הנותן לא יודע מי קיבל, והמקבל לא יודע מי נתן. בבית המקדש היה חדר בדיוק לזה - לשכת חשאים. אנשים שקטים שמו כסף. עניים ממשפחות טובות לקחו. אף אחד לא ראה אף אחד.',
+    'You cannot help everybody, so there is an order. Your own poor relatives come before other poor people. The poor of your own city come before the poor of somewhere else. This is not playing favourites - it is the opposite. If everyone is equally your job, then nobody actually is.': 'אי אפשר לעזור לכולם, אז יש סדר. העניים של המשפחה לפני עניים אחרים. עניי העיר לפני עניי מקום אחר. זה לא משחק מועדפים - זה ההפך. אם כולם באותה מידה התפקיד שלכם, אז אף אחד לא באמת.',
+    'On Rambam\'s ladder, giving before someone asks ranks higher than giving after. Think about why. By the time a person has put his hand out and said the words, something has already been taken from him - and your money does not give that part back.': 'בסולם של הרמב״ם, לתת לפני שמבקשים זה גבוה יותר מאחרי. תחשבו למה. עד שאדם הוציא יד ואמר את המילים, כבר לקחו ממנו משהו - והכסף שלכם לא מחזיר את החלק הזה.',
+    'The highest of the eight levels is not a gift at all. It is a loan, a job, a partnership - a hand under someone\'s arm before he falls. Anything that ends with him not needing to ask again. Giving him money helps today. Giving him work means there is no tomorrow to worry about.': 'המדרגה הכי גבוהה משמונה היא בכלל לא מתנה. זה הלוואה, עבודה, שותפות - יד מתחת לזרוע לפני שנופל. כל דבר שנגמר בזה שהוא לא צריך לבקש שוב. כסף עוזר היום. עבודה אומרת שאין מחר לדאוג ממנו.',
+    'A town fund is collected by two people and handed out by three. And its collectors have to be so trustworthy that nobody audits them - just like the Temple treasurers, about whom the verse says they did not check the accounts of the men they gave the money to. Give through an honest gabbai and you reach people you will never meet.': 'קופה של עיר אוספים שניים ומחלקים שלושה. והגבאים צריכים להיות כל כך נאמנים שאף אחד לא בודק אותם - כמו גזברי המקדש, שהפסוק אומר שלא בדקו את החשבון של מי שנתנו להם את הכסף. תנו דרך גבאי ישר ומגיעים לאנשים שלא תפגשו אף פעם.',
+    'The Torah never tells a farmer to hand out food. It tells him to leave the corner of his field standing, leave whatever falls while harvesting, leave the sheaf he forgot - and walk away. The poor come and take it themselves. Nobody gives, nobody receives, and nobody has to say thank you.': 'התורה אף פעם לא אומרת לחקלאי לחלק אוכל. היא אומרת להשאיר את פינת השדה, להשאיר מה שנפל בקציר, להשאיר אלומה ששכח - וללכת. העניים באים ולוקחים לבד. אף אחד לא נותן, אף אחד לא מקבל, ואף אחד לא צריך להגיד תודה.',
+    'Someone asks and your pockets are genuinely empty. You still do not walk past. Rambam says: settle him with words. And the Gemara counts it up - give a coin and you get six blessings, speak kindly to him and you get eleven. The one thing you may never do is nothing.': 'מישהו מבקש והכיסים באמת ריקים. עדיין לא עוברים ליד. הרמב״ם אומר: פייסו בדברים. והגמרא סופרת - מטבע אחד זה שש ברכות, מילה טובה זה אחת עשרה. הדבר היחיד שאסור זה כלום.',
+    'Normally you can look into a claim before handing over money (though never before handing over food). On Purim that stops completely: whoever puts out a hand, you give, no questions asked. Two gifts to two poor people is the actual obligation - and Rambam says this is the better place to spend your Purim money than on the party.': 'רגיל אפשר לבדוק טענה לפני שנותנים כסף (אבל אף פעם לא לפני שנותנים אוכל). בפורים זה נעצר לגמרי: מי שמושיט יד, נותנים, בלי שאלות. שתי מתנות לשני עניים זה החיוב - והרמב״ם אומר שזה המקום הטוב יותר לכסף של פורים מאשר המסיבה.',
+    'The usual measure is a tenth of what you earn. A fifth is the generous upper limit - and it IS a limit. The Sages actively stopped people giving away more than that, so that someone who is giving today does not end up needing to receive tomorrow.': 'המידה הרגילה היא עשירית ממה שמרוויחים. חומש זה הגבול הנדיב למעלה - וזה גבול. חכמים עצרו אנשים מליתן יותר, כדי שמי שנותן היום לא יצטרך לקבל מחר.',
+    'Here is a question worth asking: is tzedaka money for ANYBODY? No. The Torah says achicha ha\'evyon - your brother who is in need. That is who the money is for. The man strolling past in the fine coat with a silver-topped stick is not asking you for anything and is not short of anything, and a coin thrown at him is simply a coin you no longer have for the person who is. How do you tell? Usually you do not have to work very hard: the one who needs it is the one with his hand out.': 'שאלה ששווה לשאול: כסף צדקה זה לכל אחד? לא. התורה אומרת אחיך האביון - האח שצריך. זה למי הכסף. האיש שטייל במעיל יפה עם מקל כסף לא מבקש כלום ולא חסר לו כלום, ומטבע שנזרק עליו הוא פשוט מטבע שכבר אין למי שכן צריך. איך יודעים? בדרך כלל לא צריך לעבוד קשה: מי שצריך זה מי עם היד בחוץ.',
+    'So really you were finished the second you lit. Mitzvah Dash does not roll like that - here you fight for every last flame until the clock runs out.': 'אז בעצם סיימתם בשנייה שהדלקתם. מצווה דאש לא עובד ככה - פה נלחמים על כל להבה עד שהשעון נגמר.',
+    'Purim is the one day this changes - everyone who asks gets something, no checking needed. Every other day, look for the hand.': 'בפורים זה משתנה - כל מי שמושיט יד מקבל, בלי לבדוק. בכל יום אחר, מחפשים את היד.'
   }
 };
 
@@ -1569,15 +2085,16 @@ var Halacha = {
     /* ---- Zmanim / Shul Crossing ---------------------------------------- */
     { id:'s1', game:'shul', icon:'clock', title:'The Morning Deadline',
       hebrew:'סוֹף זְמַן תְּפִלָּה',
-      body:'Shacharis has a cut-off: Shemoneh Esrei should be said by the end of the fourth hour of the day. Careful though - "hour" here does not mean sixty minutes. You take all the daylight, from sunrise to sunset, and chop it into twelve equal pieces. In summer those pieces are long; in winter they are short. So the deadline moves all year.',
-      terms:[['Sof zman tefillah','the last time for davening'],
+      body:'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday. After midday it is a makeup, not the morning tefillah. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year.',
+      terms:[['Sof zman tefillah','the ideal last time for morning Shemoneh Esrei'],
+             ['Chatzos','halachic midday'],
              ['Shacharis','the morning prayers'],
              ['Shemoneh Esrei','the central standing prayer, said quietly'],
              ['Sha\'ah zmanis','a "halachic hour" - one twelfth of the daylight, not sixty minutes']],
       source:'Berachos 26a; OC 89:1' },
     { id:'s2', game:'shul', icon:'clock', title:'Plag HaMincha',
       hebrew:'פְּלַג הַמִּנְחָה',
-      body:'Plag is a marker near the end of the day - one and a quarter halachic hours before the day ends. Rabbi Yehuda held it is the last moment for Mincha, and it is also the earliest you could accept Maariv. Basically: the changeover point in the afternoon.',
+      body:'Plag is a late-afternoon marker - one and a quarter halachic hours before the day ends. Rabbi Yehuda held it is the last moment for Mincha, and the earliest you could start Maariv. We follow the Sages: Mincha stays until close to nightfall. Plag is still the earliest time for Maariv, and for lighting Shabbat candles.',
       terms:[['Plag HaMincha','"the half of Mincha" - a time marker late in the afternoon'],
              ['Mincha','the afternoon prayers'],
              ['Maariv','the evening prayers']],
@@ -1808,7 +2325,7 @@ var Halacha = {
       terms:[['Evyon','somebody who really has nothing - the neediest word the Torah uses'],
              ['Ani','a poor person - the one tzedaka money is meant for'],
              ['Tzedakah','giving to someone in need; the word means "justice", not "charity"']],
-      note:'Purim is the exception, and it is a big one - see On Purim, No Questions. Every other day of the year, look for the hand.',
+      note:'Purim is the one day this changes - everyone who asks gets something, no checking needed. Every other day, look for the hand.',
       source:'Devarim 15:7-8; Rambam Hilchos Matnos Aniyim 7:1-2' }
   ],
 
@@ -2256,10 +2773,15 @@ var Game = {
 
   /* ------------------------------------------------------ game lifecycle */
   startGame: function (id) {
+    if (id === 'chain') {
+      MitzHost.open('kosher-chain');
+      return;
+    }
     FX.reset();
     Input.clear();
     var ctor = { menorah: MenorahKeeper, shul: ShulCrossing, kosher: KosherSort,
                  kitchen: KitchenMatch, matzah: MatzahHavoc, tzedaka: TzedakaBlast }[id];
+    if (!ctor) return;
     Game.scene = new ctor();
     Game.scene.reset();
     Game.gameover = null;
@@ -2275,9 +2797,16 @@ var Game = {
     if (s && s.startAt && s.chapters) {
       var ch = s.chapters();
       if (ch && ch.count) {
-        var n = clamp(s.startLevel || 1, 1, Math.min(ch.count, Profile.reached(ch.key)));
-        s.startLevel = n;
-        s.startAt(n);
+        if (s.skipToGift && typeof s.startBoss === 'function') {
+          s.startLevel = 8;
+          s.startAt(8);
+          s.startBoss({ fromSkip: true });
+          s.skipToGift = false;
+        } else {
+          var n = clamp(s.startLevel || 1, 1, Math.min(ch.count, Profile.reached(ch.key)));
+          s.startLevel = n;
+          s.startAt(n);
+        }
       }
     }
     Game.setState('PLAYING');
@@ -2596,13 +3125,33 @@ MiniGame.prototype.interstitial = function (cb) {
    16. SCREENS - MAIN MENU + HALACHA GALLERY
    ========================================================================== */
 var GAMES = [
-  { id:'menorah', name:'Menorah Keeper', tag:'Chanukah survival',   icon:'lamp',  color:'#ffcf5c' },
-  { id:'shul',    name:'Shul Crossing',  tag:'Thirty-walk dash',    icon:'run',   color:'#7fc8ff' },
-  { id:'kosher',  name:'Kosher Sort',    tag:'Dual-belt dash',      icon:'split', color:'#8ee06a' },
-  { id:'kitchen', name:'Kitchen Match',  tag:'Make a kosher plate', icon:'leaf',  color:'#5ee0c0' },
-  { id:'matzah',  name:'Matzah Havoc',   tag:'Twelve-route dash',   icon:'truck', color:'#ff8a6b' },
-  { id:'tzedaka', name:'Tzedaka Blast',  tag:'Into their hands',    icon:'coin',  color:'#c9adff' }
+  { id:'menorah', name:'Menorah Keeper', tag:'Chanukah survival',         icon:'lamp',  color:'#ffcf5c' },
+  { id:'shul',    name:'Shul Crossing',  tag:'Thirty-walk dash',          icon:'run',   color:'#7fc8ff' },
+  { id:'kosher',  name:'Kosher Sort',    tag:'Dual-belt dash',            icon:'split', color:'#8ee06a' },
+  /* own engine - the Play tab host swaps HTML; standalone opens the sibling.
+     Sits in Kitchen Match's old spot in the menu grid - see hidden below. */
+  { id:'chain',   name:'Camp Kosh',      tag:'Feed the boys, keep it kosher', icon:'fish', color:'#ffcf5c', external: true },
+  /* hidden from the menu, not deleted - may bring it back later */
+  { id:'kitchen', name:'Kitchen Match',  tag:'Make a kosher plate',       icon:'leaf',  color:'#5ee0c0', hidden: true },
+  { id:'matzah',  name:'Matzah Havoc',   tag:'Twelve-route dash',         icon:'truck', color:'#ff8a6b' },
+  { id:'tzedaka', name:'Tzedaka Blast',  tag:'Into their hands',          icon:'coin',  color:'#c9adff' }
 ];
+/* what the Play tab grid actually shows */
+var VISIBLE_GAMES = GAMES.filter(function (g) { return !g.hidden; });
+
+/* Ask the Mitz Mode Play tab (or a sibling page) to open another game. */
+var MitzHost = {
+  open: function (game) {
+    if (window.MITZ_MODE === true) {
+      try { location.href = 'mitz://game/' + game; } catch (e) {}
+      return true;
+    }
+    if (game === 'kosher-chain' || game === 'chain') {
+      try { location.href = 'kosher-chain/index.html'; return true; } catch (e) {}
+    }
+    return false;
+  }
+};
 
 var Screens = {
   introBtns: [], pauseBtns: [], overBtns: [], popupBtns: [],
@@ -2667,7 +3216,7 @@ var Screens = {
         size: 64, color: C.cream, align: 'center', weight: '900',
         stroke: 'rgba(0,0,0,.6)', strokeW: 8, shadow: 'rgba(120,200,255,.4)', shadowBlur: 24
       });
-      Draw.text(ctx, 'Six arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
+      Draw.text(ctx, 'Seven arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
         size: 22, color: 'rgba(255,255,255,.72)', align: 'center', weight: '600'
       });
 
@@ -2773,29 +3322,34 @@ var Screens = {
 
   buildMenu: function () {
     var b = [];
-    var cw = 300, ch = 152, gap = 12;
+    var list = VISIBLE_GAMES;
+    /* an odd tile count shrinks a little so the wide leftover still fits a
+       short phone. Six lands as three even pairs - no leftover needed. */
+    var tall = list.length > 6;
+    var cw = 300, ch = tall ? 128 : 152, gap = tall ? 10 : 12;
+    var wideH = tall ? 112 : 128;
     var x0 = (CFG.W - (cw * 2 + gap)) / 2;
-    var y0 = View.safe.t + 312;
-    var pairs = Math.floor(GAMES.length / 2);
+    var y0 = View.safe.t + (tall ? 292 : 312);
+    var pairs = Math.floor(list.length / 2);
     var i, btn;
     for (i = 0; i < pairs * 2; i++) {
       var col = i % 2, row = (i / 2) | 0;
-      btn = new Button(x0 + col * (cw + gap), y0 + row * (ch + gap), cw, ch, GAMES[i].name,
-        (function (id) { return function () { Game.startGame(id); }; })(GAMES[i].id),
-        { data: GAMES[i], pad: 0 });
+      btn = new Button(x0 + col * (cw + gap), y0 + row * (ch + gap), cw, ch, list[i].name,
+        (function (id) { return function () { Game.startGame(id); }; })(list[i].id),
+        { data: list[i], pad: 0 });
       btn.kind = 'game';
       b.push(btn);
     }
     /* an odd game out gets the full width rather than a lonely half-row */
     var y = y0 + pairs * (ch + gap);
-    for (i = pairs * 2; i < GAMES.length; i++) {
-      btn = new Button(x0, y, cw * 2 + gap, 128, GAMES[i].name,
-        (function (id) { return function () { Game.startGame(id); }; })(GAMES[i].id),
-        { data: GAMES[i], pad: 0 });
+    for (i = pairs * 2; i < list.length; i++) {
+      btn = new Button(x0, y, cw * 2 + gap, wideH, list[i].name,
+        (function (id) { return function () { Game.startGame(id); }; })(list[i].id),
+        { data: list[i], pad: 0 });
       btn.kind = 'game';
       btn.wide = true;
       b.push(btn);
-      y += 128 + gap;
+      y += wideH + gap;
     }
 
     var gy = y + 4;
@@ -2808,14 +3362,16 @@ var Screens = {
     b.push(Screens.toggleBtn(sx, sy, sw, 'SOUND', 'sound'));
     b.push(Screens.toggleBtn(sx + sw + sgap, sy, sw, 'MUSIC', 'music'));
     b.push(Screens.toggleBtn(sx + (sw + sgap) * 2, sy, sw, 'BUZZ', 'haptics'));
-    b.push(new Button(CFG.W - 28 - View.safe.r - 108, View.safe.t + 16, 108, 48,
-      Lang.id() === 'he' ? 'EN' : 'עב',
-      function () {
-        Lang.set(Lang.id() === 'he' ? 'en' : 'he');
-        Screens.buildMenu();
-        Screens.buildGallery();
-      },
-      { fill: 'rgba(12,18,40,.92)', textColor: C.gold, stroke: 'rgba(255,207,92,.5)', size: 22, radius: 16 }));
+    if (!Lang.locked()) {
+      b.push(new Button(CFG.W - 28 - View.safe.r - 108, View.safe.t + 16, 108, 48,
+        Lang.id() === 'he' ? 'EN' : 'עב',
+        function () {
+          Lang.set(Lang.id() === 'he' ? 'en' : 'he');
+          Screens.buildMenu();
+          Screens.buildGallery();
+        },
+        { fill: 'rgba(12,18,40,.92)', textColor: C.gold, stroke: 'rgba(255,207,92,.5)', size: 22, radius: 16 }));
+    }
     Screens.menu.btns = b;
   },
 
@@ -3012,6 +3568,22 @@ var Screens = {
    screen. Everything you have finished is open and stays open, so you can go
    straight to the hard one instead of walking the whole run again. */
 Screens.CHIP_H = 62;
+Screens.BOSS_SKIP_SIZE = 48;
+
+Screens.wantsBossSkip = function (scene) {
+  return !!(scene && scene.id === 'menorah' && Profile.sawJellyZilla());
+};
+
+Screens.bossSkipRect = function (L) {
+  if (!L || !L.chap) return null;
+  var r = Screens.chipRect(L, L.chap.count - 1, L.chap.count);
+  var s = Screens.BOSS_SKIP_SIZE;
+  return {
+    x: r.x + (r.w - s) / 2,
+    y: r.y + r.h + 8,
+    w: s, h: s
+  };
+};
 
 /* Wide runs get more, narrower chips so a whole game still fits two rows. */
 Screens.chipGrid = function (count) {
@@ -3043,7 +3615,10 @@ Screens.introLayout = function (scene) {
   var tipW = w - 118;
   var ch = scene.chapters ? scene.chapters() : null;
   var chapH = 0;
-  if (ch) chapH = 40 + Screens.chapterRows(ch.count) * (Screens.CHIP_H + Screens.chipGrid(ch.count).gap) + 10;
+  if (ch) {
+    chapH = 40 + Screens.chapterRows(ch.count) * (Screens.CHIP_H + Screens.chipGrid(ch.count).gap) + 10;
+    if (Screens.wantsBossSkip(scene)) chapH += 8 + Screens.BOSS_SKIP_SIZE;
+  }
   var nusachH = Screens.wantsNusachPicker(scene) ? Screens.NUSACH_H : 0;
   var avail = CFG.H - View.safe.t - View.safe.b;
 
@@ -3166,6 +3741,19 @@ Screens.buildIntro = function (scene) {
         btns.push(b);
       })(i + 1);
     }
+    if (Screens.wantsBossSkip(scene)) {
+      var skip = Screens.bossSkipRect(L);
+      if (skip) {
+        var sb = new Button(skip.x, skip.y, skip.w, skip.h, '?', function () {
+          scene.startLevel = 8;
+          scene.skipToGift = true;
+          Sound.sfx('tap');
+          Game.beginPlay();
+        }, { fill: '#c8203f', textColor: C.gold, size: 28, invisible: true, pad: 6 });
+        sb.bossSkip = true;
+        btns.push(sb);
+      }
+    }
   }
   Screens.pushNusachBtns(btns, L, function () { Screens.buildIntro(scene); });
   btns.push(new Button(L.x + 10, L.btnY, L.w - 20, L.btnH, 'PLAY', function () { Game.beginPlay(); },
@@ -3187,6 +3775,20 @@ Screens.drawLock = function (ctx, cx, cy, sz, color) {
   Draw.rr(ctx, cx - sz * 0.42, cy - sz * 0.16, sz * 0.84, sz * 0.62, sz * 0.14);
   ctx.fill();
   ctx.restore();
+};
+
+/* Tiny gift under night 8, once Jelly-Zilla has been seen. */
+Screens.drawBossSkip = function (ctx, r) {
+  Draw.panel(ctx, r.x, r.y, r.w, r.h, {
+    fill: '#c8203f', stroke: '#f0d67a', strokeW: 2, radius: 12,
+    glow: '#f0d67a', glowBlur: 12
+  });
+  ctx.fillStyle = '#f0d67a';
+  ctx.fillRect(r.x + r.w / 2 - 4, r.y + 4, 8, r.h - 8);
+  ctx.fillRect(r.x + 4, r.y + r.h / 2 - 4, r.w - 8, 8);
+  Draw.text(ctx, '?', r.x + r.w / 2, r.y + r.h / 2 + 1, {
+    size: 26, color: C.cream, align: 'center', weight: '900'
+  });
 };
 
 Screens.renderIntro = function (ctx) {
@@ -3248,6 +3850,10 @@ Screens.renderIntro = function (ctx) {
           size: 27, color: picked ? C.ink : C.cream, align: 'center', weight: '900'
         });
       }
+    }
+    if (Screens.wantsBossSkip(s)) {
+      var skipR = Screens.bossSkipRect(L);
+      if (skipR) Screens.drawBossSkip(ctx, skipR);
     }
     Draw.text(ctx, 'Finish one and the next opens. Tap any open ' + L.chap.word.toLowerCase() + ' to start there.',
       CFG.W / 2, topY + h - 32, { size: 18, color: C.teal, align: 'center', weight: '700' });
@@ -3370,7 +3976,7 @@ Screens.renderPopupScroll = function (ctx, card, L, scroll) {
       var lab = card.terms[ti][0];
       var labW = Draw.measure(ctx, lab, 20, '900') + 8;
       Draw.text(ctx, lab, x + 62, wy2 + 12, { size: 20, color: '#1f6a5c', weight: '900' });
-      wy2 = Draw.para(ctx, '\u2014 ' + card.terms[ti][1], x + 62 + labW, wy2, bodyW - 46 - labW, {
+      wy2 = Draw.para(ctx, '\u2014 ' + Lang.t(card.terms[ti][1]), x + 62 + labW, wy2, bodyW - 46 - labW, {
         size: 20, lineHeight: 27, color: '#3d4f42', weight: '700', baseline: 'top'
       }) + 6;
     }
@@ -6198,7 +6804,9 @@ MenorahKeeper.BOSS = {
   HP: 100, Y: 545
 };
 
-MenorahKeeper.prototype.startBoss = function () {
+MenorahKeeper.prototype.startBoss = function (opts) {
+  opts = opts || {};
+  Profile.markJellyZilla();
   var i;
   for (i = 0; i < this.candles.length; i++) {
     var c = this.candles[i];
@@ -6219,6 +6827,10 @@ MenorahKeeper.prototype.startBoss = function () {
     flaskT: 0, flaskTaken: false, burnT: 0, relit: 0, relitT: 0,
     banner: null
   };
+  if (opts.fromSkip) {
+    this.bossPhase('gift');
+    return;
+  }
   Sound.playMusic('menu');
   Sound.seq([523, 659, 784, 1047, 1319], 130, 0.24, 0.26, 'triangle');
   Haptics.win();
@@ -9156,15 +9768,16 @@ KosherSort.prototype.stats = function () {
 
 /* ==========================================================================
    GAME 3b - KITCHEN MATCH  (twelve-shift matching kitchen)
-   Swap any two neighbours, like a match-3. Kashrus is which lines plate:
-   three that CAN share a plate vanish. Meat and dairy never plate together.
+   Swap any two neighbours, like a match-3. Three that can SHARE A PLATE
+   vanish: same side, or pareve riding with meat or dairy. Meat and dairy
+   never vanish as one plate.
    ========================================================================== */
 function KitchenMatch() {
   MiniGame.call(this, 'kitchen', 'Kitchen Match');
   this.tips = [
-    'DRAG a dish onto a neighbour to swap - any neighbour. Or tap one, then the next. Line up THREE that can sit on the same plate and they vanish.',
-    'A plate: meat with meat, dairy with dairy, pareve (fruit, vegetables, bread, eggs) with either side. Meat and milk can trade places, they just never plate together - pareve cannot pull meat onto a dairy plate, or dairy onto a meat one.',
-    'Fish is pareve but never sits with meat. Flick UP anything treif or mixed. TAP a lid before you decide.',
+    'DRAG a dish onto a neighbour to swap. Or tap one, then the next. Three that can share a plate vanish.',
+    'Pareve can sit with meat or dairy. Meat and milk never plate together.',
+    'Fish matches fish, never meat. Flick UP treif or mixed. TAP a lid first.',
     'Hit the red top shelf and the kitchen overloads - a life gone. Twelve kitchens, each one stays open once you finish it.'
   ];
 }
@@ -9186,10 +9799,10 @@ KitchenMatch.prototype.startAt = function (n) {
 };
 
 KitchenMatch.SCENES = [
-    { id:'first',  name:'FIRST PLATES',    sub:'swap dishes that can share a plate. line up three and they plate',
+    { id:'first',  name:'FIRST PLATES',    sub:'swap neighbours. three that can share a plate',
     sky:[[0,'#1a2a22'],[0.5,'#243830'],[1,'#1c2420']],
     goal:8, fill:3, rise:7.2, mixPareve:1, lids:0, junk:0, mixed:0, rush:0 },
-  { id:'pareve', name:'PAREVE MIXER',    sub:'fruit and bread can sit with EITHER side',
+  { id:'pareve', name:'PAREVE MIXER',    sub:'pareve sits with meat or dairy - or three pareve together',
     sky:[[0,'#1a2830'],[0.5,'#243840'],[1,'#1c2828']],
     goal:10, fill:3, rise:6.8, mixPareve:1, lids:0, junk:0, mixed:0, rush:0 },
   { id:'lids',   name:'LIDS ON',         sub:'tap a lid before you swap. you cannot plate what you cannot see',
@@ -9433,15 +10046,14 @@ KitchenMatch.prototype.ensurePlayable = function () {
   return !!this.findSwap() || this.hasCovered();
 };
 
-/* Last resort: dairy blocking three meat, with a pareve above it to swap in. */
+/* Last resort: dairy blocking three meat, with a meat above it to swap in. */
 KitchenMatch.prototype.plantMove = function () {
-  var meat = null, dairy = null, pareve = null, i, c, t, row;
+  var meat = null, dairy = null, i, c, t, row;
   for (i = 0; i < Foods.list.length; i++) {
     if (!meat && Foods.list[i].k === 'meat') meat = Foods.list[i];
     if (!dairy && Foods.list[i].k === 'dairy') dairy = Foods.list[i];
-    if (!pareve && Foods.list[i].k === 'pareve' && Foods.list[i].shape !== 'fish') pareve = Foods.list[i];
   }
-  if (!meat || !dairy || !pareve) return;
+  if (!meat || !dairy) return;
   row = KitchenMatch.ROWS - 1;
   if (row < 1) return;
   var foods = [meat, dairy, meat, meat];
@@ -9457,9 +10069,9 @@ KitchenMatch.prototype.plantMove = function () {
   }
   t = this.grid[row - 1][1];
   if (!t) {
-    this.grid[row - 1][1] = { food: pareve, id: ++this.tileId, covered: false, reveal: 0, pop: 0, fall: 0 };
+    this.grid[row - 1][1] = { food: meat, id: ++this.tileId, covered: false, reveal: 0, pop: 0, fall: 0 };
   } else {
-    t.food = pareve;
+    t.food = meat;
     t.covered = false;
   }
 };
@@ -9487,6 +10099,41 @@ KitchenMatch.kindOf = function (food) {
   var f = food.food || food;
   if (f.k === 'pareve' && f.shape === 'fish') return 'fish';
   return f.k || '';
+};
+
+/* Side for match-3 colour: meat / dairy / pareve / fish. Pareve may ride on
+   a meat or dairy plate, but it is not a bridge that joins those two sides. */
+KitchenMatch.matchKind = function (food) {
+  var k = KitchenMatch.kindOf(food);
+  if (k === 'meat' || k === 'dairy' || k === 'pareve' || k === 'fish') return k;
+  return '';
+};
+
+/* One plate has at most one main side. Meat + dairy in the same group is
+   never a plate, even if pareve sits between them. */
+KitchenMatch.plateSide = function (tiles) {
+  var stats = KitchenMatch.plateStats(tiles);
+  return stats ? stats.side : '';
+};
+
+/* A plate is three or more dishes in a line that can all be eaten together.
+   That is the whole rule. There is no quota of sides or garnishes - kashrus is
+   checked dish against dish in canTogether, which is where the nusach lives, so
+   meat and milk can never land on one plate however much pareve sits between
+   them, and salmon beside cheese depends who you ask.
+   `side` is only what the plate gets called on its way up. */
+KitchenMatch.plateStats = function (tiles) {
+  var i, k, main = '', mains = 0, pareve = 0, fish = 0;
+  if (!tiles || tiles.length < 3) return null;
+  if (!KitchenMatch.mixOk(tiles)) return null;
+  for (i = 0; i < tiles.length; i++) {
+    k = KitchenMatch.kindOf(tiles[i]);
+    if (k === 'fish') fish++;
+    else if (k === 'pareve') pareve++;
+    else { main = k; mains++; }
+  }
+  if (main) return { side: main, mains: mains, pareve: pareve, fish: fish };
+  return { side: fish ? 'fish' : 'pareve', mains: 0, pareve: pareve, fish: fish };
 };
 
 KitchenMatch.isLiquidMilk = function (food) {
@@ -9545,13 +10192,24 @@ KitchenMatch.canTogether = function (a, b) {
 
 KitchenMatch.prototype.canTogether = function (a, b) { return KitchenMatch.canTogether(a, b); };
 
-KitchenMatch.prototype.groupOk = function (tiles) {
-  if (!tiles || tiles.length < 3) return false;
+KitchenMatch.prototype.tilesOf = function (cells) {
+  var i, t, out = [];
+  for (i = 0; i < cells.length; i++) {
+    t = cells[i].t || (this.grid[cells[i].r] && this.grid[cells[i].r][cells[i].c]);
+    out.push(t);
+  }
+  return out;
+};
+
+/* Every dish gets on with every other dish, nothing is treif or basar b'chalav,
+   and nothing is still hidden under a lid. A run being scanned may be shorter
+   than a plate - this is all it has to pass until it is long enough to be one. */
+KitchenMatch.mixOk = function (tiles) {
   var i, j;
+  if (!tiles || !tiles.length) return false;
   for (i = 0; i < tiles.length; i++) {
     if (!tiles[i] || tiles[i].covered) return false;
-    var k = KitchenMatch.kindOf(tiles[i].food);
-    if (k === 'treif' || k === 'mixed') return false;
+    if (!KitchenMatch.matchKind(tiles[i])) return false;
   }
   for (i = 0; i < tiles.length; i++) {
     for (j = i + 1; j < tiles.length; j++) {
@@ -9561,47 +10219,81 @@ KitchenMatch.prototype.groupOk = function (tiles) {
   return true;
 };
 
+KitchenMatch.prototype.runFits = function (tiles) {
+  return !!KitchenMatch.plateStats(tiles);
+};
+
+KitchenMatch.prototype.runPrefixOk = function (tiles) {
+  return KitchenMatch.mixOk(tiles);
+};
+
+KitchenMatch.prototype.groupOk = function (tiles) {
+  return !!KitchenMatch.plateStats(tiles);
+};
+
+KitchenMatch.prototype.groupSide = function (cells) {
+  var stats = KitchenMatch.plateStats(this.tilesOf(cells));
+  return stats ? stats.side : '';
+};
+
+/* The one match colour every dish in the run shares, or '' when it is mixed. */
+KitchenMatch.prototype.runColour = function (run) {
+  var i, k, colour = '';
+  for (i = 0; i < run.length; i++) {
+    k = KitchenMatch.matchKind(run[i].t || (this.grid[run[i].r] && this.grid[run[i].r][run[i].c]));
+    if (!k) return '';
+    if (colour && colour !== k) return '';
+    colour = k;
+  }
+  return colour;
+};
+
 KitchenMatch.prototype.findMatchGroups = function () {
-  var C = KitchenMatch.COLS, R = KitchenMatch.ROWS, r, c, k, run, i, tiles, ts, self = this, groups = [];
-  var commit = function (cells) {
-    if (!cells || cells.length < 3) return;
-    ts = [];
-    for (i = 0; i < cells.length; i++) ts.push(cells[i].t);
-    if (!self.groupOk(ts)) return;
-    groups.push(cells.slice());
-  };
+  var C = KitchenMatch.COLS, R = KitchenMatch.ROWS, r, c, groups = [], self = this;
   var scan = function (cells) {
-    run = [];
-    for (k = 0; k < cells.length; k++) {
-      var t = cells[k].t;
-      if (!t || t.covered) { commit(run); run = []; continue; }
-      if (!run.length) { run = [cells[k]]; continue; }
-      var ok = true;
-      for (i = 0; i < run.length; i++) {
-        if (!KitchenMatch.canTogether(run[i].t, t)) { ok = false; break; }
+    var run = [], i, cell, k, colour;
+    var flush = function () {
+      if (run.length >= 3 && self.groupOk(self.tilesOf(run))) groups.push(run.slice());
+      run = [];
+    };
+    for (i = 0; i < cells.length; i++) {
+      cell = cells[i];
+      if (!cell.t || cell.t.covered || !KitchenMatch.matchKind(cell.t)) {
+        flush();
+        continue;
       }
-      if (ok) run.push(cells[k]);
-      else { commit(run); run = [cells[k]]; }
+      k = KitchenMatch.matchKind(cell.t);
+      /* A finished plate of one colour must not swallow the next colour, so
+         three apples beside three salmon stay two plates. */
+      if (run.length >= 3) {
+        colour = self.runColour(run);
+        if (colour && colour !== k && KitchenMatch.plateStats(self.tilesOf(run))) flush();
+      }
+      run.push(cell);
+      if (!self.runPrefixOk(self.tilesOf(run))) {
+        run.pop();
+        flush();
+        run = [cell];
+        if (!self.runPrefixOk(self.tilesOf(run))) run = [];
+      }
     }
-    commit(run);
+    flush();
   };
   for (r = 0; r < R; r++) {
-    tiles = [];
-    for (c = 0; c < C; c++) tiles.push({ c: c, r: r, t: this.grid[r][c] });
-    scan(tiles);
+    var row = [];
+    for (c = 0; c < C; c++) row.push({ c: c, r: r, t: this.grid[r][c] });
+    scan(row);
   }
   for (c = 0; c < C; c++) {
-    tiles = [];
-    for (r = 0; r < R; r++) tiles.push({ c: c, r: r, t: this.grid[r][c] });
-    scan(tiles);
+    var col = [];
+    for (r = 0; r < R; r++) col.push({ c: c, r: r, t: this.grid[r][c] });
+    scan(col);
   }
   return groups;
 };
 
-/* A plate is one connected set of lines. Pareve can sit with meat OR dairy,
-   not both on the same plate - so an L of dairy-pareve-meat is two plates,
-   and only one of them vanishes. Same for fish with dairy (Sephardim) or
-   liquid milk (Chabad). */
+/* A plate is one connected set of lines that can share. An L of five meat is
+   one plate. Meat and dairy never join, even if they sit next to pareve. */
 KitchenMatch.prototype.groupAxis = function (g) {
   if (!g || g.length < 2) return '';
   return g[0].r === g[1].r ? 'row' : 'col';
@@ -9629,12 +10321,7 @@ KitchenMatch.prototype.cellsUnion = function (groups) {
 };
 
 KitchenMatch.prototype.unionGroupOk = function (groups) {
-  var cells = this.cellsUnion(groups), tiles = [], i, t;
-  for (i = 0; i < cells.length; i++) {
-    t = cells[i].t || (this.grid[cells[i].r] && this.grid[cells[i].r][cells[i].c]);
-    tiles.push(t);
-  }
-  return this.groupOk(tiles);
+  return this.groupOk(this.tilesOf(this.cellsUnion(groups)));
 };
 
 KitchenMatch.prototype.swapPrefer = function (c1, r1, c2, r2) {
@@ -9647,61 +10334,85 @@ KitchenMatch.prototype.swapPrefer = function (c1, r1, c2, r2) {
 KitchenMatch.prototype.selectPlates = function (groups, prefer) {
   if (!groups || !groups.length) return [];
   var n = groups.length, i, j, adj = [], seen = [], selected = [];
-  var keys = prefer && prefer.keys, axis = prefer && prefer.axis;
+  var keys = prefer && prefer.keys;
   var self = this;
+  /* Two line-groups become one plate only if they share a cell and everything
+     in the union can still be eaten together. So pareve may ride inside a meat
+     run, but it never bridges meat to dairy (M-M-P linked to P-D-D). */
   for (i = 0; i < n; i++) {
     adj[i] = [];
     seen[i] = false;
+    if (!this.groupOk(this.tilesOf(groups[i]))) continue;
     for (j = 0; j < n; j++) {
-      if (i !== j && this.groupsShare(groups[i], groups[j])) adj[i].push(j);
+      if (i === j) continue;
+      if (!this.groupsShare(groups[i], groups[j])) continue;
+      if (!this.unionGroupOk([groups[i], groups[j]])) continue;
+      adj[i].push(j);
     }
   }
-  var visit = function (idx, bucket) {
-    var k;
-    if (seen[idx]) return;
-    seen[idx] = true;
-    bucket.push(idx);
-    for (k = 0; k < adj[idx].length; k++) visit(adj[idx][k], bucket);
-  };
   var preferHit = function (g) {
     var k, key;
-    if (!keys) return 0;
+    if (!keys) return 1;
     for (k = 0; k < g.length; k++) {
       key = g[k].c + ',' + g[k].r;
       if (keys[key]) return 1;
     }
     return 0;
   };
-  var axisHit = function (g) {
-    return axis && self.groupAxis(g) === axis ? 1 : 0;
+  /* A plate is one line plus the lines that cross it - an L, a T, a plus.
+     It does not go on chaining line to line across the board, which is how a
+     single swap used to lift half the kitchen. */
+  var grow = function (start) {
+    var bucket = [start], used = {}, k, next, trial, bi;
+    used[start] = true;
+    for (k = 0; k < adj[start].length; k++) {
+      next = adj[start][k];
+      if (used[next]) continue;
+      trial = [];
+      for (bi = 0; bi < bucket.length; bi++) trial.push(groups[bucket[bi]]);
+      trial.push(groups[next]);
+      if (!self.unionGroupOk(trial)) continue;
+      used[next] = true;
+      bucket.push(next);
+    }
+    return bucket;
   };
   for (i = 0; i < n; i++) {
-    if (seen[i]) continue;
-    var comp = [], list = [], keep, trial;
-    visit(i, comp);
-    for (j = 0; j < comp.length; j++) list.push({ g: groups[comp[j]], i: j });
-    var raw = [];
-    for (j = 0; j < list.length; j++) raw.push(list[j].g);
-    if (self.unionGroupOk(raw)) {
-      for (j = 0; j < raw.length; j++) selected.push(raw[j]);
-      continue;
+    if (seen[i] || !this.groupOk(this.tilesOf(groups[i]))) continue;
+    var comp = grow(i), raw = [], hit = 0, plate;
+    for (j = 0; j < comp.length; j++) {
+      seen[comp[j]] = true;
+      raw.push(groups[comp[j]]);
+      hit += preferHit(groups[comp[j]]);
     }
-    list.sort(function (a, b) {
-      var pa = preferHit(a.g), pb = preferHit(b.g);
-      if (pb !== pa) return pb - pa;
-      var aa = axisHit(a.g), ab = axisHit(b.g);
-      if (ab !== aa) return ab - aa;
-      if (b.g.length !== a.g.length) return b.g.length - a.g.length;
-      return a.i - b.i;
-    });
-    keep = [];
-    for (j = 0; j < list.length; j++) {
-      trial = keep.concat([list[j].g]);
-      if (self.unionGroupOk(trial)) keep.push(list[j].g);
-    }
-    for (j = 0; j < keep.length; j++) selected.push(keep[j]);
+    if (keys && !hit) continue;
+    plate = self.cellsUnion(raw);
+    if (!self.groupOk(self.tilesOf(plate))) continue;
+    selected.push(plate);
   }
-  return selected;
+  if (selected.length < 2) return selected;
+  var score = function (p) {
+    var h = 0, k, key;
+    if (keys) {
+      for (k = 0; k < p.length; k++) {
+        key = p[k].c + ',' + p[k].r;
+        if (keys[key]) h += 10;
+      }
+    }
+    return h * 1000 + p.length;
+  };
+  var order = selected.map(function (p, idx) { return { p: p, i: idx, s: score(p) }; });
+  order.sort(function (a, b) { return b.s - a.s || a.i - b.i; });
+  var kept = [], ok;
+  for (i = 0; i < order.length; i++) {
+    if (!self.groupOk(self.tilesOf(order[i].p))) continue;
+    ok = true;
+    for (j = 0; j < kept.length; j++) {
+      if (self.groupsShare(order[i].p, kept[j])) { ok = false; break; }
+    }
+    if (ok) kept.push(order[i].p);
+  }
+  return kept;
 };
 
 KitchenMatch.prototype.findMatches = function (prefer) {
@@ -9718,6 +10429,8 @@ KitchenMatch.prototype.findMatches = function (prefer) {
 
 KitchenMatch.prototype.gravity = function () {
   var C = KitchenMatch.COLS, R = KitchenMatch.ROWS, c, r, write, moved = false;
+  /* where dishes landed - a cascade only counts where something actually fell */
+  this.fell = {};
   for (c = 0; c < C; c++) {
     write = R - 1;
     for (r = R - 1; r >= 0; r--) {
@@ -9726,6 +10439,7 @@ KitchenMatch.prototype.gravity = function () {
           this.grid[write][c] = this.grid[r][c];
           this.grid[write][c].fall = (write - r) * 0.06;
           this.grid[r][c] = null;
+          this.fell[c + ',' + write] = true;
           moved = true;
         }
         write--;
@@ -9735,37 +10449,95 @@ KitchenMatch.prototype.gravity = function () {
   return moved;
 };
 
+/* Everything this move sends up has to be servable together. Two meat plates
+   go up side by side; a meat plate and a dairy plate never do - not in the
+   same clear and not in a cascade a beat later. The plate the player just
+   made wins, and the other side waits for its own move.
+   `table` is what the move has served so far, so the rule holds all the way
+   through the cascade. */
+KitchenMatch.prototype.servableTogether = function (groups, prefer, table) {
+  this.heldBack = null;
+  if (!groups || !groups.length) return [];
+  var keys = prefer && prefer.keys;
+  var score = function (g) {
+    var h = 0, i, key;
+    if (keys) {
+      for (i = 0; i < g.length; i++) {
+        key = g[i].c + ',' + g[i].r;
+        if (keys[key]) h++;
+      }
+    }
+    return h * 1000 + g.length;
+  };
+  var order = groups.map(function (g, i) { return { g: g, i: i, s: score(g) }; });
+  order.sort(function (a, b) { return b.s - a.s || a.i - b.i; });
+  var served = table || [];
+  var kept = [], i, j, k, tiles, ok;
+  for (i = 0; i < order.length; i++) {
+    tiles = this.tilesOf(order[i].g);
+    ok = true;
+    for (j = 0; ok && j < tiles.length; j++) {
+      for (k = 0; k < served.length; k++) {
+        if (!KitchenMatch.canTogether(tiles[j], served[k])) { ok = false; break; }
+      }
+    }
+    if (!ok) {
+      if (!this.heldBack) this.heldBack = order[i].g;
+      continue;
+    }
+    kept.push(order[i].g);
+    for (j = 0; j < tiles.length; j++) served.push(tiles[j]);
+  }
+  return kept;
+};
+
 KitchenMatch.prototype.resolve = function (opts) {
   opts = opts || {};
   var silent = !!opts.silent;
   var n = 0, plates = 0;
+  var prefer = opts.prefer || null;
+  /* one move serves one plate, cascade included - a board settling on its own
+     has no move behind it, so each beat there stands alone */
+  var served = opts.prefer ? [] : null;
   while (n < 12) {
-    var groups = this.selectPlates(this.findMatchGroups(), opts.prefer);
-    opts.prefer = null;
+    var groups = this.servableTogether(
+      this.selectPlates(this.findMatchGroups(), prefer), prefer, served);
     if (!groups.length) break;
     n++;
-    plates++;
-    var cells = [], seen = {}, g, i, key, p;
+    /* say out loud which side has to wait, before the board shifts under it */
+    var held = (!silent && n === 1 && this.heldBack) ? this.plateKind(this.heldBack) : null;
+    var seen = {}, g, i, key, p, cells, pk;
     for (g = 0; g < groups.length; g++) {
-      if (!silent) {
-        p = this.cellCenter(groups[g][0].c, groups[g][0].r);
-        var pk = this.plateKind(groups[g]);
-        if (groups[g].length >= 5) this.popFx(p.x, p.y - 56, 'FULL ' + pk.name + ' PLATE!', pk.color, 28);
-        else if (groups[g].length >= 4) this.popFx(p.x, p.y - 56, 'BIG ' + pk.name + ' PLATE!', pk.color, 26);
-        else this.popFx(p.x, p.y - 56, pk.name + ' PLATE', pk.color, 22);
-      }
+      cells = [];
       for (i = 0; i < groups[g].length; i++) {
         key = groups[g][i].c + ',' + groups[g][i].r;
-        if (!seen[key]) { seen[key] = true; cells.push(groups[g][i]); }
+        if (seen[key]) continue;
+        seen[key] = true;
+        cells.push(groups[g][i]);
       }
+      if (!cells.length) continue;
+      /* Hard stop: never lift a plate that mixes forbidden sides. */
+      if (!this.groupOk(this.tilesOf(cells))) continue;
+      plates++;
+      if (!silent) {
+        p = this.cellCenter(cells[0].c, cells[0].r);
+        pk = this.plateKind(cells);
+        if (cells.length >= 5) this.popFx(p.x, p.y - 56, 'FULL ' + pk.name + ' PLATE!', pk.color, 28);
+        else if (cells.length >= 4) this.popFx(p.x, p.y - 56, 'BIG ' + pk.name + ' PLATE!', pk.color, 26);
+        else this.popFx(p.x, p.y - 56, pk.name + ' PLATE', pk.color, 22);
+      }
+      this.clearCells(cells, n);
     }
-    this.clearCells(cells, n);
+    if (held) this.popFx(CFG.W / 2, 486, held.name + ' WAITS ITS TURN', held.color, 24);
     if (!silent) {
       if (n === 2) this.popFx(CFG.W / 2, 540, 'CASCADE!', C.teal, 30);
       else if (n === 3) this.popFx(CFG.W / 2, 540, 'TRIPLE!', C.gold, 32);
       else if (n >= 4) this.popFx(CFG.W / 2, 540, 'MEHADRIN!', C.gold, 34);
     }
     this.gravity();
+    /* the next beat only looks where dishes fell, so a line the player never
+       touched is not swept up as a bonus */
+    prefer = { keys: this.fell || {}, axis: '' };
   }
   if (plates) {
     if (!silent) {
@@ -9899,7 +10671,7 @@ KitchenMatch.prototype.doRise = function () {
     for (c = 0; c < C; c++) this.grid[r][c] = this.grid[r + 1][c];
   }
   for (c = 0; c < C; c++) this.makeSafeTile(c, KitchenMatch.ROWS - 1, true);
-  this.resolve({ silent: true });
+  this.untangle(12);
   this.ensurePlayable();
   if (this.plates >= this.need) this.shiftUp();
   return true;
@@ -11585,10 +12357,12 @@ TzedakaBlast.prototype.tune = function () {
     /* One poor man crossing at a time from street 5 on, two before that and
        two again on Purim. He is the only one who needs you, so he is the whole
        point of the street, and the quota comes down to match. */
-    goal:      Math.round(2.5 + n * 0.28) + (purim ? 7 : 0),             /* people to help     */
+    goal:      Math.round(2.5 + n * 0.28) + (purim ? 2 : 0),             /* people to help     */
     maxPoor:   (n <= 4 || purim || n >= 11) ? 2 : 1,
     gentMax:   n >= 10 ? 8 : (n >= 7 ? 7 : (n >= 4 ? 5 : 4)),
-    dur:       74 + (n > 6 ? 8 : 0) + (n >= 10 ? 4 : 0),
+    /* the clock ramps up to the old flat 74s by street 6 - the early streets
+       have a low goal and do not need a full 74 seconds to clear it */
+    dur:       Math.min(74, 46 + n * 5) + (n > 6 ? 8 : 0) + (n >= 10 ? 4 : 0),
     spawnEvery: Math.max(1.05, 3.4 - n * 0.19),
     /* They get properly quick, and by a step every single street. From street 5
        the cobbles pick up a bit extra; the audit still holds the street-8
@@ -11711,9 +12485,6 @@ TzedakaBlast.prototype.setupStreet = function () {
   this.hungry = false;
   this.drySaid = false;
   if (this.gents.length) this.metGent = true;
-  var sc = this.scene();
-  var sub = sc.hook || sc.sub;
-  this.say(sc.name, sub, C.gold, 3);
 };
 
 /* Nothing hangs over the road. An awning on a shopfront cannot stop a coin
@@ -11785,7 +12556,7 @@ TzedakaBlast.prototype.introduce = function (kind) {
     hand:   ['OPEN HAND!', 'that is the jackpot - drop it in the palm'],
     pushka: ['A PUSHKA!', 'tiny slot. clink!'],
     basket: ['GIANT SACK!', 'wide open. dunk it!'],
-    kupah:  ['TOWN CART!', 'one box for the whole street - drop it in'],
+    kupah:  ['TOWN CART!'],
     loan:   ['BROKEN CART!', 'lend him GOLD. he pays you back. top move!']
   };
   var l = lines[kind];
@@ -11850,19 +12621,20 @@ TzedakaBlast.GENT_QUIPS = [
   'I\'M RICH, RICH I TELL YOU!',
   'I\'M THE CEO',
   'I DON\'T EVEN PUMP MY OWN GAS',
-  'I\'M LATE FOR MY POLO GAME',
+  'POLO MATCH',
   'I DON\'T LOOK AT PRICE TAGS',
-  'SORRY, MY YACHT IS WAITING',
+  'I SPEND MY TIME YACHTING',
   'I DON\'T CARRY COINS',
   'PLATINUM STATUS',
-  'YOU\'RE NOT IN MY TAX BRACKET',
+  'NOT IN MY TAX BRACKET',
   'I ONLY FLY FIRST CLASS',
-  'MY CAT COST MORE THAN YOUR LIFE',
+  'MY CAT IS A BILLIONAIRE',
   'I SUMMER IN THE HAMPTONS',
   'I BOUGHT BITCOIN AT 3 CENTS',
   'MY HOUSE HAS MORE THAN 1 POOL',
   'I INVENTED THE TACO',
-  'MY NAME IS ON THAT BUILDING, BRO'
+  'MY NAME IS ON THAT BUILDING, BRO',
+  'I OWN HORSES, BRO'
 ];
 
 TzedakaBlast.prototype.gentBounceLine = function () {
@@ -12700,7 +13472,7 @@ TzedakaBlast.TOWERS = [
    shape, how many storeys you can see, the palette, the weather and the cart
    standing in the road. No two streets in a row look alike. */
 TzedakaBlast.SCENES = [
-  { id:'city',   name:'LOOK FOR THE HAND', sub:'fancy coat? keep walking. open palm? JACKPOT',
+  { id:'city',
     sky:[[0,'#050a18'],[0.3,'#091530'],[0.55,'#0e2044'],[0.72,'#132741'],[1,'#0b0f1c']],
     wallA:'#141b30', wallB:'#101728', mine:'#1a2138',
     lit:'rgba(255,196,96,.85)', lit2:'rgba(255,214,132,.62)', dark:'rgba(6,10,20,.72)',
@@ -12709,7 +13481,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,196,110,.16)', cart:'#3a3550', weather:null,
     tops:[244,168,296,116,212,152,268], rows:9 },
 
-  { id:'west',   name:'COWBOY STREET',     sub:'same rule out west: no hand out, no coin',
+  { id:'west',
     sky:[[0,'#0d0a16'],[0.3,'#1a1220'],[0.55,'#2a1a24'],[0.72,'#33202a'],[1,'#140f18']],
     wallA:'#3a2a1e', wallB:'#2e2118', mine:'#463020',
     lit:'rgba(255,186,84,.88)', lit2:'rgba(255,206,120,.6)', dark:'rgba(22,14,10,.78)',
@@ -12718,7 +13490,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,176,90,.20)', cart:'#6b4a28', weather:null,
     tops:[512,470,534,452,520,486,542], rows:2 },
 
-  { id:'stone',  name:'OLD CITY',          sub:'same game as always: open hands win',
+  { id:'stone',
     sky:[[0,'#070c1c'],[0.3,'#0d1730'],[0.55,'#152741'],[0.72,'#1d3348'],[1,'#0d1220']],
     wallA:'#3b3527', wallB:'#2f2a1f', mine:'#4a4231',
     lit:'rgba(255,208,132,.86)', lit2:'rgba(255,226,168,.6)', dark:'rgba(16,14,10,.75)',
@@ -12727,7 +13499,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,214,140,.18)', cart:'#5c5340', weather:null,
     tops:[380,318,410,286,364,330,402], rows:4 },
 
-  { id:'port',   name:'HARBOR HUSTLE',     sub:'wind off the water. aim like you mean it',
+  { id:'port',
     sky:[[0,'#04101a'],[0.3,'#071c2c'],[0.55,'#0b2b3e'],[0.72,'#103546'],[1,'#07131c']],
     wallA:'#152a33', wallB:'#102028', mine:'#1b3540',
     lit:'rgba(170,232,255,.7)', lit2:'rgba(255,206,120,.55)', dark:'rgba(5,16,22,.76)',
@@ -12736,7 +13508,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(150,220,255,.15)', cart:'#22454f', weather:null,
     tops:[436,378,458,350,416,392,468], rows:3 },
 
-  { id:'narrow', name:'THE SQUEEZE',       sub:'wind picked a side. throw INTO it',
+  { id:'narrow',
     sky:[[0,'#0a0610'],[0.3,'#140b1a'],[0.55,'#1d1024'],[0.72,'#241528'],[1,'#0c0812']],
     wallA:'#3a1f1e', wallB:'#2c1717', mine:'#482724',
     lit:'rgba(255,168,96,.8)', lit2:'rgba(255,196,128,.55)', dark:'rgba(14,7,7,.8)',
@@ -12745,7 +13517,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,150,90,.17)', cart:'#4a2c26', weather:null,
     tops:[96,60,130,40,110,72,120], rows:11 },
 
-  { id:'village',name:'QUIET LANE',        sub:'sshhh - give before he even asks',
+  { id:'village',
     sky:[[0,'#06121a'],[0.3,'#0a2028'],[0.55,'#123038'],[0.72,'#1a3d3c'],[1,'#0a1a18']],
     wallA:'#5a5142', wallB:'#494134', mine:'#6a5c48',
     lit:'rgba(255,214,140,.88)', lit2:'rgba(255,232,180,.6)', dark:'rgba(20,18,12,.74)',
@@ -12754,7 +13526,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,222,150,.19)', cart:'#6a5230', weather:null,
     tops:[548,520,560,506,540,528,566], rows:2 },
 
-  { id:'snow',   name:'SLIPPERY STREET',   sub:'ice is a trickster. throw where he is GOING',
+  { id:'snow',
     sky:[[0,'#0b1020'],[0.3,'#131c33'],[0.55,'#1d2a45'],[0.72,'#26364f'],[1,'#141a28']],
     wallA:'#2a3244', wallB:'#222938', mine:'#333c50',
     lit:'rgba(255,224,168,.8)', lit2:'rgba(206,232,255,.55)', dark:'rgba(12,16,26,.72)',
@@ -12763,7 +13535,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(200,226,255,.18)', cart:'#3e4860', weather:'snow',
     tops:[330,282,352,258,318,296,364], rows:6 },
 
-  { id:'adobe',  name:'BIRD TOWN',         sub:'pigeons are not tzedaka. tap them!',
+  { id:'adobe',
     sky:[[0,'#140a12'],[0.3,'#241016'],[0.55,'#361a1a'],[0.72,'#42251c'],[1,'#180d10']],
     wallA:'#6a4028', wallB:'#563220', mine:'#7a4c30',
     lit:'rgba(255,190,100,.88)', lit2:'rgba(255,212,140,.6)', dark:'rgba(26,14,8,.76)',
@@ -12772,7 +13544,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(255,186,104,.20)', cart:'#7a5232', weather:null,
     tops:[470,424,492,404,452,436,500], rows:3 },
 
-  { id:'canal',  name:'RAINY BRIDGE',      sub:'umbrellas bounce coins. wait for the gap',
+  { id:'canal',
     sky:[[0,'#04120f'],[0.3,'#082019'],[0.55,'#0d3025'],[0.72,'#123a2e'],[1,'#061412']],
     wallA:'#1d3a30', wallB:'#152c26', mine:'#254a3c',
     lit:'rgba(190,255,214,.66)', lit2:'rgba(255,214,140,.5)', dark:'rgba(5,18,14,.78)',
@@ -12781,7 +13553,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(160,255,206,.15)', cart:'#28503f', weather:'rain',
     tops:[356,300,378,272,340,314,392], rows:5 },
 
-  { id:'market', name:'MARKET NIGHT',      sub:'lots of coats, one pushka. find the slot',
+  { id:'market',
     sky:[[0,'#0e0818'],[0.3,'#180d26'],[0.55,'#241436'],[0.72,'#2c1a3e'],[1,'#100a1a']],
     wallA:'#402a3a', wallB:'#33212e', mine:'#4e3446',
     lit:'rgba(255,200,140,.82)', lit2:'rgba(226,180,255,.55)', dark:'rgba(16,10,20,.76)',
@@ -12790,7 +13562,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(236,180,255,.16)', cart:'#523a4a', weather:null,
     tops:[402,350,424,330,388,364,436], rows:5 },
 
-  { id:'hill',   name:'UP THE HILL',       sub:'hold onto your hat. they walk FAST',
+  { id:'hill',
     sky:[[0,'#080b20'],[0.3,'#101638'],[0.55,'#1a2350'],[0.72,'#222c5c'],[1,'#0c0f24']],
     wallA:'#3c4058', wallB:'#2f3348', mine:'#4a4e68',
     lit:'rgba(255,206,132,.84)', lit2:'rgba(196,214,255,.55)', dark:'rgba(10,12,22,.74)',
@@ -12799,7 +13571,7 @@ TzedakaBlast.SCENES = [
     lamp:'rgba(210,222,255,.16)', cart:'#454a66', weather:null,
     tops:[286,214,340,180,262,224,318], rows:7 },
 
-  { id:'purim',  name:'PURIM PARTY',       sub:'today you just GIVE. no checking, no waiting',
+  { id:'purim',
     sky:[[0,'#150a1e'],[0.3,'#25102c'],[0.55,'#38183a'],[0.72,'#452046'],[1,'#180c1e']],
     wallA:'#4a2f4a', wallB:'#3c2540', mine:'#5c3a56',
     lit:'rgba(255,222,140,.95)', lit2:'rgba(255,180,220,.7)', dark:'rgba(30,16,30,.5)',
