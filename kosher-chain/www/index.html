@@ -227,6 +227,13 @@ var HE = {
   'SIMCHA': 'שמחה',
   'DAY': 'יום',
   'WEEK': 'שבוע',
+  'WEEK 1': 'שבוע 1',
+  'WEEK 2': 'שבוע 2',
+  'WEEK 3': 'שבוע 3',
+  'WEEK 4': 'שבוע 4',
+  'WEEK 5': 'שבוע 5',
+  'WEEK 6': 'שבוע 6',
+  'BEST': 'שיא',
   'OUT OF SIMCHA': 'נגמרה השמחה',
   'The boys lost all their simcha!': 'לבחורים נגמרה כל השמחה!',
   'HANDS WASHED': 'ידיים נטולות',
@@ -1978,7 +1985,7 @@ var TEACH = {
   },
   wait: {
     title: 'Wait it out with pareve',
-    body: 'Meat leaves its taste in your mouth, so milk cannot follow right away - the boys have to wait six hours. You do not just stand there: every plate you serve is two hours of camp, so serve three pareve plates (or more meat, or fish) and the six hours are up on their own.',
+    body: 'Meat leaves its taste in your mouth, so milk cannot follow right away. This game follows the most common practice - wait six hours - but customs differ: some families wait three, some one. You do not just stand there: every plate you serve is two hours of camp, so serve three pareve plates (or more meat, or fish) and the six hours are up on their own.',
     source: 'Chullin 105a - Shulchan Aruch, Yoreh Deah 89:1',
     note: 'Watch the counter: it counts down one pareve meal at a time.'
   },
@@ -2079,8 +2086,8 @@ var HE_TEACH = {
     'שמות כ״ג י״ט - שולחן ערוך, יורה דעה פ״ז א׳',
   'Split them into two plates.': 'תחלק אותם לשתי צלחות.',
   'Wait it out with pareve': 'מחכים עם פרווה',
-  'Meat leaves its taste in your mouth, so milk cannot follow right away - the boys have to wait six hours. You do not just stand there: every plate you serve is two hours of camp, so serve three pareve plates (or more meat, or fish) and the six hours are up on their own.':
-    'בשר משאיר טעם בפה, אז חלב לא יכול לבוא מיד אחריו - צריך לחכות שש שעות. אבל אתה לא סתם עומד ומחכה: כל צלחת שאתה מגיש היא שעתיים בקעמפ, אז תגיש שלוש צלחות פרווה (או עוד בשר, או דגים) ושש השעות עוברות מעצמן.',
+  'Meat leaves its taste in your mouth, so milk cannot follow right away. This game follows the most common practice - wait six hours - but customs differ: some families wait three, some one. You do not just stand there: every plate you serve is two hours of camp, so serve three pareve plates (or more meat, or fish) and the six hours are up on their own.':
+    'בשר משאיר טעם בפה, אז חלב לא יכול לבוא מיד אחריו. המשחק הולך אחרי המנהג הכי נפוץ - לחכות שש שעות - אבל המנהגים שונים: יש משפחות שמחכות שלוש, יש שעה. אתה לא סתם עומד ומחכה: כל צלחת שאתה מגיש היא שעתיים בקעמפ, אז תגיש שלוש צלחות פרווה (או עוד בשר, או דגים) ושש השעות עוברות מעצמן.',
   'Chullin 105a - Shulchan Aruch, Yoreh Deah 89:1':
     'חולין ק״ה - שולחן ערוך, יורה דעה פ״ט א׳',
   'Watch the counter: it counts down one pareve meal at a time.':
@@ -5941,7 +5948,6 @@ Result.prototype.render = function (ctx) {
   FX.draw(ctx);
   for (var b = 0; b < this.btns.length; b++) this.btns[b].draw(ctx, t);
 };
-HE['BEST'] = 'שיא';
 
 /* =================================================================== GAME */
 var Game = {
