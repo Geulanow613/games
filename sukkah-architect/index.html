@@ -2231,11 +2231,11 @@ SA.Cards = [
     terms: [['Ruach Metzuya', 'an ordinary, expected wind']],
     source: 'Sukkah 24b; Shulchan Aruch OC 630:10-11' },
 
-  { id: 'sk_gud_asik', game: 'sukkah', icon: 'arrow-up', title: 'The Wall That Keeps Going Up',
+  { id: 'sk_gud_asik', game: 'sukkah', icon: 'arrow-up', title: 'The Leniency Sukkah Does Not Get',
     hebrew: 'גּוּד אַסִּיק מְחִצְּתָא',
-    body: 'Once a wall reaches ten tefachim, halacha treats it as continuing straight up forever - it does not need to physically touch the schach.',
-    terms: [['Gud Asik', 'literally "pull it up" - extend the wall upward']],
-    source: 'Sukkah 4b, 6b; Shulchan Aruch OC 630:9' },
+    body: 'For an eruv or a Shabbos wall, a partition is treated as continuing straight up forever. A sukkah never gets that leniency - a wall must actually be ten tefachim tall by itself. It still need not touch the schach, but only because it is lined up underneath it, not because it stretches to reach it.',
+    terms: [['Gud Asik', 'literally "pull the wall up" - used for an eruv, but never for a sukkah']],
+    source: 'Mishnah Berurah 630:31; Shulchan Aruch OC 630:6,9' },
 
   { id: 'sk_lavud', game: 'sukkah', icon: 'link', title: 'Lavud: The Gap That Counts as Solid',
     hebrew: 'לָבוּד',
@@ -2263,9 +2263,9 @@ SA.Cards = [
 
   { id: 'sk_elephant', game: 'sukkah', icon: 'elephant', title: 'The Elephant in the Sukkah',
     hebrew: 'פִּיל קָשׁוּר',
-    body: 'The Mishnah asks whether a live animal may serve as a wall. Halacha follows the concern that it might wander off, so a live animal wall must be tied down. But a tied elephant is kosher even fallen over - its body is still ten tefachim tall lying on its side.',
+    body: 'A Baraita asks whether a live animal may serve as a wall. Halacha follows the concern that it might wander off, so a live animal wall must be tied down. But a tied elephant is kosher even fallen over - its body is still ten tefachim tall lying on its side.',
     terms: [['Pil', 'an elephant']],
-    source: 'Sukkah 23a; Shulchan Aruch OC 630:11' },
+    source: 'Sukkah 23a (Baraita); Shulchan Aruch OC 630:11' },
 
   { id: 'sk_schach_conditions', game: 'sukkah', icon: 'leaf', title: 'What Schach Can Be Made Of',
     hebrew: 'צוֹמֵח, תָּלוּש, אֵינוֹ מְקַבֵּל טוּמְאָה',
@@ -2350,7 +2350,7 @@ SA.Lang.add({
   'Ten Tefachim to Twenty Amos': 'מעשרה טפחים עד עשרים אמה',
   'Seven by Seven': 'שבעה על שבעה',
   'Standing Up to a Normal Wind': 'עמידה מפני רוח מצויה',
-  'The Wall That Keeps Going Up': 'הקיר שממשיך ועולה',
+  'The Leniency Sukkah Does Not Get': 'ההקלה שאין לסוכה',
   'Lavud: The Gap That Counts as Solid': 'לבוד: הרווח שנחשב כמלא',
   'The Bent Wall': 'דופן עקומה',
   'Open Air vs. Invalid Schach': 'אוויר לעומת סכך פסול',
@@ -2376,8 +2376,8 @@ SA.Lang.add({
     'הרצפה צריכה למדוד לפחות שבעה טפחים בשני הכיוונים - מקום מספיק לאדם ולשולחן קטן. אין מקסימום לאורך או לרוחב, רק לגובה.',
   'Any material may be a sukkah wall - wood, metal, canvas, even a house wall - as long as it holds up to an ordinary wind. A loose sheet is not relied on; tie it down or weave a pole through it every three tefachim.':
     'כל חומר יכול להיות קיר סוכה - עץ, מתכת, בד, ואפילו קיר בית - כל עוד הוא עומד ברוח מצויה. יריעה רפויה אינה נחשבת; יש לקשור אותה או לשלב בה מוט בכל שלושה טפחים.',
-  'Once a wall reaches ten tefachim, halacha treats it as continuing straight up forever - it does not need to physically touch the schach.':
-    'כאשר קיר מגיע לעשרה טפחים, ההלכה מתייחסת אליו כאילו הוא ממשיך ועולה לעולם - הוא לא צריך לגעת בפועל בסכך.',
+  'For an eruv or a Shabbos wall, a partition is treated as continuing straight up forever. A sukkah never gets that leniency - a wall must actually be ten tefachim tall by itself. It still need not touch the schach, but only because it is lined up underneath it, not because it stretches to reach it.':
+    'בעירוב או בקיר שבת, מחיצה נחשבת כממשיכה ועולה לעולם. לסוכה לעולם אין את ההקלה הזו - הקיר צריך להיות בעצמו גבוה עשרה טפחים. עדיין אינו צריך לגעת בסכך, אך רק מפני שהוא מיושר תחתיו, ולא מפני שהוא מתמשך כדי להגיע אליו.',
   'Any gap under three tefachim - between fence posts, between a wall and the ground, or between a wall\'s top and the schach - is treated as fully solid.':
     'כל רווח שקטן משלושה טפחים - בין עמודי גדר, בין קיר לקרקע, או בין ראש הקיר לסכך - נחשב כמלא לגמרי.',
   'Invalid schach touching a wall, less than four amos wide, is treated as if the wall bends and continues under it - the sukkah stays kosher, though you may not sit under that strip.':
@@ -2386,8 +2386,8 @@ SA.Lang.add({
     'רווח שמיים פתוח ברוחב שלושה טפחים פוסל את הסוכה בכל מקום - באמצע או בצד. חומר פסול (כגון לוח רחב) צריך להגיע לארבעה טפחים באמצע, או ארבע אמות ליד קיר, כדי לפסול.',
   'A sukkah wall riddled with doorways and windows is kosher even if the open area is bigger than the standing area, as long as no single opening is wider than ten amos.':
     'קיר סוכה מלא פתחים וחלונות כשר אפילו אם השטח הפתוח גדול מהעומד, כל עוד אין פתח יחיד רחב מעשר אמות.',
-  'The Mishnah asks whether a live animal may serve as a wall. Halacha follows the concern that it might wander off, so a live animal wall must be tied down. But a tied elephant is kosher even fallen over - its body is still ten tefachim tall lying on its side.':
-    'המשנה שואלת אם חיה חיה יכולה לשמש כקיר. ההלכה חוששת שהיא תברח, ולכן קיר מחיה חיה צריך להיות קשור. אבל פיל קשור כשר אפילו אם נפל - גופו עדיין גבוה עשרה טפחים כשהוא שוכב על צדו.',
+  'A Baraita asks whether a live animal may serve as a wall. Halacha follows the concern that it might wander off, so a live animal wall must be tied down. But a tied elephant is kosher even fallen over - its body is still ten tefachim tall lying on its side.':
+    'ברייתא שואלת אם חיה חיה יכולה לשמש כקיר. ההלכה חוששת שהיא תברח, ולכן קיר מחיה חיה צריך להיות קשור. אבל פיל קשור כשר אפילו אם נפל - גופו עדיין גבוה עשרה טפחים כשהוא שוכב על צדו.',
   'Valid schach must have grown from the ground, be currently detached, and not be able to become ritually impure. That rules out metal, plastic, food, and finished furniture, even wooden furniture.':
     'סכך כשר צריך להיות צומח מהארץ, תלוש כעת, ולא יכול לקבל טומאה. זה פוסל מתכת, פלסטיק, מאכל, ורהיטים מוגמרים, אפילו רהיטי עץ.',
   'Wooden boards four tefachim wide or more may not be used as schach, lest someone mistake the sukkah roof for an ordinary house ceiling. Under four tefachim is technically fine, but the widespread custom is not to use boards at all.':
