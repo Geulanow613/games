@@ -1,0 +1,3816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Sukkah Architect</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #0b0e14; overflow: hidden; touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #stage {
+    position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+    display: block; background: #0b0e14;
+  }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script>
+/* ==========================================================================
+   SUKKAH ARCHITECT
+   Single self-contained Canvas2D file, no CDN, no build step, no fonts to
+   fetch. Runs offline from a file:// URL, in a plain browser, or hosted in
+   the Mitz Mode Play tab (window.MITZ_MODE / MITZ_LANG / MITZ_NUSACH).
+   No sun, moon, or star imagery anywhere - shade is shown as a floor
+   coverage map, never a drawn light source. See HALACHA.md for the sourced
+   halacha every rule in this file implements.
+   ========================================================================== */
+var SA = {};
+SA.VERSION = '1.0.0';
+</script>
+<script>
+/* ---------------------------------------------- 1. HOST + CONFIG + MEASURE */
+SA.Host = {
+  inApp: function () { return window.MITZ_MODE === true; },
+  langFromHost: function () {
+    var v = window.MITZ_LANG;
+    if (v == null) return '';
+    var s = String(v).trim().toLowerCase();
+    return (s === 'he' || s === 'iw' || s.indexOf('he-') === 0) ? 'he' : 'en';
+  }
+};
+
+/* Grid unit = 1 tefach. Two shiurim on offer for the on-screen ruler only;
+   every game threshold below is in whole tefachim/amos and never changes
+   with the shiur toggle. See HALACHA.md section 4. */
+SA.Shiur = {
+  NAEH: { id: 'naeh', tefachCm: 8, label: 'Rav Chaim Naeh' },
+  CHAZON_ISH: { id: 'chazonish', tefachCm: 9.6, label: 'Chazon Ish' },
+  current: 'naeh',
+  cm: function (tefachim) {
+    var s = SA.Shiur.current === 'chazonish' ? SA.Shiur.CHAZON_ISH : SA.Shiur.NAEH;
+    return Math.round(tefachim * s.tefachCm * 10) / 10;
+  }
+};
+
+/* All thresholds are halacha l'Moshe miSinai / Shulchan Aruch measures in
+   tefachim (amos expressed as tefachim*6). See HALACHA.md section 6. */
+SA.Rule = {
+  WALL_MIN_HEIGHT: 10,          // OC 633:8
+  WALL_MIN_FULL_LEN: 7,         // OC 634:1 / 630:2
+  THIRD_WALL_PERP: 1,           // OC 630:2 (afilu tefach, rendered as 2 to read as "just over")
+  THIRD_WALL_PARALLEL: 5,       // OC 630:3 (just over 4 tefachim)
+  LAVUD: 3,                     // OC 630:1,10 - strictly LESS than this bridges
+  GROUND_GAP_MAX: 3,            // OC 630:9-10
+  FLOOR_MIN: 7,                 // OC 634:1
+  FLOOR_MAX: 28,                // sandbox cap, not a halachic ceiling
+  ROOF_MIN: 10,                 // OC 633:8
+  ROOF_MAX_KOSHER: 120,         // 20 amos * 6 tefachim - OC 633:1
+  ROOF_MAX_SLIDER: 130,
+  DOFEN_AKUMAH_AMOS: 4 * 6,     // OC 632:1 - pasul schach AT a wall
+  PASUL_MIDDLE: 4,              // OC 632:1 - pasul schach in the middle
+  AVIR: 3,                      // OC 632:2 - open air, anywhere
+  SMALL_SUKKAH_AREA: 49,        // 7x7, OC 632:1
+  GEZEIRAS_TIKRAH_WIDTH: 4,     // OC 629:18
+  DECOR_CLEARANCE: 4,           // OC 627:4
+  DECOR_WIDE: 4,                // OC 627:4 / MB 627:12
+  OPENING_TZURAS_HAPESACH: 60,  // 10 amos, OC 630:5 - unreachable at FLOOR_MAX=28, kept for completeness
+  SHADE_MIN: 0.5                // OC 631:1 - strictly greater than half
+};
+
+/* ---------------------------------------------- 1b. CANVAS / DPR / LOOP */
+SA.View = {
+  canvas: null, ctx: null,
+  w: 0, h: 0, dpr: 1,
+  safe: { t: 0, r: 0, b: 0, l: 0 }
+};
+
+SA.View.resize = function () {
+  var c = SA.View.canvas;
+  var dpr = Math.min(window.devicePixelRatio || 1, 3);
+  var w = window.innerWidth, h = window.innerHeight;
+  SA.View.w = w; SA.View.h = h; SA.View.dpr = dpr;
+  c.width = Math.round(w * dpr);
+  c.height = Math.round(h * dpr);
+  c.style.width = w + 'px';
+  c.style.height = h + 'px';
+  SA.View.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var ss = (window.visualViewport && window.visualViewport.__saInsets) || null;
+  SA.View.safe.t = 12; SA.View.safe.b = 12; SA.View.safe.l = 8; SA.View.safe.r = 8;
+};
+
+SA.Loop = {
+  running: false, last: 0, acc: 0, step: 1000 / 60,
+  update: function () {}, render: function () {},
+  frame: function (t) {
+    if (!SA.Loop.running) return;
+    if (!SA.Loop.last) SA.Loop.last = t;
+    var dt = Math.min(t - SA.Loop.last, 250);
+    SA.Loop.last = t;
+    SA.Loop.acc += dt;
+    var guard = 0;
+    while (SA.Loop.acc >= SA.Loop.step && guard < 6) {
+      SA.Loop.update(SA.Loop.step / 1000);
+      SA.Loop.acc -= SA.Loop.step;
+      guard++;
+    }
+    SA.Loop.render();
+    requestAnimationFrame(SA.Loop.frame);
+  },
+  start: function () {
+    if (SA.Loop.running) return;
+    SA.Loop.running = true;
+    SA.Loop.last = 0;
+    requestAnimationFrame(SA.Loop.frame);
+  },
+  pause: function () { SA.Loop.running = false; }
+};
+
+SA.boot = function () {
+  SA.View.canvas = document.getElementById('stage');
+  SA.View.ctx = SA.View.canvas.getContext('2d', { alpha: false });
+  SA.View.resize();
+  window.addEventListener('resize', SA.View.resize);
+  window.addEventListener('orientationchange', SA.View.resize);
+};
+</script>
+<script>
+/* ---------------------------------------------- 2. LANGUAGE (en + he) */
+/* Every user-facing string goes through Lang.t. English is the key, exactly
+   as in mitzvah-dash.html. Catalogs with combinatorial names (wall
+   materials: family x form x finish) are not given one dictionary line per
+   combo - instead each *token* (family, form, finish, color) is hand
+   translated once with a grammatical gender tag, and Lang.composeHe()
+   assembles the Hebrew phrase. That is still 100% hand-written Hebrew, just
+   assembled from parts instead of duplicated hundreds of times. Every fixed
+   string (UI, cards, backgrounds, schach, animals, decorations, levels) gets
+   its own direct entry. qa.js scans that both mechanisms cover every string
+   actually shown on screen. */
+SA.Lang = {
+  id: 'en',
+  lockedFromHost: false,
+  he: {},
+  add: function (dict) { for (var k in dict) SA.Lang.he[k] = dict[k]; },
+  parse: function (v) { return v === 'he' ? 'he' : 'en'; },
+  boot: function () {
+    var fromHost = SA.Host.langFromHost();
+    if (SA.Host.inApp() && fromHost) {
+      SA.Lang.lockedFromHost = true;
+      SA.Lang.id = fromHost;
+      return fromHost;
+    }
+    try {
+      var saved = localStorage.getItem('sukkah_architect.lang');
+      if (saved) SA.Lang.id = SA.Lang.parse(saved);
+    } catch (e) {}
+    return SA.Lang.id;
+  },
+  locked: function () { return SA.Lang.lockedFromHost && SA.Host.inApp(); },
+  set: function (id) {
+    if (SA.Lang.locked()) return SA.Lang.id;
+    SA.Lang.id = SA.Lang.parse(id);
+    try { localStorage.setItem('sukkah_architect.lang', SA.Lang.id); } catch (e) {}
+    document.documentElement.lang = SA.Lang.id;
+    return SA.Lang.id;
+  },
+  isHe: function () { return SA.Lang.id === 'he'; },
+  t: function (s) {
+    if (!SA.Lang.isHe()) return s;
+    var v = SA.Lang.he[s];
+    return v == null ? s : v;
+  },
+  hasHebrew: function (s) { return /[\u0590-\u05FF]/.test(String(s)); },
+  /* Translate a {placeholder} template, then fill it in - so a dynamic
+     number never has to be baked into the dictionary key (matches the
+     existing {place}/${...} template convention). */
+  fmt: function (template, vars) {
+    var out = SA.Lang.t(template);
+    for (var k in vars) out = out.split('{' + k + '}').join(String(vars[k]));
+    return out;
+  }
+};
+
+/* Token dictionaries for the combinatorial wall-material catalog (p05).
+   gender: 'm' | 'f', used to pick the matching finish adjective form. */
+SA.Lang.familyWords = {};   // filled in p05 alongside the family catalog
+SA.Lang.formWords = {};     // filled in p05
+SA.Lang.finishWords = {};   // filled in p05
+
+SA.Lang.composeMaterialName = function (family, form, finish) {
+  if (!SA.Lang.isHe()) return finish.en + ' ' + family.en + ' ' + form.en;
+  var adj = family.gender === 'f' ? finish.he_f : finish.he_m;
+  return form.he + ' ' + family.he + ' ' + adj;
+};
+
+/* ---------------------------------------------- 2a. Core UI vocabulary */
+SA.Lang.add({
+  'SUKKAH ARCHITECT': 'אדריכל הסוכה',
+  'Design a kosher sukkah, piece by piece.': 'תכננו סוכה כשרה, חלק אחר חלק.',
+  'Sandbox': 'מגרש חופשי',
+  'Halacha Challenges': 'משימות הלכה',
+  'Continue Building': 'המשך בנייה',
+  'New Sukkah': 'סוכה חדשה',
+  'Choose a Site': 'בחרו מקום',
+  'Choose Materials': 'בחרו חומרים',
+  'PLAY': 'שחק',
+  'BACK': 'חזרה',
+  'BACK TO MENU': 'לתפריט',
+  'MENU': 'תפריט',
+  'PAUSED': 'הפסקה',
+  'RESUME': 'המשך',
+  'MORE GAMES': 'עוד משחקים',
+  'HOW TO BUILD': 'איך בונים',
+  'Share': 'שיתוף',
+  'Share your Sukkah': 'שתפו את הסוכה שלכם',
+  'Cards': 'כרטיסי הלכה',
+  'Halacha Cards': 'כרטיסי הלכה',
+  'Locked': 'נעול',
+  'Unlocked!': 'נפתח!',
+  'Level': 'שלב',
+  'Next Level': 'השלב הבא',
+  'Level Complete': 'השלב הושלם',
+  'Try Again': 'ננסה שוב',
+  'Skip': 'דלג',
+  'Read the Card': 'קראו את הכרטיס',
+  'Continue': 'המשך',
+  'Cancel': 'ביטול',
+  'Close': 'סגירה',
+
+  'Walls': 'קירות',
+  'Schach': 'סכך',
+  'Decorations': 'קישוטים',
+  'Front Wall': 'קיר קדמי',
+  'Back Wall': 'קיר אחורי',
+  'Left Wall': 'קיר שמאלי',
+  'Right Wall': 'קיר ימני',
+  'FILL WALL': 'מלאו קיר',
+  'ERASE': 'מחיקה',
+  'Eraser': 'מחק',
+  'Tie Down': 'קשרו',
+  'Untie': 'שחררו',
+  'Tied': 'קשור',
+  'Untied': 'לא קשור',
+  'Alive': 'עומד',
+  'Fallen': 'שוכב',
+  'Footprint': 'שטח הסוכה',
+  'Width': 'רוחב',
+  'Depth': 'עומק',
+  'Roof Height': 'גובה הסכך',
+  'Rotate': 'סבבו',
+  'Zoom In': 'התקרבו',
+  'Zoom Out': 'התרחקו',
+  'Step Inside': 'היכנסו לסוכה',
+  'Step Outside': 'צאו מהסוכה',
+
+  'KOSHER': 'כָּשֵׁר',
+  'NOT KOSHER YET': 'עדיין לא כשר',
+  'PASUL': 'פָּסוּל',
+  'Shade': 'צל',
+  'Sun': 'שמש',
+  'Issues': 'הערות',
+  'Measurements': 'מידות',
+  'Diagnostic Overlay': 'שכבת בדיקה',
+  'Show Overlay': 'הצג שכבת בדיקה',
+  'Hide Overlay': 'הסתר שכבת בדיקה',
+  'Tefachim': 'טפחים',
+  'Amos': 'אמות',
+  'Shiur': 'שיעור',
+
+  'New material unlocked:': 'חומר חדש נפתח:',
+  'New site unlocked:': 'מקום חדש נפתח:',
+  'New decoration unlocked:': 'קישוט חדש נפתח:',
+  'Goal': 'המשימה',
+  'Hint': 'רמז'
+});
+</script>
+<script>
+/* ---------------------------------------------- 3. ISOMETRIC PROJECTION */
+/* World space: x = across the footprint (tefachim), z = into the footprint
+   (tefachim), y = up (tefachim). Camera orbits in 90-degree steps so every
+   side of the sukkah can be viewed square-on ("view from all 4 sides"),
+   plus a continuous drag-rotate and a step-inside mode that looks up at the
+   schach from the floor. No sun/moon/star draw calls anywhere in this file
+   or any other - see qa.js "no celestial imagery" scan. */
+SA.Camera = {
+  angle: 0,            // degrees, continuous
+  targetAngle: 0,
+  zoom: 1, minZoom: 0.45, maxZoom: 2.6,
+  pan: { x: 0, y: 0 },
+  tilt: 0.62,           // vertical foreshortening factor (0..1)
+  inside: false,
+  insideLookUp: 0,      // 0..1, how far the step-inside view tips upward
+  insideFocusY: 8,       // tefachim - set from the live roof height each frame (p16)
+  update: function (dt) {
+    var d = SA.Camera.targetAngle - SA.Camera.angle;
+    while (d > 180) d -= 360;
+    while (d < -180) d += 360;
+    SA.Camera.angle += d * Math.min(1, dt * 6);
+    var targetLook = SA.Camera.inside ? 1 : 0;
+    SA.Camera.insideLookUp += (targetLook - SA.Camera.insideLookUp) * Math.min(1, dt * 5);
+  },
+  rotateStep: function (dir) {
+    SA.Camera.targetAngle += dir * 90;
+  },
+  faceLabel: function () {
+    var a = ((Math.round(SA.Camera.targetAngle / 90) % 4) + 4) % 4;
+    return ['Front Wall', 'Right Wall', 'Back Wall', 'Left Wall'][a];
+  }
+};
+
+SA.Iso = {
+  tileW: 26,
+  tileH: 15,
+  originX: 0,
+  originY: 0,
+  setViewport: function (w, h) {
+    SA.Iso.originX = w / 2 + SA.Camera.pan.x;
+    SA.Iso.originY = h * 0.42 + SA.Camera.pan.y;
+  },
+  /* Rotate a plan point around the footprint center by the camera angle. */
+  rotate: function (x, z, cx, cz) {
+    var rad = SA.Camera.angle * Math.PI / 180;
+    var dx = x - cx, dz = z - cz;
+    var cos = Math.cos(rad), sin = Math.sin(rad);
+    return { x: cx + dx * cos - dz * sin, z: cz + dx * sin + dz * cos };
+  },
+  project: function (x, y, z, cx, cz) {
+    var r = SA.Iso.rotate(x, z, cx, cz);
+    var lookUp = SA.Camera.inside ? SA.Camera.insideLookUp : 0;
+    var tiltNow = SA.Camera.tilt * (1 - 0.35 * lookUp);
+    var scale = SA.Camera.zoom * (SA.Camera.inside ? (1.4 + lookUp * 0.6) : 1);
+    var sx = (r.x - r.z) * SA.Iso.tileW * scale;
+    /* Stepping inside re-centers the vertical frame on the ceiling instead
+       of the floor - without this, "look up" only zoomed in on the same
+       floor-centered crop and the schach stayed a sliver at the top edge. */
+    var yFocus = lookUp * SA.Camera.insideFocusY * 0.8;
+    var sy = (r.x + r.z) * SA.Iso.tileH * scale * tiltNow - (y - yFocus) * SA.Iso.tileH * 1.7 * scale;
+    return { sx: SA.Iso.originX + sx, sy: SA.Iso.originY + sy };
+  },
+  depthKey: function (x, y, z, cx, cz) {
+    var r = SA.Iso.rotate(x, z, cx, cz);
+    return (r.x + r.z) * 1000 - y;
+  }
+};
+
+/* ---------------------------------------------- 3a. DRAW PRIMITIVES */
+SA.Draw = {
+  poly: function (ctx, pts, fill, stroke, lineWidth) {
+    if (pts.length < 3) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].sx, pts[0].sy);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].sx, pts[i].sy);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lineWidth || 1; ctx.stroke(); }
+  },
+  text: function (ctx, str, x, y, o) {
+    o = o || {};
+    str = SA.Lang.t(str);
+    ctx.save();
+    ctx.direction = SA.Lang.hasHebrew(str) ? 'rtl' : 'ltr';
+    ctx.textAlign = o.align || 'center';
+    ctx.textBaseline = o.baseline || 'middle';
+    ctx.font = (o.weight || '600') + ' ' + (o.size || 16) + 'px "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif';
+    if (o.shadow) {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillText(str, x + 1, y + 1.5);
+    }
+    ctx.fillStyle = o.color || '#fff';
+    ctx.fillText(str, x, y);
+    ctx.restore();
+  },
+  roundRect: function (ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+};
+
+/* Long dock labels ("Step Inside", "Hide Overlay" / the even longer Hebrew
+   "הצג שכבת בדיקה") at narrow cell widths would otherwise overflow into the
+   neighboring button - shrink the font, and if a multi-word label still
+   does not fit even at the smallest readable size, wrap it onto two lines
+   instead of letting it visually merge with the next button. */
+SA.Draw.fitFontSize = function (ctx, str, maxW, size, minSize) {
+  var s = size;
+  ctx.font = '600 ' + s + 'px "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif';
+  while (s > minSize && ctx.measureText(str).width > maxW) {
+    s -= 1;
+    ctx.font = '600 ' + s + 'px "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif';
+  }
+  return s;
+};
+
+SA.Draw.splitTwoLines = function (str) {
+  var words = str.split(' ');
+  if (words.length < 2) return null;
+  var best = 1, bestDiff = Infinity;
+  for (var i = 1; i < words.length; i++) {
+    var diff = Math.abs(words.slice(0, i).join(' ').length - words.slice(i).join(' ').length);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+};
+
+SA.Draw.button = function (ctx, x, y, w, h, label, active) {
+  SA.Draw.roundRect(ctx, x, y, w, h, 10);
+  ctx.fillStyle = active === false ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.14)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  var str = SA.Lang.t(label);
+  var maxW = w - 10;
+  var size = SA.Draw.fitFontSize(ctx, str, maxW, 15, 11);
+  ctx.font = '600 ' + size + 'px "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif';
+  var lines = ctx.measureText(str).width > maxW ? SA.Draw.splitTwoLines(str) : null;
+  if (lines) {
+    var s2 = Math.min(SA.Draw.fitFontSize(ctx, lines[0], maxW, size, 8), SA.Draw.fitFontSize(ctx, lines[1], maxW, size, 8));
+    SA.Draw.text(ctx, lines[0], x + w / 2, y + h / 2 - s2 * 0.62, { size: s2, color: '#fff' });
+    SA.Draw.text(ctx, lines[1], x + w / 2, y + h / 2 + s2 * 0.62, { size: s2, color: '#fff' });
+  } else {
+    SA.Draw.text(ctx, label, x + w / 2, y + h / 2, { size: size, color: '#fff' });
+  }
+};
+</script>
+<script>
+/* ---------------------------------------------- 4. BACKGROUND ENGINE */
+/* Every background is a flat-color sky (no sun/moon/star disc, ever) plus a
+   handful of cached silhouette layers built once from a seeded PRNG so the
+   same site always looks the same and nothing recomputes a path per frame
+   (see siddur-performance's "cheap gate first / no per-frame recompute"
+   pattern, applied here to game art instead of liturgy). p05 lists the 24
+   sites; this file only holds the reusable shape generators. */
+SA.BG = { cache: {}, list: [] };
+
+function saMulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+SA.BG.jaggedRidge = function (rnd, baseFrac, ampFrac, points, roughness) {
+  var pts = [{ x: 0, y: baseFrac }];
+  var y = baseFrac;
+  for (var i = 1; i < points; i++) {
+    y += (rnd() - 0.5) * roughness;
+    y = Math.max(baseFrac - ampFrac, Math.min(baseFrac + ampFrac * 0.2, y));
+    pts.push({ x: i / (points - 1), y: y });
+  }
+  pts.push({ x: 1, y: baseFrac + ampFrac * 0.3 });
+  pts.push({ x: 1, y: 1 });
+  pts.push({ x: 0, y: 1 });
+  return pts;
+};
+
+SA.BG.drawRidge = function (ctx, view, pts, color) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x * view.w, pts[0].y * view.h);
+  for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * view.w, pts[i].y * view.h);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+};
+
+SA.BG.treeShape = function (kind, rnd) {
+  var s = 0.7 + rnd() * 0.6;
+  return { kind: kind, s: s };
+};
+
+SA.BG.drawTree = function (ctx, x, y, s, kind, color) {
+  ctx.fillStyle = color;
+  if (kind === 'pine') {
+    ctx.beginPath();
+    ctx.moveTo(x, y - 34 * s); ctx.lineTo(x - 13 * s, y); ctx.lineTo(x + 13 * s, y);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x, y - 22 * s); ctx.lineTo(x - 10 * s, y + 8 * s); ctx.lineTo(x + 10 * s, y + 8 * s);
+    ctx.closePath(); ctx.fill();
+  } else if (kind === 'palm') {
+    ctx.strokeStyle = color; ctx.lineWidth = 3 * s; ctx.beginPath();
+    ctx.moveTo(x, y); ctx.lineTo(x + 2 * s, y - 26 * s); ctx.stroke();
+    for (var i = 0; i < 5; i++) {
+      var a = (-1.3 + i * 0.65);
+      ctx.beginPath();
+      ctx.moveTo(x + 2 * s, y - 26 * s);
+      ctx.quadraticCurveTo(x + 2 * s + Math.cos(a) * 16 * s, y - 26 * s + Math.sin(a) * 8 * s - 6 * s,
+        x + 2 * s + Math.cos(a) * 22 * s, y - 26 * s + Math.sin(a) * 12 * s);
+      ctx.lineWidth = 2.4 * s; ctx.stroke();
+    }
+  } else if (kind === 'olive') {
+    ctx.beginPath(); ctx.ellipse(x, y - 14 * s, 15 * s, 11 * s, 0, 0, 7); ctx.fill();
+    ctx.fillRect(x - 1.5 * s, y - 4 * s, 3 * s, 6 * s);
+  } else if (kind === 'bamboo') {
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2 * s;
+    for (var b = -1; b <= 1; b++) {
+      ctx.beginPath(); ctx.moveTo(x + b * 5 * s, y); ctx.lineTo(x + b * 5 * s - 2 * s, y - 30 * s); ctx.stroke();
+    }
+  } else {
+    ctx.beginPath(); ctx.arc(x, y - 16 * s, 13 * s, 0, 7); ctx.fill();
+    ctx.fillRect(x - 1.5 * s, y - 4 * s, 3 * s, 5 * s);
+  }
+};
+
+SA.BG.buildingShape = function (ctx, x, baseY, w, h, color, style, rnd) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x, baseY - h, w, h);
+  if (style === 'stone') {
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    for (var r = 0; r < h / 10; r++) ctx.fillRect(x, baseY - h + r * 10, w, 1);
+  } else if (style === 'brownstone') {
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    for (var wi = 0; wi < w - 6; wi += 9) ctx.fillRect(x + wi + 2, baseY - h + 6, 4, h - 12);
+  }
+};
+
+/* ---------------------------------------------- 4a. LAYER FACTORIES */
+SA.BG.mkGround = function (color, topFrac) {
+  return function (ctx, view) {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, view.h * topFrac, view.w, view.h * (1 - topFrac));
+  };
+};
+
+SA.BG.mkRidge = function (seed, baseFrac, ampFrac, color, points, roughness) {
+  var rnd = saMulberry32(seed);
+  var pts = SA.BG.jaggedRidge(rnd, baseFrac, ampFrac, points || 9, roughness == null ? 0.05 : roughness);
+  return function (ctx, view) { SA.BG.drawRidge(ctx, view, pts, color); };
+};
+
+SA.BG.mkSnowCaps = function (seed, baseFrac, ampFrac, color) {
+  var rnd = saMulberry32(seed + 99);
+  var peaks = [];
+  for (var i = 0; i < 5; i++) peaks.push({ x: 0.06 + i * 0.22 + rnd() * 0.06, y: baseFrac - ampFrac * (0.55 + rnd() * 0.35) });
+  return function (ctx, view) {
+    ctx.fillStyle = color;
+    for (var p = 0; p < peaks.length; p++) {
+      var cx = peaks[p].x * view.w, cy = peaks[p].y * view.h;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx - 16, cy + 26);
+      ctx.lineTo(cx + 16, cy + 26);
+      ctx.closePath();
+      ctx.fill();
+    }
+  };
+};
+
+SA.BG.mkTreeLine = function (seed, baseFrac, count, kind, color) {
+  var rnd = saMulberry32(seed + 7);
+  var trees = [];
+  for (var i = 0; i < count; i++) {
+    trees.push({ x: (i + 0.5) / count + (rnd() - 0.5) * (0.9 / count), yj: (rnd() - 0.5) * 0.02, s: 0.7 + rnd() * 0.7 });
+  }
+  return function (ctx, view) {
+    for (var i = 0; i < trees.length; i++) {
+      var t = trees[i];
+      SA.BG.drawTree(ctx, t.x * view.w, (baseFrac + t.yj) * view.h, t.s * (view.w / 720), kind, color);
+    }
+  };
+};
+
+SA.BG.mkBuildingRow = function (seed, baseFrac, count, color, style) {
+  var rnd = saMulberry32(seed + 13);
+  var b = [];
+  var x = 0;
+  for (var i = 0; i < count; i++) {
+    var w = 0.06 + rnd() * 0.07;
+    b.push({ x: x, w: w, h: 0.05 + rnd() * 0.11 });
+    x += w * (0.7 + rnd() * 0.5);
+    if (x > 1) x -= 1;
+  }
+  return function (ctx, view) {
+    for (var i = 0; i < b.length; i++) {
+      SA.BG.buildingShape(ctx, b[i].x * view.w, baseFrac * view.h, b[i].w * view.w, b[i].h * view.h, color, style, rnd);
+    }
+  };
+};
+
+SA.BG.mkWater = function (color, topFrac) {
+  return function (ctx, view) {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, view.h * topFrac, view.w, view.h * (1 - topFrac));
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    for (var i = 0; i < 6; i++) {
+      var y = view.h * topFrac + (i + 0.5) * (view.h * (1 - topFrac)) / 6;
+      ctx.fillRect(0, y, view.w, 1.5);
+    }
+  };
+};
+
+SA.BG.mkPaving = function (color, topFrac, seamColor) {
+  return function (ctx, view) {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, view.h * topFrac, view.w, view.h * (1 - topFrac));
+    ctx.strokeStyle = seamColor || 'rgba(0,0,0,0.10)';
+    ctx.lineWidth = 1;
+    var step = 34;
+    for (var x = 0; x < view.w; x += step) {
+      ctx.beginPath(); ctx.moveTo(x, view.h * topFrac); ctx.lineTo(x, view.h); ctx.stroke();
+    }
+  };
+};
+
+SA.BG.mkFieldStripes = function (colorA, colorB, topFrac) {
+  return function (ctx, view) {
+    var rows = 7;
+    for (var i = 0; i < rows; i++) {
+      var y0 = view.h * topFrac + (i / rows) * view.h * (1 - topFrac);
+      var y1 = view.h * topFrac + ((i + 1) / rows) * view.h * (1 - topFrac);
+      ctx.fillStyle = i % 2 === 0 ? colorA : colorB;
+      ctx.fillRect(0, y0, view.w, y1 - y0 + 1);
+    }
+  };
+};
+
+SA.BG.mkOverhangSilhouette = function (color, kind) {
+  return function (ctx, view) {
+    ctx.fillStyle = color;
+    if (kind === 'canopy') {
+      ctx.beginPath();
+      ctx.ellipse(view.w * 0.5, view.h * 0.18, view.w * 0.42, view.h * 0.10, 0, 0, 7);
+      ctx.fill();
+    } else {
+      ctx.fillRect(0, 0, view.w, view.h * 0.14);
+      ctx.fillRect(0, view.h * 0.14, view.w, view.h * 0.02);
+    }
+  };
+};
+
+/* Build once, cache by background id; called again only if the id changes. */
+SA.BG.get = function (id) {
+  if (SA.BG.cache[id]) return SA.BG.cache[id];
+  var def = SA.BG.byId[id];
+  if (!def) return null;
+  var plan = def.build();
+  plan.def = def;
+  SA.BG.cache[id] = plan;
+  return plan;
+};
+
+SA.BG.render = function (ctx, view, id) {
+  var plan = SA.BG.get(id);
+  if (!plan) return;
+  var g = ctx.createLinearGradient(0, 0, 0, view.h);
+  g.addColorStop(0, plan.def.skyTop);
+  g.addColorStop(1, plan.def.skyBottom);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, view.w, view.h);
+  for (var i = 0; i < plan.layers.length; i++) {
+    var layer = plan.layers[i];
+    layer(ctx, view);
+  }
+};
+</script>
+<script>
+/* ---------------------------------------------- 5. BACKGROUND CATALOG (24) */
+/* hazard is fractional over the current footprint (0..1 in x and z) - see
+   HALACHA.md section 2.5. Only the orchard and the balcony carry a real
+   "nothing may be above the schach" hazard; every other site is clean sky. */
+SA.BG.byId = {
+
+  mountaintop: {
+    en: 'Mountaintop', he: 'ראש ההר', skyTop: '#7fa8c9', skyBottom: '#cfe3ea', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#8fa06b', 0.62),
+        SA.BG.mkRidge(1, 0.58, 0.16, '#5c7a95', 8, 0.05),
+        SA.BG.mkSnowCaps(1, 0.58, 0.16, '#eef4f7'),
+        SA.BG.mkRidge(2, 0.66, 0.06, '#71895e', 10, 0.03)
+      ] };
+    }
+  },
+
+  riverbank: {
+    en: 'Riverbank', he: 'גדת הנהר', skyTop: '#a9cfe0', skyBottom: '#e7f1e2', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#7fae63', 0.60),
+        SA.BG.mkWater('#5f9bc9', 0.74),
+        SA.BG.mkTreeLine(3, 0.60, 6, 'round', '#4f7a45')
+      ] };
+    }
+  },
+
+  lakeside: {
+    en: 'Lakeside', he: 'שפת האגם', skyTop: '#a8c9dd', skyBottom: '#dcecec', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkWater('#6fb0c9', 0.55),
+        SA.BG.mkGround('#8ea968', 0.90),
+        SA.BG.mkRidge(4, 0.50, 0.08, '#7593a1', 7, 0.03)
+      ] };
+    }
+  },
+
+  beach: {
+    en: 'Beach', he: 'חוף הים', skyTop: '#bfe1e8', skyBottom: '#f2ecd2', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkWater('#5aa9c2', 0.5),
+        SA.BG.mkGround('#e9dfae', 0.66)
+      ] };
+    }
+  },
+
+  pine_forest: {
+    en: 'Pine Forest', he: 'יער אורנים', skyTop: '#93b3c6', skyBottom: '#d7e3d2', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#5f7a52', 0.58),
+        SA.BG.mkTreeLine(5, 0.58, 9, 'pine', '#33502f'),
+        SA.BG.mkTreeLine(6, 0.66, 6, 'pine', '#274324')
+      ] };
+    }
+  },
+
+  negev_dunes: {
+    en: 'Negev Dunes', he: 'חולות הנגב', skyTop: '#e8d9ad', skyBottom: '#f3e6c4', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#dcc079', 0.64),
+        SA.BG.mkRidge(7, 0.64, 0.05, '#cdae66', 9, 0.02),
+        SA.BG.mkRidge(8, 0.72, 0.03, '#c19f56', 11, 0.015)
+      ] };
+    }
+  },
+
+  olive_grove: {
+    en: 'Olive Grove', he: 'מטע זיתים', skyTop: '#b6d0c3', skyBottom: '#e6e6c9', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#a6a668', 0.62),
+        SA.BG.mkTreeLine(9, 0.62, 7, 'olive', '#7a8a5c')
+      ] };
+    }
+  },
+
+  vineyard: {
+    en: 'Vineyard', he: 'כרם', skyTop: '#c7d3a8', skyBottom: '#eee7cf', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkFieldStripes('#8a9c5e', '#7b8f52', 0.58),
+        SA.BG.mkRidge(10, 0.55, 0.06, '#93a86b', 8, 0.02)
+      ] };
+    }
+  },
+
+  wheat_field: {
+    en: 'Wheat Field', he: 'שדה חיטה', skyTop: '#cfe0dc', skyBottom: '#f0e3ad', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#e3cf7c', 0.55),
+        SA.BG.mkFieldStripes('#e3cf7c', '#dcc76e', 0.55)
+      ] };
+    }
+  },
+
+  jerusalem_rooftops: {
+    en: 'Jerusalem Stone Rooftops', he: 'גגות אבן ירושלמית', skyTop: '#cfe0ea', skyBottom: '#f1e6cf', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#d9c9a3', 0.66),
+        SA.BG.mkBuildingRow(11, 0.66, 8, '#c7b58c', 'stone')
+      ] };
+    }
+  },
+
+  kosel_plaza: {
+    en: 'Kosel Plaza', he: 'רחבת הכותל', skyTop: '#d7e6ee', skyBottom: '#f0e6c8', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkPaving('#e6dcc0', 0.60, 'rgba(120,100,60,0.18)'),
+        SA.BG.mkGround('#d8c79e', 0.60),
+        function (ctx, view) {
+          ctx.fillStyle = '#c9b98d';
+          ctx.fillRect(0, view.h * 0.30, view.w, view.h * 0.30);
+          ctx.fillStyle = 'rgba(0,0,0,0.10)';
+          for (var r = 0; r < 6; r++) ctx.fillRect(0, view.h * 0.30 + r * (view.h * 0.05), view.w, 1);
+        }
+      ] };
+    }
+  },
+
+  balcony: {
+    en: 'City Balcony', he: 'מרפסת בעיר', skyTop: '#a9c6d8', skyBottom: '#dfe6df', hazard: { type: 'overhang', frac: { x0: 0, x1: 1, z0: 0, z1: 0.35 } },
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#8d9aa0', 0.72),
+        SA.BG.mkBuildingRow(12, 0.72, 5, '#9aa6ab', 'brownstone'),
+        SA.BG.mkOverhangSilhouette('#5a6266', 'overhang')
+      ] };
+    }
+  },
+
+  brownstone_yard: {
+    en: 'Brownstone Yard', he: 'חצר בית עיר', skyTop: '#b7c9d6', skyBottom: '#e0ddd1', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#8a8f78', 0.64),
+        SA.BG.mkBuildingRow(13, 0.64, 6, '#8a6f5c', 'brownstone')
+      ] };
+    }
+  },
+
+  driveway: {
+    en: 'Driveway', he: 'שביל הבית', skyTop: '#bcd0dc', skyBottom: '#e6e6de', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkPaving('#9aa0a0', 0.60, 'rgba(0,0,0,0.14)'),
+        SA.BG.mkGround('#7f9860', 0.60)
+      ] };
+    }
+  },
+
+  waterfall: {
+    en: 'Waterfall', he: 'מפל מים', skyTop: '#9cc3d1', skyBottom: '#dcece2', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#688a58', 0.62),
+        SA.BG.mkRidge(14, 0.55, 0.14, '#5a6f63', 7, 0.05),
+        function (ctx, view) {
+          ctx.fillStyle = 'rgba(230,244,246,0.85)';
+          ctx.fillRect(view.w * 0.44, view.h * 0.30, view.w * 0.06, view.h * 0.32);
+        },
+        SA.BG.mkWater('#5f9bc9', 0.80)
+      ] };
+    }
+  },
+
+  meadow: {
+    en: 'Meadow', he: 'אחו פרחים', skyTop: '#c8dbe6', skyBottom: '#eef0d0', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#a3c179', 0.60),
+        SA.BG.mkTreeLine(15, 0.60, 4, 'round', '#6c9a52')
+      ] };
+    }
+  },
+
+  orchard: {
+    en: 'Orchard', he: 'בוסתן', skyTop: '#c3d9c4', skyBottom: '#eef0d6', hazard: { type: 'canopy', frac: { x0: 0.25, x1: 0.75, z0: 0.25, z1: 0.75 } },
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#9db26c', 0.64),
+        SA.BG.mkTreeLine(16, 0.60, 5, 'round', '#587a3f'),
+        SA.BG.mkOverhangSilhouette('#4c6b38', 'canopy')
+      ] };
+    }
+  },
+
+  harbour: {
+    en: 'Harbour', he: 'נמל', skyTop: '#a6c7d9', skyBottom: '#dfe6e2', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkWater('#5288a6', 0.58),
+        SA.BG.mkGround('#98978a', 0.80),
+        SA.BG.mkBuildingRow(17, 0.58, 4, '#7d8a92', 'stone')
+      ] };
+    }
+  },
+
+  cliffside: {
+    en: 'Cliffside', he: 'צלע ההר', skyTop: '#9fc0d6', skyBottom: '#e3e6d6', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkRidge(18, 0.60, 0.20, '#8a7a63', 8, 0.07),
+        SA.BG.mkGround('#a89474', 0.78)
+      ] };
+    }
+  },
+
+  bamboo_grove: {
+    en: 'Bamboo Grove', he: 'חורש חצב', skyTop: '#cbe0d0', skyBottom: '#eef2df', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#7f9e6c', 0.60),
+        SA.BG.mkTreeLine(19, 0.58, 10, 'bamboo', '#4f7a4a')
+      ] };
+    }
+  },
+
+  courtyard: {
+    en: 'Stone Courtyard', he: 'חצר אבן', skyTop: '#cfe0ea', skyBottom: '#ece3cd', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkPaving('#d3c6a6', 0.58, 'rgba(90,75,45,0.18)'),
+        SA.BG.mkGround('#c9bb98', 0.58)
+      ] };
+    }
+  },
+
+  snowy_alpine: {
+    en: 'Snowy Alpine Field', he: 'שדה שלג באלפים', skyTop: '#c3d6e2', skyBottom: '#eef4f6', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#f1f5f6', 0.62),
+        SA.BG.mkRidge(20, 0.55, 0.14, '#98acb8', 8, 0.05),
+        SA.BG.mkSnowCaps(20, 0.55, 0.14, '#ffffff'),
+        SA.BG.mkTreeLine(21, 0.62, 6, 'pine', '#3a5a48')
+      ] };
+    }
+  },
+
+  rooftop_terrace: {
+    en: 'Rooftop Terrace', he: 'מרפסת גג', skyTop: '#a9c4d6', skyBottom: '#d9e2df', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkPaving('#a9a89c', 0.66, 'rgba(0,0,0,0.14)'),
+        SA.BG.mkBuildingRow(22, 0.30, 5, '#8b97a0', 'stone')
+      ] };
+    }
+  },
+
+  forest_clearing: {
+    en: 'Forest Clearing', he: 'קרחת יער', skyTop: '#b9cdd0', skyBottom: '#e3ecd0', hazard: null,
+    build: function () {
+      return { layers: [
+        SA.BG.mkGround('#82a05f', 0.60),
+        SA.BG.mkTreeLine(23, 0.55, 8, 'pine', '#3c5c38'),
+        SA.BG.mkTreeLine(24, 0.60, 5, 'round', '#557a3d')
+      ] };
+    }
+  }
+};
+
+SA.BG.list = Object.keys(SA.BG.byId);
+(function () {
+  var dict = {};
+  for (var i = 0; i < SA.BG.list.length; i++) {
+    var d = SA.BG.byId[SA.BG.list[i]];
+    dict[d.en] = d.he;
+  }
+  SA.Lang.add(dict);
+})();
+</script>
+<script>
+/* ---------------------------------------------- 6. WALL MATERIALS */
+/* Any material may be a sukkah wall (HALACHA.md 1.6) - there is no
+   gidulo/talush/tumah test for walls, unlike schach. So instead of hand
+   listing a few dozen walls, this builds a real family x form x finish
+   matrix (19 families x up to 5 forms x up to 5 finishes) with one
+   procedural texture routine per family "kind", which is how "hundreds of
+   materials" stays both genuine and maintainable. Every token is hand
+   translated once; SA.Lang.composeMaterialName() assembles the Hebrew name
+   (see p02) - not machine translation, just phrase assembly from parts. */
+SA.Mat = { WALL: [], byId: {} };
+
+SA.Mat.forms = {
+  plank: { id: 'plank', en: 'Plank', he: 'קרש', gender: 'm', w: 1, h: 10 },
+  board: { id: 'board', en: 'Board', he: 'לוח', gender: 'm', w: 2, h: 10 },
+  panel: { id: 'panel', en: 'Panel', he: 'פאנל', gender: 'm', w: 4, h: 10 },
+  sheet: { id: 'sheet', en: 'Sheet', he: 'יריעה', gender: 'f', w: 6, h: 10 },
+  post: { id: 'post', en: 'Post', he: 'עמוד', gender: 'm', w: 1, h: 12 },
+  slat: { id: 'slat', en: 'Slat', he: 'שריג', gender: 'm', w: 1, h: 8 }
+};
+
+SA.Mat.finishes = {
+  natural: { id: 'natural', en: 'Natural', he_m: 'טבעי', he_f: 'טבעית' },
+  weathered: { id: 'weathered', en: 'Weathered', he_m: 'מיושן', he_f: 'מיושנת' },
+  whitewashed: { id: 'whitewashed', en: 'Whitewashed', he_m: 'מולבן', he_f: 'מולבנת' },
+  painted_red: { id: 'painted_red', en: 'Painted Red', he_m: 'צבוע אדום', he_f: 'צבועה אדום' },
+  painted_blue: { id: 'painted_blue', en: 'Painted Blue', he_m: 'צבוע כחול', he_f: 'צבועה כחול' },
+  rusted: { id: 'rusted', en: 'Rusted', he_m: 'מחוספס בחלודה', he_f: 'מחוספסת בחלודה' },
+  painted_black: { id: 'painted_black', en: 'Painted Black', he_m: 'צבוע שחור', he_f: 'צבועה שחור' },
+  dyed_blue: { id: 'dyed_blue', en: 'Dyed Blue', he_m: 'צבוע כחול', he_f: 'צבועה כחול' },
+  dyed_green: { id: 'dyed_green', en: 'Dyed Green', he_m: 'צבוע ירוק', he_f: 'צבועה ירוק' },
+  striped: { id: 'striped', en: 'Striped', he_m: 'מפוספס', he_f: 'מפוספסת' },
+  painted_terracotta: { id: 'painted_terracotta', en: 'Terracotta', he_m: 'בצבע טרקוטה', he_f: 'בצבע טרקוטה' },
+  painted_white: { id: 'painted_white', en: 'Painted White', he_m: 'צבוע לבן', he_f: 'צבועה לבן' }
+};
+
+var WOOD_FORMS = ['plank', 'board', 'panel', 'post', 'slat'];
+var METAL_FORMS = ['sheet', 'panel', 'post'];
+var FABRIC_FORMS = ['sheet'];
+var MASONRY_FORMS = ['panel'];
+var FENCE_FORMS = ['panel', 'post', 'slat'];
+var WOOD_FINISH = ['natural', 'weathered', 'whitewashed', 'painted_red', 'painted_blue'];
+var METAL_FINISH = ['natural', 'rusted', 'painted_black'];
+var FABRIC_FINISH = ['natural', 'dyed_blue', 'dyed_green', 'striped'];
+var MASONRY_FINISH = ['natural', 'whitewashed', 'painted_terracotta'];
+var FENCE_FINISH = ['natural', 'painted_white'];
+
+SA.Mat.families = {
+  pine: { id: 'pine', en: 'Pine', he: 'אורן', gender: 'm', kind: 'wood', base: '#c9a468', forms: WOOD_FORMS, finishes: WOOD_FINISH },
+  cedar: { id: 'cedar', en: 'Cedar', he: 'ארז', gender: 'm', kind: 'wood', base: '#b57b52', forms: WOOD_FORMS, finishes: WOOD_FINISH },
+  oak: { id: 'oak', en: 'Oak', he: 'אלון', gender: 'm', kind: 'wood', base: '#9c7648', forms: WOOD_FORMS, finishes: WOOD_FINISH },
+  bamboo_wood: { id: 'bamboo_wood', en: 'Bamboo', he: 'במבוק', gender: 'm', kind: 'wood', base: '#cdb35c', forms: WOOD_FORMS, finishes: WOOD_FINISH },
+  plywood: { id: 'plywood', en: 'Plywood', he: 'לבידים', gender: 'm', kind: 'wood', base: '#d3b988', forms: WOOD_FORMS, finishes: WOOD_FINISH },
+  osb: { id: 'osb', en: 'OSB Board', he: 'עץ מצרים (OSB)', gender: 'm', kind: 'wood', base: '#c7a86a', forms: WOOD_FORMS, finishes: WOOD_FINISH },
+  lattice_wood: { id: 'lattice_wood', en: 'Wood Lattice', he: 'סבכת עץ', gender: 'f', kind: 'wood', base: '#b78f5e', forms: WOOD_FORMS, finishes: WOOD_FINISH },
+
+  corrugated_tin: { id: 'corrugated_tin', en: 'Corrugated Tin', he: 'פח מגולוון', gender: 'm', kind: 'metal', base: '#aab4bb', forms: METAL_FORMS, finishes: METAL_FINISH },
+  galvanized_sheet: { id: 'galvanized_sheet', en: 'Galvanized Sheet Metal', he: 'לוח מתכת מגולוון', gender: 'm', kind: 'metal', base: '#b7c0c6', forms: METAL_FORMS, finishes: METAL_FINISH },
+  wrought_iron: { id: 'wrought_iron', en: 'Wrought Iron', he: 'ברזל יצוק', gender: 'm', kind: 'metal', base: '#5b6066', forms: METAL_FORMS, finishes: METAL_FINISH },
+
+  canvas: { id: 'canvas', en: 'Canvas', he: 'בד קנבס', gender: 'm', kind: 'fabric', base: '#d8cfae', forms: FABRIC_FORMS, finishes: FABRIC_FINISH, swaysInWind: true },
+  tarpaulin: { id: 'tarpaulin', en: 'Tarpaulin', he: 'יריעת ברזנט', gender: 'f', kind: 'fabric', base: '#7a8f8a', forms: FABRIC_FORMS, finishes: FABRIC_FINISH, swaysInWind: true },
+  burlap: { id: 'burlap', en: 'Burlap', he: 'יוטה', gender: 'f', kind: 'fabric', base: '#b89a6b', forms: FABRIC_FORMS, finishes: FABRIC_FINISH, swaysInWind: true },
+
+  brick: { id: 'brick', en: 'Brick', he: 'לבנים', gender: 'm', kind: 'masonry', base: '#a85c43', forms: MASONRY_FORMS, finishes: MASONRY_FINISH },
+  cinderblock: { id: 'cinderblock', en: 'Cinderblock', he: 'בלוק בטון', gender: 'm', kind: 'masonry', base: '#9a9a92', forms: MASONRY_FORMS, finishes: MASONRY_FINISH },
+  glass: { id: 'glass', en: 'Glass', he: 'זכוכית', gender: 'f', kind: 'glass', base: '#bcd6de', forms: MASONRY_FORMS, finishes: ['natural'] },
+
+  chain_link: { id: 'chain_link', en: 'Chain-Link Fence', he: 'גדר רשת', gender: 'f', kind: 'fence', base: '#9aa3a3', forms: FENCE_FORMS, finishes: FENCE_FINISH },
+  picket_fence: { id: 'picket_fence', en: 'Picket Fence', he: 'גדר כלונסאות', gender: 'f', kind: 'fence', base: '#d8d2bf', forms: FENCE_FORMS, finishes: FENCE_FINISH },
+  snow_fence: { id: 'snow_fence', en: 'Snow Fence', he: 'גדר שלג', gender: 'f', kind: 'fence', base: '#c79a5a', forms: FENCE_FORMS, finishes: FENCE_FINISH }
+};
+
+(function buildWallCatalog() {
+  var dict = {};
+  var fam = SA.Mat.families, forms = SA.Mat.forms, fin = SA.Mat.finishes;
+  for (var fid in fam) {
+    var f = fam[fid];
+    dict[f.en] = f.he;
+    for (var fo = 0; fo < f.forms.length; fo++) {
+      var form = forms[f.forms[fo]];
+      dict[form.en] = form.he;
+      for (var fi = 0; fi < f.finishes.length; fi++) {
+        var finish = fin[f.finishes[fi]];
+        dict[finish.en] = finish.he_m;
+        var id = 'wall_' + fid + '_' + form.id + '_' + finish.id;
+        var entry = {
+          id: id, kind: 'wall', matKind: f.kind,
+          family: f, form: form, finish: finish,
+          en: finish.en + ' ' + f.en + ' ' + form.en,
+          widthTefachim: form.w, heightTefachim: form.h,
+          swaysInWind: !!f.swaysInWind,
+          canTieDown: !!f.swaysInWind
+        };
+        SA.Mat.WALL.push(entry);
+        SA.Mat.byId[id] = entry;
+      }
+    }
+  }
+  SA.Lang.add(dict);
+})();
+
+SA.Mat.wallName = function (entry) {
+  return SA.Lang.composeMaterialName(entry.family, entry.form, entry.finish);
+};
+
+/* ---------------------------------------------- 6a. WALL TEXTURES */
+/* Cheap per-panel decoration on top of a flat fill - a handful of strokes
+   per kind, no per-frame path caching needed at this scale (a sukkah has at
+   most a few dozen wall panels on screen). See siddur-performance's "cheap
+   gate first" applied to draw calls instead of string scans. */
+function saLerpPt(a, b, t) { return { sx: a.sx + (b.sx - a.sx) * t, sy: a.sy + (b.sy - a.sy) * t }; }
+
+SA.Draw.wallPanel = function (ctx, quad, entry, tintOverride) {
+  var tl = quad[0], tr = quad[1], br = quad[2], bl = quad[3];
+  var base = tintOverride || entry.family.base;
+  SA.Draw.poly(ctx, [tl, tr, br, bl], base, 'rgba(0,0,0,0.35)', 1);
+  var kind = entry.family.kind;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(tl.sx, tl.sy); ctx.lineTo(tr.sx, tr.sy); ctx.lineTo(br.sx, br.sy); ctx.lineTo(bl.sx, bl.sy);
+  ctx.closePath(); ctx.clip();
+
+  if (kind === 'wood') {
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1;
+    for (var i = 1; i < 4; i++) {
+      var t = i / 4;
+      var p0 = saLerpPt(tl, bl, t), p1 = saLerpPt(tr, br, t);
+      ctx.beginPath(); ctx.moveTo(p0.sx, p0.sy); ctx.lineTo(p1.sx, p1.sy); ctx.stroke();
+    }
+  } else if (kind === 'metal') {
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1;
+    for (var j = 1; j < 8; j++) {
+      var tj = j / 8;
+      var q0 = saLerpPt(tl, tr, tj), q1 = saLerpPt(bl, br, tj);
+      ctx.beginPath(); ctx.moveTo(q0.sx, q0.sy); ctx.lineTo(q1.sx, q1.sy); ctx.stroke();
+    }
+  } else if (kind === 'fabric') {
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+    for (var k = 1; k < 5; k++) {
+      var tk = k / 5;
+      var r0 = saLerpPt(tl, tr, tk), r1 = saLerpPt(bl, br, tk);
+      ctx.beginPath(); ctx.moveTo(r0.sx, r0.sy); ctx.lineTo(r1.sx, r1.sy); ctx.stroke();
+    }
+  } else if (kind === 'masonry') {
+    ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 1;
+    for (var m = 1; m < 5; m++) {
+      var tm = m / 5;
+      var s0 = saLerpPt(tl, bl, tm), s1 = saLerpPt(tr, br, tm);
+      ctx.beginPath(); ctx.moveTo(s0.sx, s0.sy); ctx.lineTo(s1.sx, s1.sy); ctx.stroke();
+    }
+  } else if (kind === 'glass') {
+    var g0 = saLerpPt(tl, br, 0.3), g1 = saLerpPt(tl, br, 0.7);
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(g0.sx, g0.sy); ctx.lineTo(g1.sx, g1.sy); ctx.stroke();
+  } else if (kind === 'fence') {
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1;
+    for (var n = 1; n < 6; n++) {
+      var tn = n / 6;
+      var u0 = saLerpPt(tl, tr, tn), u1 = saLerpPt(bl, br, tn);
+      ctx.beginPath(); ctx.moveTo(u0.sx, u0.sy); ctx.lineTo(u1.sx, u1.sy); ctx.stroke();
+    }
+  }
+  ctx.restore();
+};
+</script>
+<script>
+/* ---------------------------------------------- 7. LIVE-ANIMAL WALLS */
+/* Sukkah 23a: Rabbi Meir invalidates an animal wall (lest it die / lest it
+   flee), Rabbi Yehuda validates it; halacha follows the "lest it flee"
+   concern, so a live animal wall must be TIED (Shulchan Aruch OC 630:11,
+   Mishnah Berurah 630:53). The one exception the Gemara spells out: a TIED
+   elephant is kosher even fallen over dead, because its carcass is still
+   ten tefachim - so only the elephant's fallenHeight clears the 10-tefach
+   minimum on its own. See HALACHA.md 1.11. */
+SA.Mat.ANIMALS = [
+  { id: 'wall_animal_elephant', en: 'Elephant', he: 'פיל', widthTefachim: 4, standHeight: 30, fallenHeight: 11, tone: '#7c8288' },
+  { id: 'wall_animal_camel', en: 'Camel', he: 'גמל', widthTefachim: 3, standHeight: 22, fallenHeight: 7, tone: '#c8a06a' },
+  { id: 'wall_animal_cow', en: 'Cow', he: 'פרה', widthTefachim: 2, standHeight: 15, fallenHeight: 6, tone: '#a9836a' },
+  { id: 'wall_animal_ox', en: 'Ox', he: 'שור', widthTefachim: 2, standHeight: 16, fallenHeight: 6, tone: '#6e5a4c' },
+  { id: 'wall_animal_horse', en: 'Horse', he: 'סוס', widthTefachim: 2, standHeight: 17, fallenHeight: 6, tone: '#5c4636' }
+];
+SA.Mat.ANIMAL_BY_ID = {};
+(function () {
+  var dict = {};
+  for (var i = 0; i < SA.Mat.ANIMALS.length; i++) {
+    var a = SA.Mat.ANIMALS[i];
+    a.kind = 'wall'; a.matKind = 'animal'; a.form = { w: a.widthTefachim, h: a.standHeight };
+    a.widthTefachim = a.widthTefachim;
+    SA.Mat.ANIMAL_BY_ID[a.id] = a;
+    dict[a.en] = a.he;
+  }
+  SA.Lang.add(dict);
+})();
+
+SA.Draw.animalPanel = function (ctx, quad, entry, panelState) {
+  var tl = quad[0], tr = quad[1], br = quad[2], bl = quad[3];
+  var fallen = panelState && panelState.posture === 'fallen';
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(tl.sx, tl.sy); ctx.lineTo(tr.sx, tr.sy); ctx.lineTo(br.sx, br.sy); ctx.lineTo(bl.sx, bl.sy);
+  ctx.closePath(); ctx.clip();
+  ctx.fillStyle = 'rgba(150,170,150,0.18)';
+  ctx.fill();
+
+  var cx = (tl.sx + tr.sx + bl.sx + br.sx) / 4;
+  var cy = (tl.sy + tr.sy + bl.sy + br.sy) / 4;
+  var w = Math.hypot(tr.sx - tl.sx, tr.sy - tl.sy);
+  var h = Math.hypot(bl.sx - tl.sx, bl.sy - tl.sy);
+  ctx.translate(cx, cy);
+  if (fallen) ctx.rotate(Math.PI / 2 * 0.92);
+  var s = Math.min(w, h) / 46;
+  ctx.fillStyle = entry.tone;
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1.2;
+
+  ctx.beginPath();
+  ctx.ellipse(0, 4 * s, 19 * s, 13 * s, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(-16 * s, -6 * s, 9 * s, 9 * s, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  ctx.fillRect(-19 * s, 10 * s, 4 * s, 12 * s);
+  ctx.fillRect(-2 * s, 10 * s, 4 * s, 12 * s);
+  ctx.fillRect(13 * s, 10 * s, 4 * s, 12 * s);
+  ctx.fillRect(-32 * s, 10 * s, 4 * s, 12 * s);
+
+  if (entry.id.indexOf('elephant') >= 0) {
+    ctx.beginPath();
+    ctx.moveTo(-24 * s, -4 * s);
+    ctx.quadraticCurveTo(-30 * s, 6 * s, -22 * s, 12 * s);
+    ctx.lineWidth = 3 * s; ctx.strokeStyle = entry.tone; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(-13 * s, -12 * s, 6 * s, 8 * s, -0.3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
+  } else if (entry.id.indexOf('camel') >= 0) {
+    ctx.beginPath();
+    ctx.ellipse(0, -6 * s, 9 * s, 10 * s, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+  } else if (entry.id.indexOf('cow') >= 0 || entry.id.indexOf('ox') >= 0) {
+    ctx.strokeStyle = '#e8e2d0'; ctx.lineWidth = 2 * s;
+    ctx.beginPath(); ctx.moveTo(-20 * s, -12 * s); ctx.lineTo(-24 * s, -18 * s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-12 * s, -13 * s); ctx.lineTo(-9 * s, -19 * s); ctx.stroke();
+  } else if (entry.id.indexOf('horse') >= 0) {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(-16 * s, -10 * s, 3 * s, 9 * s, 0.4, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  if (panelState && panelState.tied) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(90,60,30,0.85)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(bl.sx, bl.sy); ctx.lineTo(br.sx, br.sy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+};
+</script>
+<script>
+/* ---------------------------------------------- 8. SCHACH CATALOG */
+/* Ten kosher options and ten teaching-pasul options (HALACHA.md section 2).
+   reasonCode is null when the only possible problem is board width
+   (gezeiras tikrah, checked live against widthTefachim by the engine in
+   p12); otherwise it names which of the three base conditions fails -
+   gidulo (didn't grow from the ground), talush (still attached), or tumah
+   (susceptible to ritual impurity / made for sitting on). */
+SA.Mat.SCHACH = [
+  { id: 'sch_palm_fronds', en: 'Palm Fronds', he: 'ענפי לולב', category: 'kosher', widthTefachim: 0, tex: 'frond', tone: '#7a9a4a' },
+  { id: 'sch_bamboo_poles', en: 'Bamboo Poles', he: 'מוטות במבוק', category: 'kosher', widthTefachim: 0, tex: 'pole', tone: '#c7b25b' },
+  { id: 'sch_bamboo_mat', en: 'Kosher Bamboo Mat', he: 'מחצלת במבוק כשרה', category: 'kosher', widthTefachim: 0, tex: 'mat', tone: '#c9b568' },
+  { id: 'sch_reed_mat', en: 'Reed Mat', he: 'מחצלת קנים', category: 'kosher', widthTefachim: 0, tex: 'mat', tone: '#b7a95e' },
+  { id: 'sch_evergreen', en: 'Evergreen Branches', he: 'ענפי אורן', category: 'kosher', widthTefachim: 0, tex: 'branch', tone: '#3f6b3c' },
+  { id: 'sch_willow', en: 'Willow Branches', he: 'ענפי ערבה', category: 'kosher', widthTefachim: 0, tex: 'branch', tone: '#7fa15c' },
+  { id: 'sch_corn_stalks', en: 'Corn Stalks', he: 'קלחי תירס', category: 'kosher', widthTefachim: 0, tex: 'stalk', tone: '#c2b563' },
+  { id: 'sch_bulrushes', en: 'Bulrushes', he: 'סוף וגומא', category: 'kosher', widthTefachim: 0, tex: 'stalk', tone: '#8a9a5a' },
+  { id: 'sch_narrow_slats', en: 'Narrow Wood Slats', he: 'שריגי עץ צרים', category: 'kosher', widthTefachim: 2, tex: 'wood', tone: '#b8935e' },
+  { id: 'sch_loose_straw', en: 'Loose Straw', he: 'קש רפוי', category: 'kosher', widthTefachim: 0, tex: 'stalk', tone: '#d6c179' },
+
+  { id: 'sch_wide_boards', en: 'Wide Wood Boards', he: 'לוחות עץ רחבים', category: 'teaching-pasul', reasonCode: null, widthTefachim: 5, tex: 'wood', tone: '#a9834f' },
+  { id: 'sch_old_ladder', en: 'An Old Ladder', he: 'סולם ישן', category: 'teaching-pasul', reasonCode: 'tumah', widthTefachim: 4, tex: 'ladder', tone: '#8a6a45' },
+  { id: 'sch_old_door', en: 'An Old Door', he: 'דלת ישנה', category: 'teaching-pasul', reasonCode: 'tumah', widthTefachim: 6, tex: 'door', tone: '#7a5a3c' },
+  { id: 'sch_sleeping_mat', en: 'A Sleeping Mat', he: 'מחצלת לשכיבה', category: 'teaching-pasul', reasonCode: 'tumah', widthTefachim: 0, tex: 'mat', tone: '#a99568' },
+  { id: 'sch_plastic_tarp', en: 'Plastic Tarp', he: 'יריעת פלסטיק', category: 'teaching-pasul', reasonCode: 'gidulo', widthTefachim: 0, tex: 'tarp', tone: '#7a8f96' },
+  { id: 'sch_sheet_metal', en: 'Sheet Metal', he: 'לוח מתכת', category: 'teaching-pasul', reasonCode: 'gidulo', widthTefachim: 5, tex: 'metal', tone: '#aab2b8' },
+  { id: 'sch_plastic_sheet', en: 'Plastic Sheeting', he: 'יריעת ניילון', category: 'teaching-pasul', reasonCode: 'gidulo', widthTefachim: 0, tex: 'plastic', tone: '#cfe0df' },
+  { id: 'sch_attached_branches', en: 'Branches Still on the Tree', he: 'ענפים המחוברים לעץ', category: 'teaching-pasul', reasonCode: 'talush', widthTefachim: 0, tex: 'branch', tone: '#4a6a3a' },
+  { id: 'sch_fruit', en: 'Fruit', he: 'פירות', category: 'teaching-pasul', reasonCode: 'tumah', widthTefachim: 0, tex: 'fruit', tone: '#a3402f' },
+  { id: 'sch_metal_poles', en: 'Bare Metal Poles', he: 'מוטות מתכת חשופים', category: 'teaching-pasul', reasonCode: 'gidulo', widthTefachim: 0, tex: 'pole_metal', tone: '#8b939a' }
+];
+SA.Mat.SCHACH_BY_ID = {};
+(function () {
+  var dict = {};
+  for (var i = 0; i < SA.Mat.SCHACH.length; i++) {
+    var s = SA.Mat.SCHACH[i];
+    SA.Mat.SCHACH_BY_ID[s.id] = s;
+    dict[s.en] = s.he;
+  }
+  SA.Lang.add(dict);
+})();
+
+SA.Draw.schachTile = function (ctx, quad, entry) {
+  var tl = quad[0], tr = quad[1], br = quad[2], bl = quad[3];
+  SA.Draw.poly(ctx, [tl, tr, br, bl], entry.tone, 'rgba(0,0,0,0.25)', 1);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(tl.sx, tl.sy); ctx.lineTo(tr.sx, tr.sy); ctx.lineTo(br.sx, br.sy); ctx.lineTo(bl.sx, bl.sy);
+  ctx.closePath(); ctx.clip();
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1;
+  var tex = entry.tex;
+  if (tex === 'pole' || tex === 'pole_metal' || tex === 'stalk' || tex === 'wood') {
+    for (var i = 1; i < 6; i++) {
+      var t = i / 6;
+      var p0 = saLerpPt(tl, tr, t), p1 = saLerpPt(bl, br, t);
+      ctx.beginPath(); ctx.moveTo(p0.sx, p0.sy); ctx.lineTo(p1.sx, p1.sy); ctx.stroke();
+    }
+  } else if (tex === 'mat') {
+    for (var a = 1; a < 5; a++) {
+      var ta = a / 5;
+      var q0 = saLerpPt(tl, tr, ta), q1 = saLerpPt(bl, br, ta);
+      ctx.beginPath(); ctx.moveTo(q0.sx, q0.sy); ctx.lineTo(q1.sx, q1.sy); ctx.stroke();
+    }
+    for (var b = 1; b < 5; b++) {
+      var tb = b / 5;
+      var r0 = saLerpPt(tl, bl, tb), r1 = saLerpPt(tr, br, tb);
+      ctx.beginPath(); ctx.moveTo(r0.sx, r0.sy); ctx.lineTo(r1.sx, r1.sy); ctx.stroke();
+    }
+  } else if (tex === 'frond') {
+    var cx = (tl.sx + br.sx) / 2, cy = (tl.sy + br.sy) / 2;
+    for (var f = -2; f <= 2; f++) {
+      var e0 = saLerpPt(tl, tr, 0.5 + f * 0.12);
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(e0.sx, e0.sy); ctx.stroke();
+    }
+  } else if (tex === 'branch') {
+    for (var g = 0; g < 5; g++) {
+      var gx0 = saLerpPt(tl, bl, g / 5), gx1 = saLerpPt(tr, br, (g + 0.6) / 5);
+      ctx.beginPath(); ctx.moveTo(gx0.sx, gx0.sy);
+      ctx.quadraticCurveTo((gx0.sx + gx1.sx) / 2, (gx0.sy + gx1.sy) / 2 - 3, gx1.sx, gx1.sy);
+      ctx.stroke();
+    }
+  } else if (tex === 'ladder') {
+    var l0 = saLerpPt(tl, bl, 0.15), l1 = saLerpPt(tr, br, 0.15);
+    var l2 = saLerpPt(tl, bl, 0.85), l3 = saLerpPt(tr, br, 0.85);
+    ctx.beginPath(); ctx.moveTo(l0.sx, l0.sy); ctx.lineTo(l1.sx, l1.sy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(l3.sx, l3.sy); ctx.stroke();
+    for (var r = 1; r < 5; r++) {
+      var rt = r / 5;
+      var rp0 = saLerpPt(tl, tr, rt), rp1 = saLerpPt(bl, br, rt);
+      ctx.beginPath(); ctx.moveTo(rp0.sx, rp0.sy); ctx.lineTo(rp1.sx, rp1.sy); ctx.stroke();
+    }
+  } else if (tex === 'door') {
+    ctx.strokeRect ? null : null;
+    var m0 = saLerpPt(tl, br, 0.3), m1 = saLerpPt(tr, bl, 0.3);
+    ctx.beginPath(); ctx.arc(m0.sx, m0.sy, 2, 0, 7); ctx.fillStyle = '#3a2f22'; ctx.fill();
+  } else if (tex === 'tarp' || tex === 'plastic' || tex === 'metal') {
+    var d0 = saLerpPt(tl, br, 0.25), d1 = saLerpPt(tl, br, 0.75);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(d0.sx, d0.sy); ctx.lineTo(d1.sx, d1.sy); ctx.stroke();
+  } else if (tex === 'fruit') {
+    for (var fx = 0.25; fx < 1; fx += 0.25) {
+      for (var fz = 0.3; fz < 1; fz += 0.4) {
+        var fp = saLerpPt(saLerpPt(tl, tr, fx), saLerpPt(bl, br, fx), fz);
+        ctx.beginPath(); ctx.arc(fp.sx, fp.sy, 2.4, 0, 7);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+};
+</script>
+<script>
+/* ---------------------------------------------- 9. DECORATIONS (~80) */
+/* Hard exclusion, enforced here and re-checked by qa.js: no star or sun
+   ornaments, ever - real sukkahs are full of foil stars, so this is the
+   single likeliest slip (see the plan and FRUM-GAME-RULES section 7).
+   hang=true items are checked against HALACHA.md 3.1 (4-tefach clearance,
+   4-tefach width) by the engine in p12; everything else just decorates. */
+SA.Mat.DECOR_CATEGORIES = [
+  { id: 'fruit', en: 'Fruit & Harvest', he: 'פירות ויבול' },
+  { id: 'chain', en: 'Chains & Garlands', he: 'שרשראות וקישוטי תלייה' },
+  { id: 'light', en: 'Lighting', he: 'תאורה' },
+  { id: 'sign', en: 'Signage & Judaica', he: 'שלטים ויודאיקה' },
+  { id: 'textile', en: 'Textiles', he: 'טקסטיל' },
+  { id: 'furniture', en: 'Furniture', he: 'רהיטים' },
+  { id: 'misc', en: 'Nature & Misc', he: 'טבע ושונות' }
+];
+
+function saDecor(id, en, he, cat, hang, w) {
+  return { id: 'dec_' + id, en: en, he: he, category: cat, hang: !!hang, widthTefachim: w || 1, celestial: false };
+}
+
+SA.Mat.DECOR = [
+  saDecor('pomegranates', 'Pomegranates', 'רימונים', 'fruit', true, 2),
+  saDecor('gourds', 'Gourds', 'דלועים', 'fruit', true, 2),
+  saDecor('grape_clusters', 'Grape Clusters', 'אשכולות ענבים', 'fruit', true, 2),
+  saDecor('etrog_bowl', 'Etrog Bowl', 'קערת אתרוגים', 'fruit', false, 1),
+  saDecor('apples', 'Apples', 'תפוחים', 'fruit', true, 1),
+  saDecor('dates', 'Dates', 'תמרים', 'fruit', true, 1),
+  saDecor('figs', 'Figs', 'תאנים', 'fruit', true, 1),
+  saDecor('corn_husks', 'Corn Husks', 'קלחי תירס מיובשים', 'fruit', true, 1),
+  saDecor('squash', 'Squash', 'קישואים', 'fruit', false, 1),
+  saDecor('pumpkins', 'Pumpkins', 'דלעות', 'fruit', false, 1),
+  saDecor('dried_apricots', 'Dried Apricots String', 'שרשרת משמשים מיובשים', 'fruit', true, 1),
+  saDecor('fruit_basket', 'Sukkot Fruit Basket', 'סל פירות לסוכות', 'fruit', false, 1),
+  saDecor('grapevine', 'Hanging Grapevine', 'גפן תלויה', 'fruit', true, 3),
+  saDecor('mini_pineapples', 'Miniature Pineapples', 'אננסים קטנים', 'fruit', true, 2),
+  saDecor('hanging_onions', 'Hanging Onions', 'בצלים תלויים', 'fruit', true, 1),
+  saDecor('dried_corn', 'Dried Corn', 'תירס מיובש', 'fruit', true, 1),
+
+  saDecor('chain_red', 'Paper Chain (Red)', 'שרשרת ניר (אדום)', 'chain', true, 1),
+  saDecor('chain_blue', 'Paper Chain (Blue)', 'שרשרת ניר (כחול)', 'chain', true, 1),
+  saDecor('chain_rainbow', 'Paper Chain (Rainbow)', 'שרשרת ניר (קשת)', 'chain', true, 1),
+  saDecor('foil_garland', 'Foil Garland', 'שרשרת נצנצים', 'chain', true, 1),
+  saDecor('popcorn_garland', 'Popcorn Garland', 'שרשרת פופקורן', 'chain', true, 1),
+  saDecor('cranberry_garland', 'Cranberry Garland', 'שרשרת חמוציות', 'chain', true, 1),
+  saDecor('leaf_garland', 'Leaf Garland', 'שרשרת עלים', 'chain', true, 1),
+  saDecor('ivy_garland', 'Ivy Garland', 'שרשרת קיסוס', 'chain', true, 1),
+  saDecor('ribbon_streamers', 'Ribbon Streamers', 'סרטי קישוט', 'chain', true, 1),
+  saDecor('tinsel_garland', 'Tinsel Garland', 'שרשרת נצנצים כסופה', 'chain', true, 1),
+  saDecor('autumn_leaf_string', 'Autumn Leaf String', 'שרשרת עלי סתיו', 'chain', true, 1),
+  saDecor('paper_flower_garland', 'Paper Flower Garland', 'שרשרת פרחי ניר', 'chain', true, 1),
+
+  saDecor('paper_lantern', 'Paper Lantern', 'פנס ניר', 'light', true, 1),
+  saDecor('string_lights', 'String Lights', 'נורות תלויות', 'light', true, 1),
+  saDecor('hanging_lantern', 'Hanging Lantern', 'פנס תלוי', 'light', true, 2),
+  saDecor('battery_candle', 'Battery Candle', 'נר סוללה', 'light', false, 1),
+  saDecor('glass_votive', 'Glass Votive', 'נר זכוכית', 'light', false, 1),
+  saDecor('hurricane_lamp', 'Hurricane Lamp', 'עששית', 'light', false, 1),
+  saDecor('fairy_lights', 'Fairy Light Strand', 'שרשרת אורות קטנים', 'light', true, 1),
+  saDecor('oil_lamp', 'Oil Lamp', 'מנורת שמן', 'light', false, 1),
+  saDecor('lantern_on_hook', 'Lantern on a Hook', 'פנס על קרס', 'light', true, 1),
+  saDecor('candle_sconce', 'Candle Sconce', 'פמוט קיר', 'light', false, 1),
+
+  saDecor('ushpizin_plaque', 'Ushpizin Plaque', 'לוח אושפיזין', 'sign', false, 1),
+  saDecor('leisheiv_banner', "Leisheiv BaSukkah Banner", 'שלט לֵישֵׁב בַּסֻּכָּה', 'sign', false, 3),
+  saDecor('welcome_sign', 'Sukkot Welcome Sign', 'שלט ברוכים הבאים לסוכות', 'sign', false, 2),
+  saDecor('family_name_sign', 'Family Name Sign', 'שלט שם המשפחה', 'sign', false, 1),
+  saDecor('hoshana_rabbah_poster', 'Hoshana Rabbah Poster', 'פוסטר הושענא רבה', 'sign', false, 1),
+  saDecor('blessing_scroll', 'Sukkot Blessing Scroll', 'מגילת ברכת סוכות', 'sign', false, 1),
+  saDecor('mizrach_plaque', 'Mizrach Plaque', 'לוח מזרח', 'sign', false, 1),
+  saDecor('shalom_sign', 'Shalom Sign', 'שלט שלום', 'sign', false, 1),
+  saDecor('chag_sameach_banner', 'Chag Sameach Banner', 'שלט חג שמח', 'sign', false, 3),
+  saDecor('tzedakah_box', 'Tzedakah Box', 'קופת צדקה', 'sign', false, 1),
+
+  saDecor('drapes', 'Drapes', 'וילונות', 'textile', true, 5),
+  saDecor('curtains', 'Curtains', 'פרוכות', 'textile', true, 4),
+  saDecor('tablecloth', 'Tablecloth', 'מפת שולחן', 'textile', false, 1),
+  saDecor('carpet_rug', 'Carpet Rug', 'שטיח', 'textile', false, 1),
+  saDecor('cushions', 'Cushions', 'כריות', 'textile', false, 1),
+  saDecor('throw_pillows', 'Throw Pillows', 'כריות נוי', 'textile', false, 1),
+  saDecor('wall_tapestry', 'Wall Tapestry', 'שטיח קיר', 'textile', false, 1),
+  saDecor('canopy_trim', 'Canopy Fabric Trim', 'שוליים לסכך', 'textile', true, 5),
+  saDecor('table_runner', 'Table Runner', 'ריצוף שולחן', 'textile', false, 1),
+  saDecor('floor_mat', 'Floor Mat', 'מחצלת רצפה', 'textile', false, 1),
+
+  saDecor('table', 'Table', 'שולחן', 'furniture', false, 1),
+  saDecor('folding_chairs', 'Folding Chairs', 'כיסאות מתקפלים', 'furniture', false, 1),
+  saDecor('bench', 'Bench', 'ספסל', 'furniture', false, 1),
+  saDecor('shtender', 'Shtender', 'שטענדער', 'furniture', false, 1),
+  saDecor('bed', 'Bed', 'מיטה', 'furniture', false, 1),
+  saDecor('bookshelf', 'Bookshelf', 'כוננית ספרים', 'furniture', false, 1),
+  saDecor('coat_hook', 'Coat Hook', 'קולב קיר', 'furniture', false, 1),
+  saDecor('side_table', 'Side Table', 'שולחן צד', 'furniture', false, 1),
+  saDecor('serving_cart', 'Serving Cart', 'עגלת הגשה', 'furniture', false, 1),
+  saDecor('storage_chest', 'Storage Chest', 'מזוודת אחסון', 'furniture', false, 1),
+  saDecor('folding_table', 'Folding Table', 'שולחן מתקפל', 'furniture', false, 1),
+  saDecor('small_rug', 'Small Rug', 'שטיח קטן', 'furniture', false, 1),
+
+  saDecor('potted_plant', 'Potted Plant', 'עציץ', 'misc', false, 1),
+  saDecor('hanging_ivy_pot', 'Hanging Ivy Pot', 'עציץ קיסוס תלוי', 'misc', true, 1),
+  saDecor('wind_chime', 'Wind Chime', 'פעמוני רוח', 'misc', true, 1),
+  saDecor('bird_feeder', 'Bird Feeder', 'מאבוס לציפורים', 'misc', true, 1),
+  saDecor('crate_stand', 'Wooden Crate Stand', 'מעמד תיבת עץ', 'misc', false, 1),
+  saDecor('trellis_piece', 'Lattice Trellis Piece', 'קטע סבכה', 'misc', false, 1),
+  saDecor('leaf_basket', 'Basket of Leaves', 'סל עלים', 'misc', false, 1),
+  saDecor('wheat_bundle', 'Dried Wheat Bundle', 'צרור חיטה מיובש', 'misc', true, 1),
+  saDecor('welcome_mat', 'Welcome Mat', 'שטיחון כניסה', 'misc', false, 1),
+  saDecor('gourd_bowl', 'Decorative Gourd Bowl', 'קערת דלועים דקורטיבית', 'misc', false, 1)
+];
+
+SA.Mat.DECOR_BY_ID = {};
+(function () {
+  var dict = {};
+  for (var i = 0; i < SA.Mat.DECOR_CATEGORIES.length; i++) {
+    var c = SA.Mat.DECOR_CATEGORIES[i];
+    dict[c.en] = c.he;
+  }
+  for (var j = 0; j < SA.Mat.DECOR.length; j++) {
+    var d = SA.Mat.DECOR[j];
+    if (d.celestial) throw new Error('celestial decoration blocked: ' + d.id);
+    SA.Mat.DECOR_BY_ID[d.id] = d;
+    dict[d.en] = d.he;
+  }
+  SA.Lang.add(dict);
+})();
+
+SA.Draw.decorIcon = function (ctx, x, y, s, entry) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+  if (entry.category === 'fruit') {
+    ctx.fillStyle = '#8a3b3b';
+    ctx.beginPath(); ctx.arc(0, 0, 7, 0, 7); ctx.fill(); ctx.stroke();
+  } else if (entry.category === 'chain') {
+    ctx.strokeStyle = '#c46a5a'; ctx.lineWidth = 2.4;
+    for (var i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(i * 6, 0, 4, 0, 7); ctx.stroke(); }
+  } else if (entry.category === 'light') {
+    ctx.fillStyle = '#e0c56a';
+    ctx.beginPath(); ctx.ellipse(0, 0, 5, 7, 0, 0, 7); ctx.fill(); ctx.stroke();
+  } else if (entry.category === 'sign') {
+    ctx.fillStyle = '#cbb98a';
+    ctx.fillRect(-9, -6, 18, 12); ctx.strokeRect(-9, -6, 18, 12);
+  } else if (entry.category === 'textile') {
+    ctx.fillStyle = '#7a6a9c';
+    ctx.fillRect(-8, -6, 16, 12); ctx.strokeRect(-8, -6, 16, 12);
+  } else if (entry.category === 'furniture') {
+    ctx.fillStyle = '#8a6b48';
+    ctx.fillRect(-8, -2, 16, 3);
+    ctx.fillRect(-7, 1, 2, 6); ctx.fillRect(5, 1, 2, 6);
+  } else {
+    ctx.fillStyle = '#5f7a4a';
+    ctx.beginPath(); ctx.ellipse(0, 0, 7, 6, 0, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+};
+</script>
+<script>
+/* ---------------------------------------------- 10. BUILD STATE */
+/* The data the halacha engine (p12) reads. Grid unit = 1 tefach everywhere.
+   Walls are column x row occupancy grids (plan section 3: "walls are width
+   x height cell arrays holding material ids"); schach is a flat x/z grid,
+   one material per cell, since a real sukkah roof is a single plane and the
+   player controls its height with one slider (roofHeight) rather than
+   sculpting height per cell. */
+SA.WALL_GRID_ROWS = SA.Rule.ROOF_MAX_SLIDER + 6;
+SA.WALL_SIDES = ['N', 'E', 'S', 'W'];
+
+var saUidSeq = 1;
+function saUid() { return 'u' + (saUidSeq++); }
+
+SA.State = {};
+
+SA.State.wallLength = function (state, side) {
+  return (side === 'N' || side === 'S') ? state.footprint.w : state.footprint.d;
+};
+
+SA.State.newWall = function () { return { panels: [], occ: {} }; };
+
+SA.State.rebuildOcc = function (wall) {
+  wall.occ = {};
+  for (var i = 0; i < wall.panels.length; i++) {
+    var p = wall.panels[i];
+    for (var c = p.col; c < p.col + p.w; c++) {
+      for (var r = p.row; r < p.row + p.h; r++) {
+        wall.occ[c + '_' + r] = p.uid;
+      }
+    }
+  }
+};
+
+SA.State.create = function (w, d, roofHeight, siteId) {
+  var st = {
+    footprint: { w: w || 10, d: d || 10 },
+    roofHeight: roofHeight || 11,
+    siteId: siteId || 'meadow',
+    support: 'wood_on_metal',
+    walls: { N: SA.State.newWall(), S: SA.State.newWall(), E: SA.State.newWall(), W: SA.State.newWall() },
+    schach: [],
+    decor: [],
+    buildOrderWarning: false,
+    overlayOn: true
+  };
+  SA.State.rebuildSchachGrid(st);
+  return st;
+};
+
+SA.State.rebuildSchachGrid = function (st) {
+  var grid = [];
+  for (var x = 0; x < st.footprint.w; x++) {
+    var col = [];
+    for (var z = 0; z < st.footprint.d; z++) col.push(null);
+    grid.push(col);
+  }
+  st.schach = grid;
+};
+
+SA.State.setFootprint = function (st, w, d) {
+  st.footprint.w = Math.max(SA.Rule.FLOOR_MIN, Math.min(SA.Rule.FLOOR_MAX, w));
+  st.footprint.d = Math.max(SA.Rule.FLOOR_MIN, Math.min(SA.Rule.FLOOR_MAX, d));
+  st.walls = { N: SA.State.newWall(), S: SA.State.newWall(), E: SA.State.newWall(), W: SA.State.newWall() };
+  SA.State.rebuildSchachGrid(st);
+  st.decor = [];
+  st.buildOrderWarning = false;
+};
+
+SA.State.setRoofHeight = function (st, h) {
+  st.roofHeight = Math.max(1, Math.min(SA.Rule.ROOF_MAX_SLIDER, Math.round(h)));
+};
+
+/* -------------------------------------------------------- wall panels */
+SA.State.totalWallPanelCount = function (st) {
+  var n = 0;
+  for (var i = 0; i < SA.WALL_SIDES.length; i++) n += st.walls[SA.WALL_SIDES[i]].panels.length;
+  return n;
+};
+
+SA.State.notePlacement = function (st, kind) {
+  if (kind === 'schach' && SA.State.totalWallPanelCount(st) === 0) {
+    st.buildOrderWarning = true; // HALACHA.md 2.4 - schach before any wall
+  }
+};
+
+SA.State.placeWallPanel = function (st, side, col, matEntry) {
+  var wall = st.walls[side];
+  var length = SA.State.wallLength(st, side);
+  var w = matEntry.widthTefachim || (matEntry.form ? matEntry.form.w : 1);
+  var h = matEntry.heightTefachim || matEntry.standHeight || (matEntry.form ? matEntry.form.h : 10);
+  col = Math.max(0, Math.min(length - 1, col));
+  var kept = [];
+  for (var i = 0; i < wall.panels.length; i++) {
+    var p = wall.panels[i];
+    var overlaps = !(p.col + p.w <= col || p.col >= col + w);
+    if (overlaps) continue;
+    kept.push(p);
+  }
+  wall.panels = kept;
+  var panel = {
+    uid: saUid(), matId: matEntry.id, col: col, row: 0, w: w, h: h,
+    tied: false, posture: 'standing'
+  };
+  wall.panels.push(panel);
+  SA.State.rebuildOcc(wall);
+  SA.State.notePlacement(st, 'wall');
+  return panel;
+};
+
+SA.State.fillWall = function (st, side, matEntry) {
+  var length = SA.State.wallLength(st, side);
+  var w = matEntry.widthTefachim || (matEntry.form ? matEntry.form.w : 1);
+  st.walls[side] = SA.State.newWall();
+  for (var col = 0; col < length; col += w) {
+    SA.State.placeWallPanel(st, side, col, matEntry);
+  }
+};
+
+SA.State.eraseWallAt = function (st, side, col) {
+  var wall = st.walls[side];
+  var kept = [];
+  for (var i = 0; i < wall.panels.length; i++) {
+    var p = wall.panels[i];
+    if (col >= p.col && col < p.col + p.w) continue;
+    kept.push(p);
+  }
+  wall.panels = kept;
+  SA.State.rebuildOcc(wall);
+};
+
+SA.State.clearWall = function (st, side) {
+  st.walls[side] = SA.State.newWall();
+};
+
+SA.State.findPanel = function (st, side, uid) {
+  var wall = st.walls[side];
+  for (var i = 0; i < wall.panels.length; i++) if (wall.panels[i].uid === uid) return wall.panels[i];
+  return null;
+};
+
+SA.State.setPanelTied = function (st, side, uid, tied) {
+  var p = SA.State.findPanel(st, side, uid);
+  if (p) p.tied = !!tied;
+};
+
+SA.State.setPanelPosture = function (st, side, uid, posture) {
+  var p = SA.State.findPanel(st, side, uid);
+  if (p) p.posture = posture;
+};
+
+/* -------------------------------------------------------- schach */
+SA.State.placeSchach = function (st, x, z, matEntry) {
+  if (x < 0 || z < 0 || x >= st.footprint.w || z >= st.footprint.d) return;
+  st.schach[x][z] = { matId: matEntry.id };
+  SA.State.notePlacement(st, 'schach');
+};
+
+SA.State.fillSchach = function (st, matEntry) {
+  for (var x = 0; x < st.footprint.w; x++) {
+    for (var z = 0; z < st.footprint.d; z++) st.schach[x][z] = { matId: matEntry.id };
+  }
+  SA.State.notePlacement(st, 'schach');
+};
+
+SA.State.eraseSchach = function (st, x, z) {
+  if (x < 0 || z < 0 || x >= st.footprint.w || z >= st.footprint.d) return;
+  st.schach[x][z] = null;
+};
+
+/* -------------------------------------------------------- decorations */
+SA.State.placeDecor = function (st, matEntry, x, z, opts) {
+  opts = opts || {};
+  var d = {
+    uid: saUid(), matId: matEntry.id, x: x, z: z,
+    hang: !!matEntry.hang, clearance: opts.clearance != null ? opts.clearance : 2,
+    wallSide: opts.wallSide || null
+  };
+  st.decor.push(d);
+  return d;
+};
+
+SA.State.removeDecor = function (st, uid) {
+  st.decor = st.decor.filter(function (d) { return d.uid !== uid; });
+};
+
+SA.State.setDecorClearance = function (st, uid, tefachim) {
+  for (var i = 0; i < st.decor.length; i++) {
+    if (st.decor[i].uid === uid) { st.decor[i].clearance = Math.max(0, tefachim); return; }
+  }
+};
+
+/* -------------------------------------------------------- material lookup */
+SA.State.materialById = function (id) {
+  if (SA.Mat.byId[id]) return SA.Mat.byId[id];
+  if (SA.Mat.ANIMAL_BY_ID[id]) return SA.Mat.ANIMAL_BY_ID[id];
+  if (SA.Mat.SCHACH_BY_ID[id]) return SA.Mat.SCHACH_BY_ID[id];
+  if (SA.Mat.DECOR_BY_ID[id]) return SA.Mat.DECOR_BY_ID[id];
+  return null;
+};
+</script>
+<script>
+/* ---------------------------------------------- 11. PICKING + PLACEMENT */
+/* The scene renderer (p16) rebuilds SA.Pick.list every frame as it draws,
+   recording each placeable cell's projected screen quad. Tap handling then
+   hit-tests that list back-to-front (topmost drawn = checked first) instead
+   of inverse-projecting isometric math, which keeps hit testing exact even
+   while the camera is mid-rotation. */
+SA.Pick = { list: [] };
+SA.Pick.reset = function () { SA.Pick.list = []; };
+SA.Pick.add = function (kind, payload, quad) { SA.Pick.list.push({ kind: kind, payload: payload, quad: quad }); };
+/* 2D HUD buttons reuse the same point-in-quad hit test as the 3D scene, so
+   there is exactly one hit-testing code path in the whole game. */
+SA.Pick.addRect = function (kind, payload, x, y, w, h) {
+  SA.Pick.add(kind, payload, [
+    { sx: x, sy: y }, { sx: x + w, sy: y }, { sx: x + w, sy: y + h }, { sx: x, sy: y + h }
+  ]);
+};
+
+SA.Pick.pointInQuad = function (px, py, quad) {
+  var inside = false;
+  for (var i = 0, j = quad.length - 1; i < quad.length; j = i++) {
+    var xi = quad[i].sx, yi = quad[i].sy, xj = quad[j].sx, yj = quad[j].sy;
+    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+};
+
+SA.Pick.hitTest = function (px, py) {
+  for (var i = SA.Pick.list.length - 1; i >= 0; i--) {
+    var e = SA.Pick.list[i];
+    if (SA.Pick.pointInQuad(px, py, e.quad)) return e;
+  }
+  return null;
+};
+
+/* ---------------------------------------------- 11a. TOOL STATE */
+SA.Tool = {
+  category: 'wall',        // 'wall' | 'schach' | 'decor' | 'footprint' | 'erase'
+  materialId: null,
+  wallSide: 'N'
+};
+
+SA.Tool.currentMaterial = function () {
+  if (!SA.Tool.materialId) return null;
+  return SA.State.materialById(SA.Tool.materialId);
+};
+
+/* ---------------------------------------------- 11b. ACTIONS */
+/* Thin wrappers so the input layer (p17) and UI buttons (p16) share one
+   place that also marks the profile dirty for autosave (p19). */
+SA.Act = {};
+
+SA.Act.placeWall = function (st, side, col) {
+  var mat = SA.Tool.currentMaterial();
+  if (!mat) return;
+  SA.State.placeWallPanel(st, side, col, mat);
+  SA.Progress.onAction('place_wall', mat.id);
+  SA.Save.markDirty();
+};
+
+SA.Act.fillWall = function (st, side) {
+  var mat = SA.Tool.currentMaterial();
+  if (!mat) return;
+  SA.State.fillWall(st, side, mat);
+  SA.Progress.onAction('fill_wall', mat.id);
+  SA.Save.markDirty();
+};
+
+SA.Act.eraseWall = function (st, side, col) {
+  SA.State.eraseWallAt(st, side, col);
+  SA.Save.markDirty();
+};
+
+SA.Act.tieToggle = function (st, side, uid) {
+  var p = SA.State.findPanel(st, side, uid);
+  if (!p) return;
+  SA.State.setPanelTied(st, side, uid, !p.tied);
+  SA.Save.markDirty();
+};
+
+SA.Act.postureToggle = function (st, side, uid) {
+  var p = SA.State.findPanel(st, side, uid);
+  if (!p) return;
+  SA.State.setPanelPosture(st, side, uid, p.posture === 'fallen' ? 'standing' : 'fallen');
+  SA.Save.markDirty();
+};
+
+SA.Act.placeSchach = function (st, x, z) {
+  var mat = SA.Tool.currentMaterial();
+  if (!mat) return;
+  SA.State.placeSchach(st, x, z, mat);
+  SA.Progress.onAction('place_schach', mat.id);
+  SA.Save.markDirty();
+};
+
+SA.Act.fillSchach = function (st) {
+  var mat = SA.Tool.currentMaterial();
+  if (!mat) return;
+  SA.State.fillSchach(st, mat);
+  SA.Progress.onAction('fill_schach', mat.id);
+  SA.Save.markDirty();
+};
+
+SA.Act.eraseSchach = function (st, x, z) { SA.State.eraseSchach(st, x, z); SA.Save.markDirty(); };
+
+SA.Act.placeDecor = function (st, x, z) {
+  var mat = SA.Tool.currentMaterial();
+  if (!mat) return;
+  SA.State.placeDecor(st, mat, x, z, { wallSide: SA.Tool.wallSide });
+  SA.Progress.onAction('place_decor', mat.id);
+  SA.Save.markDirty();
+};
+
+SA.Act.setFootprint = function (st, w, d) { SA.State.setFootprint(st, w, d); SA.Save.markDirty(); };
+SA.Act.setRoofHeight = function (st, h) { SA.State.setRoofHeight(st, h); SA.Save.markDirty(); };
+SA.Act.setSupport = function (st, kind) { st.support = kind; SA.Save.markDirty(); };
+</script>
+<script>
+/* ---------------------------------------------- 12. HALACHA ENGINE */
+/* SA.Halacha.evaluate(state) -> { kosher, status, issues[], shadeRatio,
+   measurements }. Every threshold cites HALACHA.md; the section number is
+   in each comment so a fix can go straight back to the source. Severities:
+   'pasul' (genuinely invalidating), 'incomplete' (still building, nothing
+   wrong yet), 'lchatchila' (best-practice, never fails the sukkah),
+   'tip' (pure teaching note). Three-state verdict only - no screen shake,
+   no red flash anywhere in this file or the renderer (plan section 4). */
+SA.Halacha = {};
+
+function saMergeLavud(intervals, gapMax) {
+  if (!intervals.length) return [];
+  intervals.sort(function (a, b) { return a[0] - b[0]; });
+  var out = [intervals[0].slice()];
+  for (var i = 1; i < intervals.length; i++) {
+    var last = out[out.length - 1];
+    var cur = intervals[i];
+    if (cur[0] - last[1] < gapMax) last[1] = Math.max(last[1], cur[1]);
+    else out.push(cur.slice());
+  }
+  return out;
+}
+
+function saPanelEffectiveHeight(panel, entry) {
+  if (!entry) return 0;
+  if (entry.matKind === 'animal') {
+    if (!panel.tied) return 0; // Sukkah 23a / OC 630:11 - untied, doesn't count
+    return panel.posture === 'fallen' ? entry.fallenHeight : entry.standHeight;
+  }
+  if (entry.swaysInWind && !panel.tied) return 0; // OC 630:10-11 - not secured against ordinary wind
+  return panel.h;
+}
+
+/* -------------------------------------------------------- 12a. WALLS */
+SA.Halacha.evaluateWalls = function (state, issues, measurements) {
+  var sideLongest = {}, sideRuns = {}, lavudBridges = [];
+  for (var s = 0; s < SA.WALL_SIDES.length; s++) {
+    var side = SA.WALL_SIDES[s];
+    var length = SA.State.wallLength(state, side);
+    var wall = state.walls[side];
+    var colIntervals = [];
+    for (var c = 0; c < length; c++) colIntervals.push([]);
+    for (var i = 0; i < wall.panels.length; i++) {
+      var p = wall.panels[i];
+      var entry = SA.State.materialById(p.matId);
+      var effH = saPanelEffectiveHeight(p, entry);
+      if (entry && entry.matKind === 'animal' && !p.tied) {
+        issues.push({ severity: 'tip', code: 'untie_needed_animal', anchor: { side: side, col: p.col },
+          en: 'Tie this animal to the wall - an unsecured live wall does not count (Sukkah 23a).', cardId: 'sk_elephant' });
+      } else if (entry && entry.swaysInWind && !p.tied) {
+        issues.push({ severity: 'tip', code: 'untie_needed_fabric', anchor: { side: side, col: p.col },
+          en: 'Tie or pole this fabric wall so ordinary wind cannot open a gap (OC 630:10-11).', cardId: 'sk_ruach' });
+      } else if (entry && entry.matKind === 'animal' && p.tied && p.posture === 'fallen' && entry.fallenHeight >= SA.Rule.WALL_MIN_HEIGHT) {
+        issues.push({ severity: 'tip', code: 'elephant_carcass_ok', anchor: { side: side, col: p.col },
+          en: 'Even fallen, a tied elephant is still ten tefachim tall - the wall still counts (Sukkah 23a).', cardId: 'sk_elephant' });
+      }
+      if (effH <= 0) continue;
+      for (var cc = Math.max(0, p.col); cc < Math.min(length, p.col + p.w); cc++) {
+        colIntervals[cc].push([p.row, p.row + effH]);
+      }
+    }
+    var colStanding = [];
+    for (var c2 = 0; c2 < length; c2++) {
+      var merged = saMergeLavud(colIntervals[c2], SA.Rule.LAVUD);
+      var top = 0;
+      for (var m = 0; m < merged.length; m++) {
+        if (merged[m][0] < SA.Rule.GROUND_GAP_MAX) top = Math.max(top, merged[m][1]);
+      }
+      colStanding.push(top >= SA.Rule.WALL_MIN_HEIGHT);
+    }
+    /* horizontal lavud: a gap under 3 tefachim between two standing columns
+       is itself treated as standing (HALACHA.md 1.8). */
+    var bridged = colStanding.slice();
+    var gapStart = -1;
+    for (var c3 = 0; c3 <= length; c3++) {
+      var standing = c3 < length && colStanding[c3];
+      if (!standing) { if (gapStart < 0) gapStart = c3; }
+      else {
+        if (gapStart >= 0) {
+          var gapLen = c3 - gapStart;
+          if (gapStart > 0 && gapLen < SA.Rule.LAVUD) {
+            for (var g = gapStart; g < c3; g++) bridged[g] = true;
+            lavudBridges.push({ side: side, colStart: gapStart, colEnd: c3 });
+          }
+          gapStart = -1;
+        }
+      }
+    }
+    var longest = 0, runStart = -1, runs = [];
+    var curLen = 0, curStart = 0;
+    for (var c4 = 0; c4 <= length; c4++) {
+      if (c4 < length && bridged[c4]) { if (curLen === 0) curStart = c4; curLen++; }
+      else { if (curLen > 0) runs.push({ start: curStart, len: curLen }); longest = Math.max(longest, curLen); curLen = 0; }
+    }
+    sideLongest[side] = longest;
+    sideRuns[side] = runs;
+  }
+  measurements.wallRunTefachim = sideLongest;
+  measurements.lavudBridges = lavudBridges;
+
+  var full = {};
+  for (var si = 0; si < SA.WALL_SIDES.length; si++) {
+    full[SA.WALL_SIDES[si]] = sideLongest[SA.WALL_SIDES[si]] >= SA.Rule.WALL_MIN_FULL_LEN;
+  }
+  var fullCount = SA.WALL_SIDES.filter(function (k) { return full[k]; }).length;
+  var corners = [['N', 'E'], ['N', 'W'], ['S', 'E'], ['S', 'W']];
+  var parallels = [['N', 'S'], ['E', 'W']];
+  var hasCornerPair = corners.some(function (pr) { return full[pr[0]] && full[pr[1]]; });
+  var hasParallelPair = !hasCornerPair && parallels.some(function (pr) { return full[pr[0]] && full[pr[1]]; });
+
+  var thirdWallOk = false;
+  if (hasCornerPair || hasParallelPair) {
+    var requiredLen = hasCornerPair ? SA.Rule.THIRD_WALL_PERP : SA.Rule.THIRD_WALL_PARALLEL;
+    for (var sj = 0; sj < SA.WALL_SIDES.length; sj++) {
+      var sideId = SA.WALL_SIDES[sj];
+      if (full[sideId]) continue;
+      var len = SA.State.wallLength(state, sideId);
+      var runsHere = sideRuns[sideId];
+      for (var rk = 0; rk < runsHere.length; rk++) {
+        var run = runsHere[rk];
+        if (run.len < requiredLen) continue;
+        var nearStart = run.start < SA.Rule.LAVUD;
+        var nearEnd = (run.start + run.len) > len - SA.Rule.LAVUD;
+        if (nearStart || nearEnd) thirdWallOk = true;
+      }
+    }
+  }
+  var wallsOk = fullCount >= 3 || hasCornerPair && thirdWallOk || hasParallelPair && thirdWallOk;
+  if (!wallsOk) {
+    issues.push({ severity: fullCount >= 2 ? 'incomplete' : 'incomplete', code: 'walls_incomplete',
+      en: 'Needs two full walls that meet (or are parallel) plus a short third wall near the corner.', cardId: 'sk_two_walls' });
+  }
+  measurements.fullWallCount = fullCount;
+  return { wallsOk: wallsOk };
+};
+
+/* -------------------------------------------------------- 12b. SCHACH */
+function saFloodComponents(w, d, cls) {
+  var visited = {};
+  var comps = [];
+  function key(x, z) { return x + '_' + z; }
+  for (var x = 0; x < w; x++) {
+    for (var z = 0; z < d; z++) {
+      var k = key(x, z);
+      if (visited[k]) continue;
+      var t = cls[x][z].type;
+      visited[k] = true;
+      if (t === 'kosher') continue;
+      var stack = [[x, z]], cells = [];
+      var minX = x, maxX = x, minZ = z, maxZ = z, touchesWall = false;
+      var reasons = {};
+      while (stack.length) {
+        var cur = stack.pop();
+        var cx = cur[0], cz = cur[1];
+        cells.push(cur);
+        if (cx === 0 || cx === w - 1 || cz === 0 || cz === d - 1) touchesWall = true;
+        minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+        minZ = Math.min(minZ, cz); maxZ = Math.max(maxZ, cz);
+        if (cls[cx][cz].reason) reasons[cls[cx][cz].reason] = true;
+        var nbrs = [[cx - 1, cz], [cx + 1, cz], [cx, cz - 1], [cx, cz + 1]];
+        for (var n = 0; n < nbrs.length; n++) {
+          var nx = nbrs[n][0], nz = nbrs[n][1];
+          if (nx < 0 || nz < 0 || nx >= w || nz >= d) continue;
+          var nk = key(nx, nz);
+          if (visited[nk]) continue;
+          if (cls[nx][nz].type !== t) continue;
+          visited[nk] = true;
+          stack.push([nx, nz]);
+        }
+      }
+      comps.push({
+        type: t, cells: cells, touchesWall: touchesWall,
+        bboxW: maxX - minX + 1, bboxD: maxZ - minZ + 1,
+        measure: Math.min(maxX - minX + 1, maxZ - minZ + 1),
+        reasons: Object.keys(reasons),
+        anchor: { x: cells[0][0] + 0.5, z: cells[0][1] + 0.5 }
+      });
+    }
+  }
+  return comps;
+}
+
+SA.Halacha.hazardCells = function (state) {
+  var bg = SA.BG.byId[state.siteId];
+  var set = {};
+  if (!bg || !bg.hazard) return set;
+  var f = bg.hazard.frac;
+  var w = state.footprint.w, d = state.footprint.d;
+  var x0 = Math.floor(f.x0 * w), x1 = Math.ceil(f.x1 * w);
+  var z0 = Math.floor(f.z0 * d), z1 = Math.ceil(f.z1 * d);
+  for (var x = x0; x < x1; x++) for (var z = z0; z < z1; z++) set[x + '_' + z] = true;
+  return set;
+};
+
+SA.Halacha.evaluateSchach = function (state, issues, measurements) {
+  var w = state.footprint.w, d = state.footprint.d;
+  var isSmall = (w === SA.Rule.FLOOR_MIN && d === SA.Rule.FLOOR_MIN);
+  var hazardSet = SA.Halacha.hazardCells(state);
+  var cls = [];
+  var kosherCount = 0;
+  for (var x = 0; x < w; x++) {
+    var col = [];
+    for (var z = 0; z < d; z++) {
+      if (hazardSet[x + '_' + z]) { col.push({ type: 'pasul', reason: 'overhead' }); continue; }
+      var cell = state.schach[x][z];
+      if (!cell) { col.push({ type: 'avir' }); continue; }
+      var entry = SA.Mat.SCHACH_BY_ID[cell.matId];
+      var widthFail = entry.widthTefachim >= SA.Rule.GEZEIRAS_TIKRAH_WIDTH;
+      var baseFail = entry.reasonCode != null;
+      if (widthFail || baseFail) col.push({ type: 'pasul', reason: baseFail ? entry.reasonCode : 'width', matId: entry.id });
+      else { col.push({ type: 'kosher' }); kosherCount++; }
+    }
+    cls.push(col);
+  }
+  var totalCells = w * d;
+  var shadeRatio = totalCells ? kosherCount / totalCells : 0;
+  measurements.shadeRatio = shadeRatio;
+  measurements.cellClass = cls; // per-cell kosher/avir/pasul, for the overlay's floor coverage map (never a drawn sun)
+  var shadeOk = shadeRatio > SA.Rule.SHADE_MIN;
+  if (!shadeOk) {
+    issues.push({ severity: kosherCount === 0 ? 'incomplete' : 'pasul', code: 'shade_not_majority',
+      en: 'The schach must shade more than half the floor (tzilata merubah, OC 631:1).', cardId: 'sk_shade' });
+  }
+
+  var heightOk = true;
+  if (state.roofHeight < SA.Rule.ROOF_MIN) {
+    heightOk = false;
+    issues.push({ severity: 'incomplete', code: 'roof_too_low',
+      en: 'The sukkah must be at least ten tefachim tall inside (OC 633:8).', cardId: 'sk_height' });
+  } else if (state.roofHeight > SA.Rule.ROOF_MAX_KOSHER) {
+    heightOk = false;
+    issues.push({ severity: 'pasul', code: 'roof_too_high',
+      en: 'Above twenty amos tall, a sukkah is pasul no matter how it is built (OC 633:1).', cardId: 'sk_height' });
+  }
+
+  var floorOk = w >= SA.Rule.FLOOR_MIN && d >= SA.Rule.FLOOR_MIN;
+  if (!floorOk) {
+    issues.push({ severity: 'pasul', code: 'floor_too_small',
+      en: 'The floor must be at least seven by seven tefachim (OC 634:1).', cardId: 'sk_floor' });
+  }
+
+  var comps = saFloodComponents(w, d, cls);
+  for (var i = 0; i < comps.length; i++) {
+    var comp = comps[i];
+    if (comp.type === 'avir') {
+      if (comp.measure >= SA.Rule.AVIR) {
+        issues.push({ severity: 'pasul', code: 'avir_too_wide', anchor: { x: comp.anchor.x, z: comp.anchor.z },
+          en: SA.Lang.fmt('Open sky {n} tefachim wide invalidates the sukkah here (OC 632:2).', { n: comp.measure }), cardId: 'sk_avir' });
+      } else if (comp.measure > 0) {
+        issues.push({ severity: 'tip', code: 'avir_ok_lavud', anchor: { x: comp.anchor.x, z: comp.anchor.z },
+          en: 'A gap under three tefachim is nullified into the schach around it (lavud).', cardId: 'sk_lavud' });
+      }
+      continue;
+    }
+    var threshold = isSmall ? SA.Rule.AVIR : (comp.touchesWall ? SA.Rule.DOFEN_AKUMAH_AMOS : SA.Rule.PASUL_MIDDLE);
+    var reasonCode = comp.reasons[0] || 'width';
+    var cardId = comp.reasons.indexOf('overhead') >= 0 ? 'sk_overhead'
+      : comp.touchesWall ? 'sk_dofen_akumah' : (reasonCode === 'width' ? 'sk_gezeiras_tikrah' : 'sk_schach_conditions');
+    if (comp.measure >= threshold) {
+      issues.push({ severity: 'pasul', code: comp.touchesWall ? 'dofen_akumah_exceeded' : 'pasul_schach_too_wide',
+        anchor: { x: comp.anchor.x, z: comp.anchor.z },
+        en: comp.touchesWall
+          ? SA.Lang.fmt('Invalid schach at the wall is {n} tefachim wide - past four amos, dofen akumah no longer saves it (OC 632:1).', { n: comp.measure })
+          : SA.Lang.fmt('Invalid schach in the middle is {n} tefachim wide, at least four (OC 632:1).', { n: comp.measure }),
+        cardId: cardId });
+    } else if (comp.touchesWall && comp.measure >= SA.Rule.DECOR_CLEARANCE) {
+      issues.push({ severity: 'tip', code: 'no_sit_dofen_akumah', anchor: { x: comp.anchor.x, z: comp.anchor.z },
+        en: 'The sukkah stays kosher, but do not sit directly under this bent-wall strip (dofen akumah, OC 632:1).', cardId: 'sk_dofen_akumah' });
+    }
+  }
+  return { shadeOk: shadeOk, heightOk: heightOk && floorOk, shadeRatio: shadeRatio };
+};
+
+/* -------------------------------------------------------- 12c. DECOR / MAAMID / BUILD ORDER */
+SA.Halacha.evaluateDecor = function (state, issues) {
+  for (var i = 0; i < state.decor.length; i++) {
+    var d = state.decor[i];
+    if (!d.hang) continue;
+    var entry = SA.Mat.DECOR_BY_ID[d.matId];
+    if (!entry) continue;
+    if (d.clearance > SA.Rule.DECOR_CLEARANCE) {
+      if (entry.widthTefachim >= SA.Rule.DECOR_WIDE) {
+        issues.push({ severity: 'pasul', code: 'decor_interposing_ceiling', anchor: { x: d.x, z: d.z },
+          en: 'This hangs more than four tefachim below the schach and is wide enough to be its own ceiling (OC 627:4).', cardId: 'sk_decor' });
+      } else {
+        issues.push({ severity: 'tip', code: 'decor_below_custom', anchor: { x: d.x, z: d.z },
+          en: 'Custom is to keep decorations within four tefachim of the schach, even narrow ones (Rema, MB 627:15).', cardId: 'sk_decor' });
+      }
+    }
+  }
+};
+
+SA.Halacha.evaluateMaamid = function (state, issues) {
+  if (state.support === 'bare_metal') {
+    issues.push({ severity: 'lchatchila', code: 'maamid_lchatchila',
+      en: 'Resting schach directly on bare metal is an l\'chatchila concern only - bediavad it is fine (MB 629:22).', cardId: 'sk_maamid' });
+  }
+};
+
+SA.Halacha.evaluateBuildOrder = function (state, issues) {
+  if (state.buildOrderWarning) {
+    issues.push({ severity: 'tip', code: 'build_order_schach_first',
+      en: 'L\'chatchila, put up the walls before the schach (ta\'aseh v\'lo min he\'asuy, OC 626:2).', cardId: 'sk_build_order' });
+  }
+};
+
+/* -------------------------------------------------------- 12d. TOP LEVEL */
+SA.Halacha.evaluate = function (state) {
+  var issues = [];
+  var measurements = {};
+  var wallsRes = SA.Halacha.evaluateWalls(state, issues, measurements);
+  var schachRes = SA.Halacha.evaluateSchach(state, issues, measurements);
+  SA.Halacha.evaluateDecor(state, issues);
+  SA.Halacha.evaluateMaamid(state, issues);
+  SA.Halacha.evaluateBuildOrder(state, issues);
+
+  var hasPasul = issues.some(function (it) { return it.severity === 'pasul'; });
+  var kosher = !hasPasul && wallsRes.wallsOk && schachRes.heightOk && schachRes.shadeOk;
+  var status = kosher ? 'kosher' : (hasPasul ? 'pasul' : 'incomplete');
+  return { kosher: kosher, status: status, issues: issues, shadeRatio: schachRes.shadeRatio, measurements: measurements };
+};
+
+SA.Lang.add({
+  'Tie this animal to the wall - an unsecured live wall does not count (Sukkah 23a).': 'קשרו את החיה לקיר - חיה שלא קשורה אינה נחשבת קיר (סוכה כג.).',
+  'Tie or pole this fabric wall so ordinary wind cannot open a gap (OC 630:10-11).': 'קשרו או תחבו מוט בקיר הבד, כדי שרוח רגילה לא תפתח בו רווח (או"ח תרל,י-יא).',
+  'Even fallen, a tied elephant is still ten tefachim tall - the wall still counts (Sukkah 23a).': 'גם אם נפל, הפיל הקשור עדיין גבוה עשרה טפחים - הקיר עדיין תקף (סוכה כג.).',
+  'Needs two full walls that meet (or are parallel) plus a short third wall near the corner.': 'צריך שני קירות מלאים הנפגשים בזווית (או מקבילים), ועוד קיר שלישי קצר קרוב לפינה.',
+  'The schach must shade more than half the floor (tzilata merubah, OC 631:1).': 'הסכך צריך להצל על יותר מחצי מהרצפה (צילתה מרובה מחמתה, או"ח תרלא,א).',
+  'The sukkah must be at least ten tefachim tall inside (OC 633:8).': 'הסוכה צריכה להיות לפחות עשרה טפחים גובה בפנים (או"ח תרלג,ח).',
+  'Above twenty amos tall, a sukkah is pasul no matter how it is built (OC 633:1).': 'מעל עשרים אמה גובה, הסוכה פסולה בכל מקרה (או"ח תרלג,א).',
+  'The floor must be at least seven by seven tefachim (OC 634:1).': 'הרצפה צריכה להיות לפחות שבעה על שבעה טפחים (או"ח תרלד,א).',
+  'A gap under three tefachim is nullified into the schach around it (lavud).': 'רווח של פחות משלושה טפחים בטל לתוך הסכך שמסביבו (לבוד).',
+  'Open sky {n} tefachim wide invalidates the sukkah here (OC 632:2).': 'רווח שמיים פתוח ברוחב {n} טפחים פוסל את הסוכה כאן (או"ח תרלב,ב).',
+  'Invalid schach at the wall is {n} tefachim wide - past four amos, dofen akumah no longer saves it (OC 632:1).': 'סכך פסול ליד הקיר ברוחב {n} טפחים - מעבר לארבע אמות, דופן עקומה לא מצילה יותר (או"ח תרלב,א).',
+  'Invalid schach in the middle is {n} tefachim wide, at least four (OC 632:1).': 'סכך פסול באמצע ברוחב {n} טפחים, לפחות ארבעה (או"ח תרלב,א).',
+  'Custom is to keep decorations within four tefachim of the schach, even narrow ones (Rema, MB 627:15).': 'המנהג הוא להשאיר קישוטים בתוך ארבעה טפחים מהסכך, אפילו צרים (רמ"א, מ"ב תרכז,טו).',
+  'This hangs more than four tefachim below the schach and is wide enough to be its own ceiling (OC 627:4).': 'זה תלוי יותר מארבעה טפחים מתחת לסכך, ורחב מספיק כדי להיחשב תקרה בפני עצמה (או"ח תרכז,ד).',
+  'Resting schach directly on bare metal is an l\'chatchila concern only - bediavad it is fine (MB 629:22).': 'להניח סכך ישירות על מתכת חשופה הוא חשש לכתחילה בלבד - בדיעבד זה כשר (מ"ב תרכט,כב).',
+  'L\'chatchila, put up the walls before the schach (ta\'aseh v\'lo min he\'asuy, OC 626:2).': 'לכתחילה, יש להקים את הקירות לפני הסכך (תעשה ולא מן העשוי, או"ח תרכו,ב).',
+  'The sukkah stays kosher, but do not sit directly under this bent-wall strip (dofen akumah, OC 632:1).': 'הסוכה כשרה, אך אין לשבת ישירות תחת רצועה זו של "דופן עקומה" (או"ח תרלב,א).'
+});
+</script>
+<script>
+/* ---------------------------------------------- 13. DIAGNOSTIC OVERLAY */
+/* Called by the scene renderer (p16) after it draws the real materials, so
+   the overlay is a translucent wash + markers on top - never a substitute
+   for the art, and never a drawn sun/light source (shade is read straight
+   off schach coverage, HALACHA.md 2.7). Tap targets go through the same
+   SA.Pick list as placement so one hit-test code path covers both. */
+SA.Overlay = {};
+
+SA.Overlay.roofCellTint = function (ctx, quad, cls) {
+  var color = cls.type === 'kosher' ? 'rgba(70,200,110,0.35)'
+    : cls.type === 'avir' ? 'rgba(120,170,220,0.28)'
+    : 'rgba(220,90,70,0.38)';
+  SA.Draw.poly(ctx, quad, color, null);
+};
+
+SA.Overlay.lavudBeam = function (ctx, a, b) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(70,220,230,0.9)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+};
+
+SA.Overlay.issueMarker = function (ctx, sx, sy, severity) {
+  var color = severity === 'pasul' ? '#e05b46' : severity === 'incomplete' ? '#e0b23c' : '#4fb7c9';
+  ctx.save();
+  ctx.beginPath(); ctx.arc(sx, sy, 8, 0, 7);
+  ctx.fillStyle = color; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+  SA.Draw.text(ctx, '!', sx, sy + 0.5, { size: 12, color: '#1b1b1b', weight: '800' });
+  ctx.restore();
+};
+
+SA.Overlay.tooltip = function (ctx, sx, sy, lines) {
+  ctx.save();
+  var pad = 8, lh = 17;
+  var widest = 0;
+  ctx.font = '600 13px "Segoe UI", Arial, sans-serif';
+  for (var i = 0; i < lines.length; i++) widest = Math.max(widest, ctx.measureText(lines[i]).width);
+  var w = widest + pad * 2, h = lines.length * lh + pad * 1.4;
+  var x = sx - w / 2, y = sy - h - 14;
+  SA.Draw.roundRect(ctx, x, y, w, h, 8);
+  ctx.fillStyle = 'rgba(18,20,26,0.92)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(sx - 6, y + h); ctx.lineTo(sx + 6, y + h); ctx.lineTo(sx, y + h + 8); ctx.closePath();
+  ctx.fillStyle = 'rgba(18,20,26,0.92)'; ctx.fill();
+  for (var l = 0; l < lines.length; l++) {
+    SA.Draw.text(ctx, lines[l], sx, y + pad * 0.9 + l * lh + lh / 2, { size: 13, color: '#fff', align: 'center' });
+  }
+  ctx.restore();
+};
+
+SA.Overlay.dofenAkumahBandColor = 'rgba(230,150,60,0.10)';
+SA.Overlay.twentyAmosColor = 'rgba(230,80,60,0.55)';
+</script>
+<script>
+/* ---------------------------------------------- 14. HALACHA CARDS */
+/* Same schema as the Dash's Halacha.cards: id/game/icon/title/hebrew/body/
+   terms/source/note. One card per rule in HALACHA.md; every Hebrew word on
+   a card gets its own glossary line in terms. English/Hebrew UI text is
+   registered in Lang.he right below the catalog, same pattern as p05-p09. */
+SA.Cards = [
+  { id: 'sk_two_walls', game: 'sukkah', icon: 'wall', title: 'Two Walls and a Tefach',
+    hebrew: 'שְׁתֵּי דְפָנוֹת כְּהִלְכָתָן וּשְׁלִישִׁית אֲפִלּוּ טֶפַח',
+    body: 'A kosher sukkah needs two full walls that meet at a corner, plus a third wall of just over a tefach within three tefachim of one of them. If the two full walls are parallel instead, the third wall must be just over four tefachim.',
+    terms: [['Tefach', 'a handbreadth, about 8 cm'], ['Dofen', 'a wall']],
+    source: 'Sukkah 6b; Shulchan Aruch OC 630:2-3' },
+
+  { id: 'sk_height', game: 'sukkah', icon: 'ruler', title: 'Ten Tefachim to Twenty Amos',
+    hebrew: 'סֻכָּה שְׁאֵינָהּ גְּבוֹהָה עֲשָׂרָה טְפָחִים פְּסוּלָה',
+    body: 'The inside of the sukkah, floor to schach, must be at least ten tefachim tall. It may not be taller than twenty amos - above that height it reads as a permanent house, not a temporary sukkah.',
+    terms: [['Amah', 'a cubit, six tefachim, about 48-58 cm depending on the shiur']],
+    source: 'Sukkah 2a; Shulchan Aruch OC 633:1,8' },
+
+  { id: 'sk_floor', game: 'sukkah', icon: 'grid', title: 'Seven by Seven',
+    hebrew: 'סֻכָּה שֶׁאֵין בָּהּ שִׁבְעָה עַל שִׁבְעָה טְפָחִים פְּסוּלָה',
+    body: 'The floor must measure at least seven tefachim in both directions - enough room for a person and a small table. There is no maximum length or width, only a maximum height.',
+    terms: [['Tefach', 'a handbreadth, about 8 cm']],
+    source: 'Shulchan Aruch OC 634:1' },
+
+  { id: 'sk_ruach', game: 'sukkah', icon: 'wind', title: 'Standing Up to a Normal Wind',
+    hebrew: 'רוּחַ מְצוּיָה',
+    body: 'Any material may be a sukkah wall - wood, metal, canvas, even a house wall - as long as it holds up to an ordinary wind. A loose sheet is not relied on; tie it down or weave a pole through it every three tefachim.',
+    terms: [['Ruach Metzuya', 'an ordinary, expected wind']],
+    source: 'Sukkah 24b; Shulchan Aruch OC 630:10-11' },
+
+  { id: 'sk_gud_asik', game: 'sukkah', icon: 'arrow-up', title: 'The Wall That Keeps Going Up',
+    hebrew: 'גּוּד אַסִּיק מְחִצְּתָא',
+    body: 'Once a wall reaches ten tefachim, halacha treats it as continuing straight up forever - it does not need to physically touch the schach.',
+    terms: [['Gud Asik', 'literally "pull it up" - extend the wall upward']],
+    source: 'Sukkah 4b, 6b; Shulchan Aruch OC 630:9' },
+
+  { id: 'sk_lavud', game: 'sukkah', icon: 'link', title: 'Lavud: The Gap That Counts as Solid',
+    hebrew: 'לָבוּד',
+    body: 'Any gap under three tefachim - between fence posts, between a wall and the ground, or between a wall\'s top and the schach - is treated as fully solid.',
+    terms: [['Lavud', 'literally "attached" - a small enough gap is nullified']],
+    source: 'Shulchan Aruch OC 630:1,10' },
+
+  { id: 'sk_dofen_akumah', game: 'sukkah', icon: 'corner', title: 'The Bent Wall',
+    hebrew: 'דּוֹפֶן עֲקוּמָה',
+    body: 'Invalid schach touching a wall, less than four amos wide, is treated as if the wall bends and continues under it - the sukkah stays kosher, though you may not sit under that strip.',
+    terms: [['Dofen Akumah', 'literally "a bent wall"']],
+    source: 'Rambam Hilchos Sukkah 4:14; Shulchan Aruch OC 632:1' },
+
+  { id: 'sk_avir', game: 'sukkah', icon: 'sky', title: 'Open Air vs. Invalid Schach',
+    hebrew: 'אֲוִיר שְׁלֹשָׁה, סְכָךְ פָּסוּל אַרְבָּעָה',
+    body: 'A gap of open sky three tefachim wide invalidates a sukkah anywhere - middle or side. A patch of invalid material (like a wide board) needs to reach four tefachim in the middle, or four amos at a wall, to do the same.',
+    terms: [['Avir', 'open air']],
+    source: 'Shulchan Aruch OC 632:1-2' },
+
+  { id: 'sk_parutz_merubeh', game: 'sukkah', icon: 'window', title: 'More Open Than Standing',
+    hebrew: 'פָּרוּץ מְרוּבֶּה עַל הָעוֹמֵד',
+    body: 'A sukkah wall riddled with doorways and windows is kosher even if the open area is bigger than the standing area, as long as no single opening is wider than ten amos.',
+    terms: [['Parutz', 'open/breached'], ['Omed', 'standing']],
+    source: 'Rambam Hilchos Sukkah 4:12; Shulchan Aruch OC 630:5' },
+
+  { id: 'sk_elephant', game: 'sukkah', icon: 'elephant', title: 'The Elephant in the Sukkah',
+    hebrew: 'פִּיל קָשׁוּר',
+    body: 'The Mishnah asks whether a live animal may serve as a wall. Halacha follows the concern that it might wander off, so a live animal wall must be tied down. But a tied elephant is kosher even fallen over - its body is still ten tefachim tall lying on its side.',
+    terms: [['Pil', 'an elephant']],
+    source: 'Sukkah 23a; Shulchan Aruch OC 630:11' },
+
+  { id: 'sk_schach_conditions', game: 'sukkah', icon: 'leaf', title: 'What Schach Can Be Made Of',
+    hebrew: 'צוֹמֵח, תָּלוּש, אֵינוֹ מְקַבֵּל טוּמְאָה',
+    body: 'Valid schach must have grown from the ground, be currently detached, and not be able to become ritually impure. That rules out metal, plastic, food, and finished furniture, even wooden furniture.',
+    terms: [['Gidulo min ha\'aretz', 'grown from the ground'], ['Talush', 'detached'], ['Mekabel tumah', 'susceptible to ritual impurity']],
+    source: 'Sukkah 11a-12a; Shulchan Aruch OC 629:1' },
+
+  { id: 'sk_gezeiras_tikrah', game: 'sukkah', icon: 'board', title: 'No Boards Wide Enough to Be a Ceiling',
+    hebrew: 'גְּזֵרַת תִּקְרָה',
+    body: 'Wooden boards four tefachim wide or more may not be used as schach, lest someone mistake the sukkah roof for an ordinary house ceiling. Under four tefachim is technically fine, but the widespread custom is not to use boards at all.',
+    terms: [['Gezeiras Tikrah', 'the decree against a ceiling-like roof']],
+    source: 'Shulchan Aruch OC 629:18' },
+
+  { id: 'sk_bamboo_mat', game: 'sukkah', icon: 'mat', title: 'A Mat Made for the Roof, Not for Sitting',
+    hebrew: 'מַחְצֶלֶת הָעֲשׂוּיָה לְסִכּוּךְ',
+    body: 'A woven reed or bamboo mat is valid schach only if it was made for roofing, not for sitting or sleeping on. The string binding its slats together must itself be schach-kosher, like cotton, not synthetic.',
+    terms: [['Machatzelet', 'a woven mat']],
+    source: 'Shulchan Aruch OC 629:6' },
+
+  { id: 'sk_build_order', game: 'sukkah', icon: 'hammer', title: 'Made, Not Found Already Made',
+    hebrew: 'תַּעֲשֵׂה וְלֹא מִן הֶעָשׂוּי',
+    body: 'Schach must be actively laid down with intent to give shade. The Gemara\'s example: hollowing a nook into a haystack does not make a sukkah, even though the hay is kosher schach - it has to be lifted and placed by hand. Most poskim also want the walls up before the schach goes on.',
+    terms: [['Ta\'aseh v\'lo min he\'asuy', '"you shall make it" - not something already made']],
+    source: 'Sukkah 11a-12a; Shulchan Aruch OC 626:2' },
+
+  { id: 'sk_overhead', game: 'sukkah', icon: 'tree', title: 'Nothing May Be Above the Schach',
+    hebrew: 'סֻכָּה תַּחַת סֻכָּה, תַּחַת אִילָן, תַּחַת גַּג',
+    body: 'The schach must open straight to the sky. A tree or a balcony overhang whose own shade is greater than its own sun means no valid sukkah can ever be built there - no amount of extra schach fixes it.',
+    terms: [['Ilan', 'a tree']],
+    source: 'Sukkah 9b; Shulchan Aruch OC 626:1' },
+
+  { id: 'sk_shade', game: 'sukkah', icon: 'shade', title: 'More Shade Than Sun',
+    hebrew: 'צִלָּתָהּ מְרֻבָּה מֵחַמָּתָהּ',
+    body: 'The schach must shade more than half the sukkah floor. Exactly fifty-fifty is not enough - it has to be a clear majority.',
+    terms: [['Tzila', 'shade'], ['Chama', 'sun']],
+    source: 'Shulchan Aruch OC 631:1-2' },
+
+  { id: 'sk_schach_thickness', game: 'sukkah', icon: 'gap', title: 'Thin Enough to See the Sky',
+    hebrew: 'שֶׁתְּהֵא רְאִיָּה מִתּוֹכָהּ לָרָקִיע',
+    body: 'L\'chatchila, schach should be thin enough to see the open sky through it. But schach so thick that no light gets through at all is still fully kosher, as long as the material itself is valid.',
+    terms: [],
+    source: 'Shulchan Aruch OC 631:3' },
+
+  { id: 'sk_maamid', game: 'sukkah', icon: 'support', title: 'What Holds the Schach Up',
+    hebrew: 'מַעֲמִיד',
+    body: 'Resting kosher schach directly on something that can become ritually impure, like a bare metal pole, is an l\'chatchila concern only - it is fine after the fact. Resting it on wood that is itself held up by metal is fine even l\'chatchila.',
+    terms: [['Maamid', 'a support']],
+    source: 'Mishnah Berurah 629:22' },
+
+  { id: 'sk_decor', game: 'sukkah', icon: 'chain', title: 'Decorations Within Four Tefachim',
+    hebrew: 'נוֹי סֻכָּה',
+    body: 'A decoration hung under the schach is treated as part of the schach as long as it hangs within four tefachim. Lower than that, a wide decoration becomes its own ceiling and invalidates the space under it.',
+    terms: [['Noy Sukkah', 'sukkah decoration']],
+    source: 'Sukkah 10a; Shulchan Aruch OC 627:4' },
+
+  { id: 'sk_ground_gap', game: 'sukkah', icon: 'ground', title: 'Close to the Ground',
+    hebrew: 'תְּלוּיָה מִן הַקַּרְקַע',
+    body: 'A wall suspended more than three tefachim above the ground is invalid - that gap is too big for lavud to close. Within three tefachim of the ground is fine.',
+    terms: [],
+    source: 'Shulchan Aruch OC 630:9-10' },
+
+  { id: 'sk_fun_facts', game: 'sukkah', icon: 'spark', title: 'Some Surprising Sukkahs',
+    hebrew: 'סֻכָּה עַל גַּבֵּי בְהֵמָה, עַל גַּבֵּי עֲגָלָה',
+    body: 'A sukkah can be built on a wagon or a boat, as long as it has the same walls, schach and size as any other sukkah - halacha does not care what is underneath. And there is no maximum length or width, ever: only height has a ceiling.',
+    terms: [],
+    source: 'Shulchan Aruch OC 634:2; Sukkah 10a' }
+];
+
+SA.Cards.byId = {};
+(function () {
+  var dict = {};
+  for (var i = 0; i < SA.Cards.length; i++) {
+    var c = SA.Cards[i];
+    SA.Cards.byId[c.id] = c;
+    dict[c.title] = c.title; // placeholder overwritten just below per-card with real Hebrew
+  }
+  SA.Lang.add(dict);
+})();
+
+SA.Lang.add({
+  'Two Walls and a Tefach': 'שני קירות וטפח',
+  'Ten Tefachim to Twenty Amos': 'מעשרה טפחים עד עשרים אמה',
+  'Seven by Seven': 'שבעה על שבעה',
+  'Standing Up to a Normal Wind': 'עמידה מפני רוח מצויה',
+  'The Wall That Keeps Going Up': 'הקיר שממשיך ועולה',
+  'Lavud: The Gap That Counts as Solid': 'לבוד: הרווח שנחשב כמלא',
+  'The Bent Wall': 'דופן עקומה',
+  'Open Air vs. Invalid Schach': 'אוויר לעומת סכך פסול',
+  'More Open Than Standing': 'פרוץ מרובה על העומד',
+  'The Elephant in the Sukkah': 'הפיל בסוכה',
+  'What Schach Can Be Made Of': 'ממה עושים סכך',
+  'No Boards Wide Enough to Be a Ceiling': 'לא לוחות רחבים כתקרה',
+  'A Mat Made for the Roof, Not for Sitting': 'מחצלת שנעשתה לסיכוך ולא לשכיבה',
+  'Made, Not Found Already Made': 'תעשה ולא מן העשוי',
+  'Nothing May Be Above the Schach': 'לא יהיה דבר מעל הסכך',
+  'More Shade Than Sun': 'צילתה מרובה מחמתה',
+  'Thin Enough to See the Sky': 'דק מספיק לראות את השמיים',
+  'What Holds the Schach Up': 'מה מעמיד את הסכך',
+  'Decorations Within Four Tefachim': 'קישוטים בתוך ארבעה טפחים',
+  'Close to the Ground': 'קרוב לקרקע',
+  'Some Surprising Sukkahs': 'כמה סוכות מפתיעות',
+
+  'A kosher sukkah needs two full walls that meet at a corner, plus a third wall of just over a tefach within three tefachim of one of them. If the two full walls are parallel instead, the third wall must be just over four tefachim.':
+    'סוכה כשרה צריכה שני קירות מלאים הנפגשים בזווית, ועוד קיר שלישי במעט יותר מטפח בתוך שלושה טפחים מאחד מהם. אם שני הקירות המלאים מקבילים, הקיר השלישי צריך להיות במעט יותר מארבעה טפחים.',
+  'The inside of the sukkah, floor to schach, must be at least ten tefachim tall. It may not be taller than twenty amos - above that height it reads as a permanent house, not a temporary sukkah.':
+    'פנים הסוכה, מהרצפה עד הסכך, צריך להיות לפחות עשרה טפחים גובה. אין להגביה יותר מעשרים אמה - מעבר לכך זה נראה כבית קבע ולא כדירת עראי.',
+  'The floor must measure at least seven tefachim in both directions - enough room for a person and a small table. There is no maximum length or width, only a maximum height.':
+    'הרצפה צריכה למדוד לפחות שבעה טפחים בשני הכיוונים - מקום מספיק לאדם ולשולחן קטן. אין מקסימום לאורך או לרוחב, רק לגובה.',
+  'Any material may be a sukkah wall - wood, metal, canvas, even a house wall - as long as it holds up to an ordinary wind. A loose sheet is not relied on; tie it down or weave a pole through it every three tefachim.':
+    'כל חומר יכול להיות קיר סוכה - עץ, מתכת, בד, ואפילו קיר בית - כל עוד הוא עומד ברוח מצויה. יריעה רפויה אינה נחשבת; יש לקשור אותה או לשלב בה מוט בכל שלושה טפחים.',
+  'Once a wall reaches ten tefachim, halacha treats it as continuing straight up forever - it does not need to physically touch the schach.':
+    'כאשר קיר מגיע לעשרה טפחים, ההלכה מתייחסת אליו כאילו הוא ממשיך ועולה לעולם - הוא לא צריך לגעת בפועל בסכך.',
+  'Any gap under three tefachim - between fence posts, between a wall and the ground, or between a wall\'s top and the schach - is treated as fully solid.':
+    'כל רווח שקטן משלושה טפחים - בין עמודי גדר, בין קיר לקרקע, או בין ראש הקיר לסכך - נחשב כמלא לגמרי.',
+  'Invalid schach touching a wall, less than four amos wide, is treated as if the wall bends and continues under it - the sukkah stays kosher, though you may not sit under that strip.':
+    'סכך פסול הנוגע בקיר, ברוחב של פחות מארבע אמות, נחשב כאילו הקיר מתעקם וממשיך תחתיו - הסוכה נשארת כשרה, אך אין לשבת תחת אותה רצועה.',
+  'A gap of open sky three tefachim wide invalidates a sukkah anywhere - middle or side. A patch of invalid material (like a wide board) needs to reach four tefachim in the middle, or four amos at a wall, to do the same.':
+    'רווח שמיים פתוח ברוחב שלושה טפחים פוסל את הסוכה בכל מקום - באמצע או בצד. חומר פסול (כגון לוח רחב) צריך להגיע לארבעה טפחים באמצע, או ארבע אמות ליד קיר, כדי לפסול.',
+  'A sukkah wall riddled with doorways and windows is kosher even if the open area is bigger than the standing area, as long as no single opening is wider than ten amos.':
+    'קיר סוכה מלא פתחים וחלונות כשר אפילו אם השטח הפתוח גדול מהעומד, כל עוד אין פתח יחיד רחב מעשר אמות.',
+  'The Mishnah asks whether a live animal may serve as a wall. Halacha follows the concern that it might wander off, so a live animal wall must be tied down. But a tied elephant is kosher even fallen over - its body is still ten tefachim tall lying on its side.':
+    'המשנה שואלת אם חיה חיה יכולה לשמש כקיר. ההלכה חוששת שהיא תברח, ולכן קיר מחיה חיה צריך להיות קשור. אבל פיל קשור כשר אפילו אם נפל - גופו עדיין גבוה עשרה טפחים כשהוא שוכב על צדו.',
+  'Valid schach must have grown from the ground, be currently detached, and not be able to become ritually impure. That rules out metal, plastic, food, and finished furniture, even wooden furniture.':
+    'סכך כשר צריך להיות צומח מהארץ, תלוש כעת, ולא יכול לקבל טומאה. זה פוסל מתכת, פלסטיק, מאכל, ורהיטים מוגמרים, אפילו רהיטי עץ.',
+  'Wooden boards four tefachim wide or more may not be used as schach, lest someone mistake the sukkah roof for an ordinary house ceiling. Under four tefachim is technically fine, but the widespread custom is not to use boards at all.':
+    'לוחות עץ ברוחב ארבעה טפחים או יותר אין להשתמש בהם כסכך, שמא יחשוב אדם שגג הסוכה הוא תקרת בית רגילה. מתחת לארבעה טפחים זה כשר מעיקר הדין, אך המנהג הרחב הוא לא להשתמש בלוחות בכלל.',
+  'A woven reed or bamboo mat is valid schach only if it was made for roofing, not for sitting or sleeping on. The string binding its slats together must itself be schach-kosher, like cotton, not synthetic.':
+    'מחצלת קנים או במבוק ארוגה כשרה לסכך רק אם נעשתה לסיכוך, ולא לשכיבה או ישיבה. החוט הקושר את השריגים חייב להיות כשר לסכך, כגון כותנה, ולא סינטטי.',
+  'Schach must be actively laid down with intent to give shade. The Gemara\'s example: hollowing a nook into a haystack does not make a sukkah, even though the hay is kosher schach - it has to be lifted and placed by hand. Most poskim also want the walls up before the schach goes on.':
+    'סכך צריך להיות מונח בפועל בכוונה לצל. משל הגמרא: חפירת גומחה בגדיש אינה עושה סוכה, אף שהתבן כשר לסכך - צריך להגביה ולהניח בידיים. רוב הפוסקים גם רוצים שהקירות יוקמו לפני הסכך.',
+  'The schach must open straight to the sky. A tree or a balcony overhang whose own shade is greater than its own sun means no valid sukkah can ever be built there - no amount of extra schach fixes it.':
+    'הסכך צריך להיפתח ישר לשמיים. עץ או גגון מרפסת שהצל שלו עצמו גדול מהשמש שלו עצמו - אי אפשר לבנות שם סוכה כשרה בשום מצב, ולא עוזר עוד סכך.',
+  'The schach must shade more than half the sukkah floor. Exactly fifty-fifty is not enough - it has to be a clear majority.':
+    'הסכך צריך להצל על יותר מחצי מרצפת הסוכה. חמישים-חמישים בדיוק אינו מספיק - צריך רוב ברור.',
+  'L\'chatchila, schach should be thin enough to see the open sky through it. But schach so thick that no light gets through at all is still fully kosher, as long as the material itself is valid.':
+    'לכתחילה, הסכך צריך להיות דק מספיק לראות דרכו את השמיים. אך סכך עבה כך שלא עובר בו אור כלל, כשר לגמרי, כל עוד החומר עצמו כשר.',
+  'Resting kosher schach directly on something that can become ritually impure, like a bare metal pole, is an l\'chatchila concern only - it is fine after the fact. Resting it on wood that is itself held up by metal is fine even l\'chatchila.':
+    'להניח סכך כשר ישירות על דבר המקבל טומאה, כגון מוט מתכת חשוף, הוא חשש לכתחילה בלבד - בדיעבד זה כשר. להניחו על עץ הנתמך על ידי מתכת כשר אפילו לכתחילה.',
+  'A decoration hung under the schach is treated as part of the schach as long as it hangs within four tefachim. Lower than that, a wide decoration becomes its own ceiling and invalidates the space under it.':
+    'קישוט התלוי מתחת לסכך נחשב כחלק מהסכך כל עוד הוא תלוי בתוך ארבעה טפחים. נמוך מזה, קישוט רחב הופך לתקרה בפני עצמה ופוסל את המקום תחתיו.',
+  'A wall suspended more than three tefachim above the ground is invalid - that gap is too big for lavud to close. Within three tefachim of the ground is fine.':
+    'קיר התלוי יותר משלושה טפחים מעל הקרקע פסול - הרווח גדול מכדי שלבוד יסגור אותו. בתוך שלושה טפחים מהקרקע זה כשר.',
+  'A sukkah can be built on a wagon or a boat, as long as it has the same walls, schach and size as any other sukkah - halacha does not care what is underneath. And there is no maximum length or width, ever: only height has a ceiling.':
+    'ניתן לבנות סוכה על עגלה או על סירה, כל עוד יש לה את אותם קירות, סכך וגודל כמו כל סוכה - להלכה לא משנה מה למטה. ואין מקסימום לאורך או לרוחב, לעולם: רק לגובה יש תקרה.'
+});
+</script>
+<script>
+/* ---------------------------------------------- 15. HALACHA CHALLENGES */
+/* Sandbox is the main mode (locked answer from planning); this ladder is a
+   guided on-ramp into it. Every level's win condition is "reach KOSHER"
+   except "Under the Tree", which teaches the one real dead end in the game
+   - a hazard site that cannot be fixed by adding more schach - so its goal
+   is "every remaining problem is that one, irreducible cause". */
+SA.Levels = [
+  { id: 'min_kosher', title: 'The Minimum Kosher Sukkah', site: 'meadow', footprint: { w: 7, d: 7 }, lockFootprint: true,
+    hint: 'Two full walls that meet, plus a tefach-wide third wall near the corner. Then cover more than half the roof.', goal: { type: 'kosher' }, cardId: 'sk_two_walls' },
+  { id: 'seven_by_seven', title: 'The 7x7 Spot', site: 'riverbank', footprint: { w: 6, d: 6 }, lockFootprint: false,
+    hint: 'This floor is too small to be a sukkah at all. Drag the footprint out to at least seven by seven tefachim.', goal: { type: 'kosher' }, cardId: 'sk_floor' },
+  { id: 'slats_and_lavud', title: 'Slats and Lavud', site: 'pine_forest', footprint: { w: 10, d: 10 }, formWhitelist: ['post'],
+    hint: 'Only posts here. Space them under three tefachim apart and lavud will treat the gaps as solid wall.', goal: { type: 'kosher' }, cardId: 'sk_lavud' },
+  { id: 'windy_canvas', title: 'The Windy Canvas Wall', site: 'beach', footprint: { w: 8, d: 8 }, familyWhitelist: ['canvas'],
+    hint: 'A loose sheet does not count as a wall. Tie it down.', goal: { type: 'kosher' }, cardId: 'sk_ruach' },
+  { id: 'the_elephant', title: 'The Elephant', site: 'meadow', footprint: { w: 9, d: 9 }, grantElephant: true,
+    hint: 'Tie the elephant to the wall. Then try knocking it over - watch what happens to the Kosher Meter.', goal: { type: 'kosher' }, cardId: 'sk_elephant' },
+  { id: 'under_the_tree', title: 'Under the Tree', site: 'orchard', footprint: { w: 10, d: 10 }, lockFootprint: true,
+    hint: 'Build everything else correctly. You will still see one red mark - the canopy itself is the problem, and no amount of schach fixes it.',
+    goal: { type: 'onlyIssue', pasulCardId: 'sk_overhead' }, cardId: 'sk_overhead' },
+  { id: 'too_much_sun', title: 'Too Much Sun', site: 'beach', footprint: { w: 12, d: 8 },
+    hint: 'A sukkah floor with more sun than shade is not kosher. Cover more than half of it.', goal: { type: 'kosher' }, cardId: 'sk_shade' },
+  { id: 'rema_thin_schach', title: "The Rema's Thin Schach", site: 'kosel_plaza', footprint: { w: 9, d: 9 },
+    hint: 'Thin schach that lets the sky show through is completely kosher, even l\'chatchila preferred.', goal: { type: 'kosher' }, cardId: 'sk_schach_thickness' },
+  { id: 'boards_too_wide', title: 'Boards Too Wide', site: 'brownstone_yard', footprint: { w: 9, d: 9 },
+    hint: 'Wide wood boards look like schach but read as a house ceiling. Swap them for something narrower.', goal: { type: 'kosher' }, cardId: 'sk_gezeiras_tikrah' },
+  { id: 'ladder_in_middle', title: 'The Ladder in the Middle', site: 'driveway', footprint: { w: 9, d: 9 },
+    hint: 'An old ladder is a finished tool, not roofing. It cannot become schach no matter where you put it.', goal: { type: 'kosher' }, cardId: 'sk_schach_conditions' },
+  { id: 'dofen_akumah_lvl', title: 'Dofen Akumah', site: 'courtyard', footprint: { w: 10, d: 10 },
+    hint: 'A little bit of invalid schach right at the wall does not fail the sukkah - halacha treats the wall as bending to meet it.', goal: { type: 'kosher' }, cardId: 'sk_dofen_akumah' },
+  { id: 'metal_poles', title: 'Metal Poles', site: 'harbour', footprint: { w: 9, d: 9 },
+    hint: 'Try resting the schach on bare metal in the support menu. Notice it is only a tip, never a failure.', goal: { type: 'kosher' }, cardId: 'sk_maamid' },
+  { id: 'fruit_too_low', title: 'Fruit Hanging Too Low', site: 'vineyard', footprint: { w: 9, d: 9 },
+    hint: 'Hang the grape clusters, then drag the clearance past four tefachim and watch what happens.', goal: { type: 'kosher' }, cardId: 'sk_decor' },
+  { id: 'sky_high', title: 'Sky-High', site: 'cliffside', footprint: { w: 8, d: 8 },
+    hint: 'Push the roof height slider up past twenty amos and see the sukkah turn pasul - then bring it back down.', goal: { type: 'kosher' }, cardId: 'sk_height' },
+  { id: 'too_short', title: 'Too Short', site: 'snowy_alpine', footprint: { w: 8, d: 8 },
+    hint: 'Walls under ten tefachim are not real walls yet, however solid they look.', goal: { type: 'kosher' }, cardId: 'sk_height' },
+  { id: 'walls_before_schach', title: 'Walls Before Schach', site: 'waterfall', footprint: { w: 9, d: 9 },
+    hint: 'Put up the walls first this time, then the schach - the correct order, l\'chatchila.', goal: { type: 'kosher' }, cardId: 'sk_build_order' },
+  { id: 'the_balcony', title: 'The Balcony', site: 'balcony', footprint: { w: 10, d: 10 }, lockFootprint: true,
+    hint: 'The overhang only shades a strip near the building wall - dofen akumah saves it. You just cannot sit under that strip.', goal: { type: 'kosher' }, cardId: 'sk_overhead' },
+  { id: 'sukkah_on_a_boat', title: 'A Sukkah on a Boat', site: 'harbour', footprint: { w: 9, d: 9 },
+    hint: 'Halacha does not care what is underneath a sukkah - build it exactly like any other.', goal: { type: 'kosher' }, cardId: 'sk_fun_facts' },
+  { id: 'parutz_merubeh_lvl', title: 'Parutz Merubeh', site: 'courtyard', footprint: { w: 10, d: 10 }, familyWhitelist: ['picket_fence', 'chain_link', 'snow_fence'],
+    hint: 'A wall full of gaps is still kosher, even with more open space than standing wall - as long as no single opening is huge.', goal: { type: 'kosher' }, cardId: 'sk_parutz_merubeh' },
+  { id: 'graded_free_build', title: 'The Graded Free Build', site: null, footprint: { w: 12, d: 12 },
+    hint: 'Everything is unlocked. Build something you would actually want to sit in.', goal: { type: 'kosher' }, cardId: 'sk_fun_facts' }
+];
+SA.Levels.byId = {};
+(function () {
+  var dict = {};
+  for (var i = 0; i < SA.Levels.length; i++) {
+    SA.Levels.byId[SA.Levels[i].id] = SA.Levels[i];
+    dict[SA.Levels[i].title] = dict[SA.Levels[i].title];
+  }
+})();
+SA.Lang.add({
+  'The Minimum Kosher Sukkah': 'הסוכה הכשרה המינימלית',
+  'The 7x7 Spot': 'המקום של שבעה על שבעה',
+  'Slats and Lavud': 'שריגים ולבוד',
+  'The Windy Canvas Wall': 'קיר הבד ברוח',
+  'The Elephant': 'הפיל',
+  'Under the Tree': 'מתחת לעץ',
+  'Too Much Sun': 'יותר מדי שמש',
+  "The Rema's Thin Schach": 'הסכך הדק של הרמ"א',
+  'Boards Too Wide': 'לוחות רחבים מדי',
+  'The Ladder in the Middle': 'הסולם באמצע',
+  'Dofen Akumah': 'דופן עקומה',
+  'Metal Poles': 'מוטות מתכת',
+  'Fruit Hanging Too Low': 'פירות תלויים נמוך מדי',
+  'Sky-High': 'עד לשמיים',
+  'Too Short': 'קצר מדי',
+  'Walls Before Schach': 'קירות לפני סכך',
+  'The Balcony': 'המרפסת',
+  'A Sukkah on a Boat': 'סוכה על סירה',
+  'Parutz Merubeh': 'פרוץ מרובה',
+  'The Graded Free Build': 'הבנייה החופשית המסכמת',
+  'Two full walls that meet, plus a tefach-wide third wall near the corner. Then cover more than half the roof.':
+    'שני קירות מלאים הנפגשים, ועוד קיר שלישי ברוחב טפח קרוב לפינה. אחר כך כסו יותר מחצי מהגג.',
+  'This floor is too small to be a sukkah at all. Drag the footprint out to at least seven by seven tefachim.':
+    'הרצפה הזו קטנה מכדי להיות סוכה בכלל. גררו את השטח עד לפחות שבעה על שבעה טפחים.',
+  'Only posts here. Space them under three tefachim apart and lavud will treat the gaps as solid wall.':
+    'רק עמודים כאן. הניחו אותם במרחק של פחות משלושה טפחים, ולבוד יתייחס לרווחים כקיר מלא.',
+  'A loose sheet does not count as a wall. Tie it down.': 'יריעה רפויה אינה נחשבת קיר. קשרו אותה.',
+  'Tie the elephant to the wall. Then try knocking it over - watch what happens to the Kosher Meter.':
+    'קשרו את הפיל לקיר. אחר כך ננסה להפיל אותו - שימו לב מה קורה למד הכשרות.',
+  'Build everything else correctly. You will still see one red mark - the canopy itself is the problem, and no amount of schach fixes it.':
+    'בנו את כל השאר בצורה נכונה. עדיין תראו סימן אדום אחד - החופה עצמה היא הבעיה, ואף סכך לא יתקן זאת.',
+  'A sukkah floor with more sun than shade is not kosher. Cover more than half of it.':
+    'רצפת סוכה עם יותר שמש מצל אינה כשרה. כסו יותר מחציה.',
+  'Thin schach that lets the sky show through is completely kosher, even l\'chatchila preferred.':
+    'סכך דק שמראה את השמיים כשר לגמרי, ואף מועדף לכתחילה.',
+  'Wide wood boards look like schach but read as a house ceiling. Swap them for something narrower.':
+    'לוחות עץ רחבים נראים כסכך אך נקראים כתקרת בית. החליפו אותם במשהו צר יותר.',
+  'An old ladder is a finished tool, not roofing. It cannot become schach no matter where you put it.':
+    'סולם ישן הוא כלי מוגמר, לא סיכוך. הוא לא יכול להיות סכך בשום מקום שתשימו אותו.',
+  'A little bit of invalid schach right at the wall does not fail the sukkah - halacha treats the wall as bending to meet it.':
+    'קצת סכך פסול ליד הקיר לא פוסל את הסוכה - ההלכה מתייחסת לקיר כאילו התעקם כדי לפגוש אותו.',
+  'Try resting the schach on bare metal in the support menu. Notice it is only a tip, never a failure.':
+    'ננסה להניח את הסכך על מתכת חשופה בתפריט התמיכה. שימו לב שזו רק הערה, לעולם לא כשל.',
+  'Hang the grape clusters, then drag the clearance past four tefachim and watch what happens.':
+    'תלו את אשכולות הענבים, ואז גררו את המרחק מעבר לארבעה טפחים ותראו מה קורה.',
+  'Push the roof height slider up past twenty amos and see the sukkah turn pasul - then bring it back down.':
+    'דחפו את מד גובה הסכך מעל עשרים אמה ותראו את הסוכה נהפכת לפסולה - ואז הורידו אותו בחזרה.',
+  'Walls under ten tefachim are not real walls yet, however solid they look.':
+    'קירות מתחת לעשרה טפחים אינם עדיין קירות אמיתיים, כמה שיהיו יראו יציבים.',
+  'Put up the walls first this time, then the schach - the correct order, l\'chatchila.':
+    'הקימו את הקירות ראשית הפעם, ואז הסכך - הסדר הנכון, לכתחילה.',
+  'The overhang only shades a strip near the building wall - dofen akumah saves it. You just cannot sit under that strip.':
+    'הגגון מצל רק על רצועה קרוב לקיר הבניין - דופן עקומה מצילה זאת. רק אי אפשר לשבת תחת אותה רצועה.',
+  'Halacha does not care what is underneath a sukkah - build it exactly like any other.':
+    'להלכה לא משנה מה יש מתחת לסוכה - בנו אותה בדיוק כמו כל סוכה אחרת.',
+  'A wall full of gaps is still kosher, even with more open space than standing wall - as long as no single opening is huge.':
+    'קיר מלא רווחים עדיין כשר, אפילו עם יותר שטח פתוח מעומד - כל עוד אין פתח יחיד גדול מדי.',
+  'Everything is unlocked. Build something you would actually want to sit in.':
+    'הכל פתוח. בנו משהו שבאמת תרצו לשבת בו.'
+});
+
+/* ---------------------------------------------- 15a. UNLOCK POOLS */
+SA.Progress = SA.Progress || {};
+SA.Progress.STARTER_FAMILIES = ['pine', 'cedar', 'canvas', 'corrugated_tin', 'brick', 'picket_fence'];
+SA.Progress.STARTER_SITES = ['meadow', 'riverbank', 'beach', 'pine_forest', 'courtyard'];
+SA.Progress.STARTER_DECOR_CATS = ['fruit', 'chain'];
+SA.Progress.STARTER_ANIMALS = ['wall_animal_camel', 'wall_animal_cow', 'wall_animal_ox', 'wall_animal_horse'];
+
+SA.Progress.rewardPools = (function () {
+  var allFamilies = Object.keys(SA.Mat.families).filter(function (f) { return SA.Progress.STARTER_FAMILIES.indexOf(f) < 0; });
+  var allSites = SA.BG.list.filter(function (s) { return SA.Progress.STARTER_SITES.indexOf(s) < 0; });
+  var allDecorCats = SA.Mat.DECOR_CATEGORIES.map(function (c) { return c.id; }).filter(function (c) { return SA.Progress.STARTER_DECOR_CATS.indexOf(c) < 0; });
+  var rewards = {};
+  for (var i = 0; i < SA.Levels.length; i++) rewards[SA.Levels[i].id] = { families: [], sites: [], decorCats: [], animals: [] };
+  var famI = 0, siteI = 0, decorI = 0;
+  for (var lv = 0; lv < SA.Levels.length; lv++) {
+    var id = SA.Levels[lv].id;
+    if (siteI < allSites.length) rewards[id].sites.push(allSites[siteI++]);
+    if (famI < allFamilies.length) rewards[id].families.push(allFamilies[famI++]);
+    if (lv % 3 === 2 && decorI < allDecorCats.length) rewards[id].decorCats.push(allDecorCats[decorI++]);
+  }
+  while (famI < allFamilies.length) rewards['graded_free_build'].families.push(allFamilies[famI++]);
+  while (siteI < allSites.length) rewards['graded_free_build'].sites.push(allSites[siteI++]);
+  while (decorI < allDecorCats.length) rewards['graded_free_build'].decorCats.push(allDecorCats[decorI++]);
+  rewards['the_elephant'].animals.push('wall_animal_elephant');
+  rewards['min_kosher'].animals = rewards['min_kosher'].animals.concat(SA.Progress.STARTER_ANIMALS);
+  return rewards;
+})();
+
+/* ---------------------------------------------- 15b. GOAL CHECKING */
+SA.Levels.checkGoal = function (level, result) {
+  if (level.goal.type === 'kosher') return result.kosher === true;
+  if (level.goal.type === 'onlyIssue') {
+    var pasulIssues = result.issues.filter(function (it) { return it.severity === 'pasul'; });
+    if (!pasulIssues.length) return false;
+    return pasulIssues.every(function (it) { return it.cardId === level.goal.pasulCardId; });
+  }
+  return false;
+};
+</script>
+<script>
+/* ---------------------------------------------- 16. 3D SCENE RENDERER */
+/* Painter's algorithm: every drawable (floor cell, wall panel, schach tile,
+   decoration) gets a depth key from SA.Iso.depthKey and is drawn back to
+   front. SA.Pick.list is rebuilt here every frame with the exact quad each
+   drawable used, so tap hit-testing (p18) is always pixel-exact, even
+   mid-rotation. Step-inside mode (p03 SA.Camera.inside) hides the walls so
+   the player can look straight up at the schach - never a drawn sun. */
+SA.Scene = {};
+
+function saQuadFloor(x, z, cx, cz) {
+  return [
+    SA.Iso.project(x, 0, z, cx, cz), SA.Iso.project(x + 1, 0, z, cx, cz),
+    SA.Iso.project(x + 1, 0, z + 1, cx, cz), SA.Iso.project(x, 0, z + 1, cx, cz)
+  ];
+}
+function saQuadSchach(x, z, y, cx, cz) {
+  return [
+    SA.Iso.project(x, y, z, cx, cz), SA.Iso.project(x + 1, y, z, cx, cz),
+    SA.Iso.project(x + 1, y, z + 1, cx, cz), SA.Iso.project(x, y, z + 1, cx, cz)
+  ];
+}
+function saQuadWall(side, col, w, row, h, footprint, cx, cz) {
+  var W = footprint.w, D = footprint.d;
+  if (side === 'N') return [SA.Iso.project(col, row + h, 0, cx, cz), SA.Iso.project(col + w, row + h, 0, cx, cz),
+    SA.Iso.project(col + w, row, 0, cx, cz), SA.Iso.project(col, row, 0, cx, cz)];
+  if (side === 'S') return [SA.Iso.project(W - col, row + h, D, cx, cz), SA.Iso.project(W - col - w, row + h, D, cx, cz),
+    SA.Iso.project(W - col - w, row, D, cx, cz), SA.Iso.project(W - col, row, D, cx, cz)];
+  if (side === 'E') return [SA.Iso.project(W, row + h, col, cx, cz), SA.Iso.project(W, row + h, col + w, cx, cz),
+    SA.Iso.project(W, row, col + w, cx, cz), SA.Iso.project(W, row, col, cx, cz)];
+  return [SA.Iso.project(0, row + h, D - col, cx, cz), SA.Iso.project(0, row + h, D - col - w, cx, cz),
+    SA.Iso.project(0, row, D - col - w, cx, cz), SA.Iso.project(0, row, D - col, cx, cz)];
+}
+function saWallCellWorld(side, col, footprint) {
+  var W = footprint.w, D = footprint.d;
+  if (side === 'N') return { x: col + 0.5, z: 0 };
+  if (side === 'S') return { x: W - col - 0.5, z: D };
+  if (side === 'E') return { x: W, z: col + 0.5 };
+  return { x: 0, z: D - col - 0.5 };
+}
+
+SA.Scene.render = function (ctx, state, result) {
+  var view = SA.View;
+  SA.BG.render(ctx, view, state.siteId || 'meadow');
+  SA.Iso.setViewport(view.w, view.h);
+  SA.Camera.insideFocusY = state.roofHeight;
+  SA.Pick.reset();
+
+  var w = state.footprint.w, d = state.footprint.d;
+  var cx = w / 2, cz = d / 2;
+  var jobs = [];
+  var cls = result && result.measurements && result.measurements.cellClass;
+
+  /* floor */
+  for (var x = 0; x < w; x++) {
+    for (var z = 0; z < d; z++) {
+      var quad = saQuadFloor(x, z, cx, cz);
+      var depth = SA.Iso.depthKey(x + 0.5, 0, z + 0.5, cx, cz);
+      jobs.push({ depth: depth, draw: (function (q, xx, zz) {
+        return function () {
+          var checker = (xx + zz) % 2 === 0;
+          SA.Draw.poly(ctx, q, checker ? 'rgba(196,178,140,0.9)' : 'rgba(179,161,124,0.9)', 'rgba(0,0,0,0.12)', 1);
+          SA.Pick.add('floor_cell', { x: xx, z: zz }, q);
+        };
+      })(quad, x, z) });
+    }
+  }
+
+  /* walls (hidden entirely in step-inside mode so the schach is unobstructed) */
+  if (!SA.Camera.inside) {
+    for (var si = 0; si < SA.WALL_SIDES.length; si++) {
+      var side = SA.WALL_SIDES[si];
+      var wall = state.walls[side];
+      for (var pi = 0; pi < wall.panels.length; pi++) {
+        var p = wall.panels[pi];
+        var entry = SA.State.materialById(p.matId);
+        if (!entry) continue;
+        (function (side2, p2, entry2) {
+          var wq = saQuadWall(side2, p2.col, p2.w, p2.row, p2.h, state.footprint, cx, cz);
+          var wc = saWallCellWorld(side2, p2.col + p2.w / 2, state.footprint);
+          var depth2 = SA.Iso.depthKey(wc.x, p2.row + p2.h / 2, wc.z, cx, cz);
+          jobs.push({ depth: depth2, draw: function () {
+            if (entry2.matKind === 'animal') SA.Draw.animalPanel(ctx, wq, entry2, p2);
+            else SA.Draw.wallPanel(ctx, wq, entry2);
+            SA.Pick.add('wall_cell', { side: side2, col: p2.col, uid: p2.uid }, wq);
+          } });
+        })(side, p, entry);
+      }
+      /* thin empty-cell pick targets, so a bare wall column can still be tapped to place */
+      var length = SA.State.wallLength(state, side);
+      for (var c = 0; c < length; c++) {
+        if (wall.occ[c + '_0']) continue;
+        (function (side3, col3) {
+          var eq = saQuadWall(side3, col3, 1, 0, SA.Rule.WALL_MIN_HEIGHT, state.footprint, cx, cz);
+          var wc3 = saWallCellWorld(side3, col3 + 0.5, state.footprint);
+          var depth3 = SA.Iso.depthKey(wc3.x, SA.Rule.WALL_MIN_HEIGHT / 2, wc3.z, cx, cz);
+          jobs.push({ depth: depth3, draw: function () {
+            SA.Draw.poly(ctx, eq, 'rgba(255,255,255,0.03)', null);
+            SA.Pick.add('wall_cell', { side: side3, col: col3, uid: null }, eq);
+          } });
+        })(side, c);
+      }
+    }
+  }
+
+  /* schach */
+  for (var sx = 0; sx < w; sx++) {
+    for (var sz = 0; sz < d; sz++) {
+      var cell = state.schach[sx][sz];
+      var sq = saQuadSchach(sx, sz, state.roofHeight, cx, cz);
+      var sdepth = SA.Iso.depthKey(sx + 0.5, state.roofHeight, sz + 0.5, cx, cz);
+      (function (q4, xx4, zz4, cell4) {
+        jobs.push({ depth: sdepth, draw: function () {
+          if (cell4) {
+            var sEntry = SA.Mat.SCHACH_BY_ID[cell4.matId];
+            if (sEntry) SA.Draw.schachTile(ctx, q4, sEntry);
+          } else {
+            SA.Draw.poly(ctx, q4, 'rgba(140,180,220,0.10)', 'rgba(255,255,255,0.06)', 1);
+          }
+          if (state.overlayOn && cls && cls[xx4] && cls[xx4][zz4]) {
+            SA.Overlay.roofCellTint(ctx, q4, cls[xx4][zz4]);
+          }
+          SA.Pick.add('schach_cell', { x: xx4, z: zz4 }, q4);
+        } });
+      })(sq, sx, sz, cell);
+    }
+  }
+
+  /* decorations */
+  for (var di = 0; di < state.decor.length; di++) {
+    var dec = state.decor[di];
+    var dEntry = SA.Mat.DECOR_BY_ID[dec.matId];
+    if (!dEntry) continue;
+    (function (dec5, dEntry5) {
+      var y5 = dec5.hang ? Math.max(0.3, state.roofHeight - dec5.clearance) : 0.6;
+      var pt5 = SA.Iso.project(dec5.x + 0.5, y5, dec5.z + 0.5, cx, cz);
+      var depth5 = SA.Iso.depthKey(dec5.x + 0.5, y5, dec5.z + 0.5, cx, cz);
+      var half = 11;
+      var iconQuad = [
+        { sx: pt5.sx - half, sy: pt5.sy - half }, { sx: pt5.sx + half, sy: pt5.sy - half },
+        { sx: pt5.sx + half, sy: pt5.sy + half }, { sx: pt5.sx - half, sy: pt5.sy + half }
+      ];
+      jobs.push({ depth: depth5, draw: function () {
+        SA.Draw.decorIcon(ctx, pt5.sx, pt5.sy, 1, dEntry5);
+        SA.Pick.add('decor_item', { uid: dec5.uid }, iconQuad);
+      } });
+    })(dec, dEntry);
+  }
+
+  jobs.sort(function (a, b) { return a.depth - b.depth; });
+  for (var ji = 0; ji < jobs.length; ji++) jobs[ji].draw();
+
+  /* overlay extras, drawn last so they float on top of the real materials */
+  if (state.overlayOn && result) {
+    SA.Scene.drawDofenAkumahBand(ctx, state, cx, cz);
+    SA.Scene.drawTwentyAmosLine(ctx, state, cx, cz);
+    SA.Scene.drawLavudBeams(ctx, state, result, cx, cz);
+    SA.Scene.drawIssueMarkers(ctx, state, result, cx, cz);
+  }
+  if (!SA.Camera.inside && !(SA.Game.level && SA.Game.level.lockFootprint) && !SA.Game.modal) {
+    SA.Scene.drawFootprintHandles(ctx, state, cx, cz);
+  }
+};
+
+/* Amber wash 4 tefachim deep along the inside of every wall - the zone where
+   dofen akumah could apply (HALACHA.md 1.9); a reference band, not tied to
+   whether that strip currently has any pasul schach in it. */
+SA.Scene.drawDofenAkumahBand = function (ctx, state, cx, cz) {
+  var w = state.footprint.w, d = state.footprint.d, band = Math.min(SA.Rule.DECOR_CLEARANCE, Math.floor(Math.min(w, d) / 2));
+  if (band <= 0) return;
+  var y = state.roofHeight;
+  var rects = [
+    [0, 0, w, band], [0, d - band, w, band],
+    [0, 0, band, d], [w - band, 0, band, d]
+  ];
+  ctx.save();
+  for (var i = 0; i < rects.length; i++) {
+    var r = rects[i];
+    var q = [
+      SA.Iso.project(r[0], y, r[1], cx, cz), SA.Iso.project(r[0] + r[2], y, r[1], cx, cz),
+      SA.Iso.project(r[0] + r[2], y, r[1] + r[3], cx, cz), SA.Iso.project(r[0], y, r[1] + r[3], cx, cz)
+    ];
+    SA.Draw.poly(ctx, q, SA.Overlay.dofenAkumahBandColor, 'rgba(230,150,60,0.35)', 1);
+  }
+  ctx.restore();
+};
+
+SA.Scene.drawTwentyAmosLine = function (ctx, state, cx, cz) {
+  var w = state.footprint.w, d = state.footprint.d, y = SA.Rule.ROOF_MAX_KOSHER;
+  if (state.roofHeight < y - 20) return; // only worth showing once the player is getting close
+  var a = SA.Iso.project(0, y, 0, cx, cz), b = SA.Iso.project(w, y, 0, cx, cz);
+  var c = SA.Iso.project(w, y, d, cx, cz), e = SA.Iso.project(0, y, d, cx, cz);
+  ctx.save();
+  ctx.strokeStyle = SA.Overlay.twentyAmosColor; ctx.lineWidth = 2; ctx.setLineDash([6, 5]);
+  ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(e.sx, e.sy); ctx.lineTo(a.sx, a.sy); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+  SA.Draw.text(ctx, '20 Amos - the height ceiling', a.sx, a.sy - 14, { size: 11, color: SA.Overlay.twentyAmosColor });
+};
+
+SA.Scene.drawLavudBeams = function (ctx, state, result, cx, cz) {
+  var bridges = result.measurements && result.measurements.lavudBridges;
+  if (!bridges) return;
+  for (var i = 0; i < bridges.length; i++) {
+    var br = bridges[i];
+    var y = SA.Rule.LAVUD / 2;
+    var a = saWallCellWorld(br.side, br.colStart, state.footprint);
+    var b = saWallCellWorld(br.side, br.colEnd, state.footprint);
+    var pa = SA.Iso.project(a.x, y, a.z, cx, cz), pb = SA.Iso.project(b.x, y, b.z, cx, cz);
+    SA.Overlay.lavudBeam(ctx, pa, pb);
+  }
+};
+
+SA.Scene.drawFootprintHandles = function (ctx, state, cx, cz) {
+  var h = SA.Scene.footprintHandles(state);
+  var pts = [h.width, h.depth];
+  for (var i = 0; i < pts.length; i++) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(pts[i].sx, pts[i].sy, 11, 0, 7);
+    ctx.fillStyle = 'rgba(240,217,138,0.85)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.restore();
+  }
+  SA.Draw.text(ctx, SA.Lang.fmt('{n} tefachim', { n: state.footprint.w }), h.width.sx, h.width.sy - 18, { size: 11, color: '#fff', shadow: true });
+  SA.Draw.text(ctx, SA.Lang.fmt('{n} tefachim', { n: state.footprint.d }), h.depth.sx, h.depth.sy - 18, { size: 11, color: '#fff', shadow: true });
+};
+
+SA.Scene.drawIssueMarkers = function (ctx, state, result, cx, cz) {
+  var seen = {};
+  for (var i = 0; i < result.issues.length; i++) {
+    var it = result.issues[i];
+    if (!it.anchor || it.severity === 'lchatchila') continue;
+    var wx, wz, wy;
+    if (it.anchor.side) {
+      var wc = saWallCellWorld(it.anchor.side, it.anchor.col + 0.5, state.footprint);
+      wx = wc.x; wz = wc.z; wy = SA.Rule.WALL_MIN_HEIGHT * 0.6;
+    } else {
+      wx = it.anchor.x; wz = it.anchor.z; wy = state.roofHeight;
+    }
+    var key = Math.round(wx * 4) + '_' + Math.round(wz * 4) + '_' + Math.round(wy);
+    if (seen[key]) continue;
+    seen[key] = true;
+    var pt = SA.Iso.project(wx, wy, wz, cx, cz);
+    SA.Overlay.issueMarker(ctx, pt.sx, pt.sy, it.severity);
+    SA.Pick.add('issue_marker', { issue: it }, [
+      { sx: pt.sx - 10, sy: pt.sy - 10 }, { sx: pt.sx + 10, sy: pt.sy - 10 },
+      { sx: pt.sx + 10, sy: pt.sy + 10 }, { sx: pt.sx - 10, sy: pt.sy + 10 }
+    ]);
+  }
+};
+
+/* Footprint resize handles - brute-force nearest-integer search over the
+   live camera projection, so dragging works correctly at any rotation
+   without inverting the iso+rotation matrix by hand. */
+SA.Scene.footprintHandles = function (state) {
+  var w = state.footprint.w, d = state.footprint.d, cx = w / 2, cz = d / 2;
+  return {
+    width: SA.Iso.project(w, 0, 0, cx, cz),
+    depth: SA.Iso.project(0, 0, d, cx, cz)
+  };
+};
+
+SA.Scene.nearestWidthForPoint = function (state, px, py) {
+  var d = state.footprint.d, cz = d / 2, best = state.footprint.w, bestDist = Infinity;
+  for (var wv = SA.Rule.FLOOR_MIN; wv <= SA.Rule.FLOOR_MAX; wv++) {
+    var pt = SA.Iso.project(wv, 0, 0, wv / 2, cz);
+    var dx = pt.sx - px, dy = pt.sy - py;
+    var dist = dx * dx + dy * dy;
+    if (dist < bestDist) { bestDist = dist; best = wv; }
+  }
+  return best;
+};
+
+SA.Scene.nearestDepthForPoint = function (state, px, py) {
+  var w = state.footprint.w, cx = w / 2, best = state.footprint.d, bestDist = Infinity;
+  for (var dv = SA.Rule.FLOOR_MIN; dv <= SA.Rule.FLOOR_MAX; dv++) {
+    var pt = SA.Iso.project(0, 0, dv, cx, dv / 2);
+    var dx = pt.sx - px, dy = pt.sy - py;
+    var dist = dx * dx + dy * dy;
+    if (dist < bestDist) { bestDist = dist; best = dv; }
+  }
+  return best;
+};
+</script>
+<script>
+/* ---------------------------------------------- 17. GAME STATE + 2D UI */
+/* Title / Sandbox / Halacha Challenges / Cards, plus every HUD and modal.
+   Every button goes through SA.UI.btn, which draws with the shared
+   SA.Draw.button and registers exactly one SA.Pick rect - one hit-testing
+   path for the whole game (p11). Sandbox is the main mode (locked answer);
+   levels are a guided on-ramp that hands back into it. */
+SA.Game = {
+  screen: 'title',
+  state: null,
+  level: null,
+  levelDone: false,
+  modal: null,
+  modalCard: null,
+  modalScroll: 0,
+  selectedPanel: null,
+  selectedDecor: null,
+  lastResult: null,
+  pendingReward: null
+};
+
+SA.Game.goTitle = function () { SA.Game.screen = 'title'; SA.Game.modal = null; SA.Game.modalCard = null; };
+
+SA.Game.newSandbox = function (siteId) {
+  SA.Game.level = null;
+  SA.Game.levelDone = false;
+  SA.Game.state = SA.State.create(10, 10, 11, siteId || 'meadow');
+  SA.Game.screen = 'sandbox';
+  SA.Game.modal = null;
+  SA.Game.modalCard = null;
+  SA.Tool.category = 'wall';
+  SA.Tool.materialId = null;
+  SA.Save.markDirty();
+};
+
+SA.Game.continueSandbox = function () {
+  var loaded = SA.Save.load();
+  if (loaded) { SA.Game.state = loaded; SA.Game.level = null; SA.Game.screen = 'sandbox'; SA.Game.modal = null; }
+  else SA.Game.newSandbox('meadow');
+};
+
+SA.Game.goLevels = function () { SA.Game.screen = 'levels'; SA.Game.modal = null; SA.Game.modalCard = null; };
+SA.Game.goCards = function () { SA.Game.screen = 'cards'; SA.Game.modal = 'card_list'; SA.Game.modalCard = null; SA.Game.modalScroll = 0; };
+
+SA.Game.startLevel = function (levelId) {
+  var lvl = SA.Levels.byId[levelId];
+  if (!lvl) return;
+  SA.Game.level = lvl;
+  SA.Game.levelDone = false;
+  SA.Game.state = SA.State.create(lvl.footprint.w, lvl.footprint.d, 11, lvl.site || 'meadow');
+  if (lvl.grantElephant) { /* nothing to pre-place; the elephant just appears in the picker for this level */ }
+  SA.Game.screen = 'sandbox';
+  SA.Game.modal = null;
+  SA.Game.modalCard = null;
+  SA.Tool.category = 'wall';
+  SA.Tool.materialId = null;
+};
+
+SA.Game.checkLevelGoal = function (result) {
+  if (!SA.Game.level || SA.Game.levelDone) return;
+  if (SA.Levels.checkGoal(SA.Game.level, result)) {
+    SA.Game.levelDone = true;
+    var reward = SA.Progress.rewardPools[SA.Game.level.id];
+    SA.Progress.grant(reward);
+    SA.Progress.markLevelDone(SA.Game.level.id);
+    SA.Game.pendingReward = reward;
+    SA.Game.modal = 'level_complete';
+  }
+};
+
+/* ---------------------------------------------- 17a. LAYOUT HELPERS */
+SA.UI = {};
+SA.UI.btn = function (ctx, x, y, w, h, label, kind, payload, active) {
+  SA.Draw.button(ctx, x, y, w, h, label, active);
+  SA.Pick.addRect(kind || 'ui_noop', payload, x, y, w, h);
+};
+
+SA.UI.backdrop = function (ctx) {
+  ctx.fillStyle = 'rgba(6,8,12,0.72)';
+  ctx.fillRect(0, 0, SA.View.w, SA.View.h);
+  SA.Pick.addRect('modal_backdrop', {}, 0, 0, SA.View.w, SA.View.h);
+};
+
+SA.UI.panel = function (ctx, x, y, w, h) {
+  SA.Draw.roundRect(ctx, x, y, w, h, 16);
+  ctx.fillStyle = '#181c26'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1.5; ctx.stroke();
+};
+
+/* ---------------------------------------------- 17b. TITLE SCREEN */
+SA.UI.renderTitle = function (ctx) {
+  SA.Pick.reset();
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  var g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#243044'); g.addColorStop(1, '#0e1420');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+
+  SA.Draw.text(ctx, 'SUKKAH ARCHITECT', w / 2, h * 0.22, { size: 30, color: '#f0d98a', weight: '800' });
+  SA.Draw.text(ctx, 'Design a kosher sukkah, piece by piece.', w / 2, h * 0.22 + 34, { size: 15, color: 'rgba(255,255,255,0.75)' });
+
+  var bw = Math.min(320, w - 48), bx = (w - bw) / 2;
+  var by = h * 0.42;
+  SA.UI.btn(ctx, bx, by, bw, 64, 'Sandbox', 'title_sandbox', {});
+  SA.UI.btn(ctx, bx, by + 78, bw, 64, 'Halacha Challenges', 'title_levels', {});
+  SA.UI.btn(ctx, bx, by + 156, bw, 54, 'Halacha Cards', 'title_cards', {});
+
+  var row = by + 156 + 66;
+  if (SA.Host.inApp()) {
+    SA.UI.btn(ctx, bx, row, bw, 54, 'MORE GAMES', 'title_more_games', {});
+    row += 66;
+  }
+  if (!SA.Lang.locked()) {
+    SA.UI.btn(ctx, bx, row, bw, 44, SA.Lang.isHe() ? 'English' : 'עברית', 'title_lang', {});
+  }
+  var shiur = safe.b + 18;
+  SA.Draw.text(ctx, SA.Shiur.current === 'naeh' ? 'Rav Chaim Naeh' : 'Chazon Ish', w - 70, h - shiur, { size: 12, color: 'rgba(255,255,255,0.55)' });
+  SA.Pick.addRect('title_shiur', {}, w - 130, h - shiur - 16, 120, 30);
+};
+
+SA.UI.onTitleTap = function (hit) {
+  if (hit.kind === 'title_sandbox') SA.Game.continueSandbox();
+  else if (hit.kind === 'title_levels') SA.Game.goLevels();
+  else if (hit.kind === 'title_cards') SA.Game.goCards();
+  else if (hit.kind === 'title_more_games') { try { location.href = 'mitz://game/dash'; } catch (e) {} }
+  else if (hit.kind === 'title_lang') SA.Lang.set(SA.Lang.isHe() ? 'en' : 'he');
+  else if (hit.kind === 'title_shiur') SA.Shiur.current = SA.Shiur.current === 'naeh' ? 'chazonish' : 'naeh';
+};
+
+/* ---------------------------------------------- 17c. LEVEL SELECT */
+SA.UI.renderLevels = function (ctx) {
+  SA.Pick.reset();
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  ctx.fillStyle = '#12151d'; ctx.fillRect(0, 0, w, h);
+  SA.UI.btn(ctx, safe.l + 8, safe.t + 8, 70, 40, 'BACK', 'levels_back', {});
+  SA.Draw.text(ctx, 'Halacha Challenges', w / 2, safe.t + 30, { size: 20, color: '#fff', weight: '700' });
+
+  var top = safe.t + 64, cols = 4;
+  var cell = Math.min(84, (w - safe.l - safe.r - 24) / cols);
+  var gridW = cell * cols;
+  var startX = (w - gridW) / 2;
+  for (var i = 0; i < SA.Levels.length; i++) {
+    var lvl = SA.Levels[i];
+    var row = Math.floor(i / cols), col = i % cols;
+    var x = startX + col * cell + 4, y = top + row * (cell + 10) + 4;
+    var size = cell - 8;
+    var done = !!SA.Progress.completed[lvl.id];
+    SA.Draw.roundRect(ctx, x, y, size, size, 12);
+    ctx.fillStyle = done ? 'rgba(90,190,110,0.28)' : 'rgba(255,255,255,0.08)';
+    ctx.fill();
+    ctx.strokeStyle = done ? 'rgba(120,220,140,0.8)' : 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1.5; ctx.stroke();
+    SA.Draw.text(ctx, String(i + 1), x + size / 2, y + size / 2 - 6, { size: 18, color: '#fff', weight: '700' });
+    if (done) SA.Draw.text(ctx, '\u2713', x + size / 2, y + size / 2 + 16, { size: 13, color: '#9ee6ac' });
+    SA.Pick.addRect('level_node', { id: lvl.id }, x, y, size, size);
+  }
+  var lastY = top + Math.ceil(SA.Levels.length / cols) * (cell + 10) + 10;
+  SA.Draw.text(ctx, 'Tap a level to see its title and start.', w / 2, lastY + 10, { size: 12, color: 'rgba(255,255,255,0.55)' });
+};
+
+SA.UI.onLevelsTap = function (hit) {
+  if (hit.kind === 'levels_back') SA.Game.goTitle();
+  else if (hit.kind === 'level_node') SA.Game.startLevel(hit.payload.id);
+};
+
+/* ---------------------------------------------- 17d. CARDS BROWSER */
+SA.UI.renderCards = function (ctx) {
+  SA.Pick.reset();
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  ctx.fillStyle = '#12151d'; ctx.fillRect(0, 0, w, h);
+  SA.UI.btn(ctx, safe.l + 8, safe.t + 8, 70, 40, 'BACK', 'cards_back', {});
+  SA.Draw.text(ctx, 'Halacha Cards', w / 2, safe.t + 30, { size: 20, color: '#fff', weight: '700' });
+
+  if (SA.Game.modalCard) { SA.UI.renderCardDetail(ctx, SA.Cards.byId[SA.Game.modalCard]); return; }
+
+  var top = safe.t + 64, rowH = 62;
+  var listX = safe.l + 12, listW = w - safe.l - safe.r - 24;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(listX, top, listW, h - top - safe.b - 8); ctx.clip();
+  var yy = top - SA.Game.modalScroll;
+  for (var i = 0; i < SA.Cards.length; i++) {
+    var c = SA.Cards[i];
+    if (yy + rowH > top && yy < h - safe.b) {
+      SA.Draw.roundRect(ctx, listX, yy + 4, listW, rowH - 8, 10);
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke();
+      SA.Draw.text(ctx, c.title, listX + 16, yy + rowH / 2, { size: 15, color: '#fff', align: 'left' });
+      SA.Pick.addRect('card_row', { id: c.id }, listX, yy + 4, listW, rowH - 8);
+    }
+    yy += rowH;
+  }
+  ctx.restore();
+  SA.Game.modalScrollMax = Math.max(0, SA.Cards.length * rowH - (h - top - safe.b - 8));
+};
+
+SA.UI.renderCardDetail = function (ctx, card) {
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  var px = safe.l + 16, py = safe.t + 70, pw = w - safe.l - safe.r - 32, ph = h - py - safe.b - 16;
+  SA.UI.panel(ctx, px, py, pw, ph);
+  var cy = py + 30;
+  SA.Draw.text(ctx, card.title, px + pw / 2, cy, { size: 18, color: '#f0d98a', weight: '700' });
+  cy += 34;
+  ctx.direction = 'rtl';
+  SA.Draw.text(ctx, card.hebrew, px + pw / 2, cy, { size: 17, color: '#fff' });
+  cy += 40;
+  var lines = SA.UI.wrapText(ctx, SA.Lang.t(card.body), pw - 32, 14);
+  for (var i = 0; i < lines.length; i++) { SA.Draw.text(ctx, lines[i], px + pw / 2, cy, { size: 14, color: 'rgba(255,255,255,0.88)' }); cy += 20; }
+  cy += 8;
+  for (var t = 0; t < card.terms.length; t++) {
+    SA.Draw.text(ctx, card.terms[t][0] + ' - ' + card.terms[t][1], px + pw / 2, cy, { size: 12, color: 'rgba(210,200,160,0.9)' });
+    cy += 18;
+  }
+  cy += 6;
+  SA.Draw.text(ctx, card.source, px + pw / 2, cy, { size: 12, color: 'rgba(255,255,255,0.5)' });
+  SA.UI.btn(ctx, px + pw / 2 - 60, py + ph - 52, 120, 40, 'Close', 'card_close', {});
+};
+
+SA.UI.wrapText = function (ctx, text, maxW, size) {
+  ctx.font = '500 ' + size + 'px "Segoe UI", Arial, sans-serif';
+  var words = text.split(' '), lines = [], cur = '';
+  for (var i = 0; i < words.length; i++) {
+    var test = cur ? cur + ' ' + words[i] : words[i];
+    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = words[i]; }
+    else cur = test;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+};
+
+SA.UI.onCardsTap = function (hit) {
+  if (hit.kind === 'cards_back') { if (SA.Game.modalCard) { SA.Game.modalCard = null; } else SA.Game.goTitle(); }
+  else if (hit.kind === 'card_row') SA.Game.modalCard = hit.payload.id;
+  else if (hit.kind === 'card_close') SA.Game.modalCard = null;
+};
+
+/* ---------------------------------------------- 17e. SANDBOX HUD */
+SA.UI.KOSHER_COLOR = { kosher: '#4fbf6a', incomplete: '#e0b23c', pasul: '#e05b46' };
+
+SA.UI.renderSandbox = function (ctx, result) {
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  SA.UI.btn(ctx, safe.l + 8, safe.t + 8, 64, 40, 'BACK', 'sb_back', {});
+
+  var label = result.status === 'kosher' ? 'KOSHER' : (result.status === 'pasul' ? 'PASUL' : 'NOT KOSHER YET');
+  var pillW = 190;
+  SA.Draw.roundRect(ctx, w / 2 - pillW / 2, safe.t + 8, pillW, 40, 20);
+  ctx.fillStyle = SA.UI.KOSHER_COLOR[result.status] + 'cc'; ctx.fill();
+  SA.Draw.text(ctx, label, w / 2, safe.t + 29, { size: 15, color: '#111', weight: '800' });
+  SA.Pick.addRect('sb_meter', {}, w / 2 - pillW / 2, safe.t + 8, pillW, 40);
+
+  if (SA.Game.level) {
+    var hy = safe.t + 56;
+    SA.Draw.roundRect(ctx, safe.l + 8, hy, w - safe.l - safe.r - 16, 34, 10);
+    ctx.fillStyle = 'rgba(230,190,110,0.16)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(230,190,110,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+    SA.Draw.text(ctx, SA.Game.level.title, w / 2, hy + 17, { size: 13, color: '#f0d98a', weight: '700' });
+    SA.Pick.addRect('sb_hint', {}, safe.l + 8, hy, w - safe.l - safe.r - 16, 34);
+  }
+
+  /* bottom dock: 2 rows x 5 */
+  var dockH = 108, dockY = h - safe.b - dockH;
+  SA.Draw.roundRect(ctx, 0, dockY - 4, w, dockH + safe.b + 4, 0);
+  ctx.fillStyle = 'rgba(10,12,18,0.88)'; ctx.fill();
+  var cols = 5, cellW = w / cols, cellH = 52;
+  var row1 = [
+    ['Walls', 'sb_tab_wall', SA.Tool.category === 'wall'],
+    ['Schach', 'sb_tab_schach', SA.Tool.category === 'schach'],
+    ['Decorations', 'sb_tab_decor', SA.Tool.category === 'decor'],
+    ['FILL WALL', 'sb_fill', false],
+    ['ERASE', 'sb_tab_erase', SA.Tool.category === 'erase']
+  ];
+  var row2 = [
+    ['Rotate', 'sb_rotate', false],
+    [SA.Camera.inside ? 'Step Outside' : 'Step Inside', 'sb_inside', SA.Camera.inside],
+    [SA.Game.state.overlayOn ? 'Hide Overlay' : 'Show Overlay', 'sb_overlay', SA.Game.state.overlayOn],
+    ['Sukkah Size', 'sb_size', false],
+    ['Share', 'sb_share', false]
+  ];
+  for (var i = 0; i < cols; i++) {
+    SA.UI.btn(ctx, i * cellW + 2, dockY + 2, cellW - 4, cellH - 4, row1[i][0], row1[i][1], {}, row1[i][2]);
+    SA.UI.btn(ctx, i * cellW + 2, dockY + cellH + 2, cellW - 4, cellH - 4, row2[i][0], row2[i][1], {}, row2[i][2]);
+  }
+
+  if (SA.Game.selectedPanel) SA.UI.renderPanelInspector(ctx, dockY);
+  if (SA.Game.selectedDecor) SA.UI.renderDecorInspector(ctx, dockY);
+
+  if (SA.Game.modal) SA.UI.renderSandboxModal(ctx, result);
+};
+
+SA.UI.renderPanelInspector = function (ctx, dockY) {
+  var sel = SA.Game.selectedPanel;
+  var panel = SA.State.findPanel(SA.Game.state, sel.side, sel.uid);
+  if (!panel) { SA.Game.selectedPanel = null; return; }
+  var entry = SA.State.materialById(panel.matId);
+  var w = SA.View.w;
+  var barY = dockY - 54, barH = 46;
+  SA.UI.panel(ctx, 12, barY, w - 24, barH);
+  var isAnimal = entry && entry.matKind === 'animal';
+  var isFabric = entry && entry.swaysInWind;
+  var bx = 20;
+  if (isAnimal || isFabric) {
+    SA.UI.btn(ctx, bx, barY + 5, 110, barH - 10, panel.tied ? 'Untie' : 'Tie Down', 'sb_tie', {});
+    bx += 118;
+  }
+  if (isAnimal) {
+    SA.UI.btn(ctx, bx, barY + 5, 110, barH - 10, panel.posture === 'fallen' ? 'Alive' : 'Fallen', 'sb_posture', {});
+    bx += 118;
+  }
+  SA.UI.btn(ctx, w - 100, barY + 5, 80, barH - 10, 'ERASE', 'sb_panel_erase', {});
+};
+
+SA.UI.renderDecorInspector = function (ctx, dockY) {
+  var dec = null;
+  for (var i = 0; i < SA.Game.state.decor.length; i++) if (SA.Game.state.decor[i].uid === SA.Game.selectedDecor) dec = SA.Game.state.decor[i];
+  if (!dec) { SA.Game.selectedDecor = null; return; }
+  var w = SA.View.w;
+  var barY = dockY - 54, barH = 46;
+  SA.UI.panel(ctx, 12, barY, w - 24, barH);
+  if (dec.hang) {
+    SA.UI.btn(ctx, 20, barY + 5, 50, barH - 10, '-', 'sb_dec_less', {});
+    SA.Draw.text(ctx, SA.Lang.fmt('{n} tefachim', { n: dec.clearance }), 133, barY + barH / 2, { size: 13, color: '#fff' });
+    SA.UI.btn(ctx, 188, barY + 5, 50, barH - 10, '+', 'sb_dec_more', {});
+  }
+  SA.UI.btn(ctx, w - 100, barY + 5, 80, barH - 10, 'ERASE', 'sb_dec_erase', {});
+};
+
+/* ---------------------------------------------- 17f. MATERIAL AVAILABILITY */
+SA.Game.availableMaterials = function (category) {
+  var lvl = SA.Game.level;
+  if (category === 'wall') {
+    var list = [];
+    for (var i = 0; i < SA.Mat.WALL.length; i++) {
+      var m = SA.Mat.WALL[i];
+      if (lvl && lvl.familyWhitelist && lvl.familyWhitelist.indexOf(m.family.id) < 0) continue;
+      if (lvl && lvl.formWhitelist && lvl.formWhitelist.indexOf(m.form.id) < 0) continue;
+      if (!lvl && SA.Progress.unlocked.families.indexOf(m.family.id) < 0) continue;
+      list.push(m);
+    }
+    var animals = SA.Mat.ANIMALS.filter(function (a) {
+      return lvl ? true : SA.Progress.unlocked.animals.indexOf(a.id) >= 0;
+    });
+    return list.concat(animals);
+  }
+  if (category === 'schach') return SA.Mat.SCHACH.slice();
+  if (category === 'decor') {
+    return SA.Mat.DECOR.filter(function (d) {
+      return lvl ? true : SA.Progress.unlocked.decorCats.indexOf(d.category) >= 0;
+    });
+  }
+  return [];
+};
+
+SA.UI.materialSwatchColor = function (m) {
+  if (m.matKind === 'animal') return m.tone;
+  if (m.family) return m.family.base;
+  if (m.tone) return m.tone;
+  return '#888';
+};
+SA.UI.materialLabel = function (m) {
+  if (m.family && m.form && m.finish) return SA.Mat.wallName(m);
+  return m.en;
+};
+
+/* ---------------------------------------------- 17g. SANDBOX MODALS */
+SA.UI.renderSandboxModal = function (ctx, result) {
+  var m = SA.Game.modal;
+  if (m === 'materials_wall' || m === 'materials_schach' || m === 'materials_decor') {
+    SA.UI.renderMaterialPicker(ctx, m.replace('materials_', ''));
+  } else if (m === 'size') {
+    SA.UI.renderSizeModal(ctx);
+  } else if (m === 'issues') {
+    SA.UI.renderIssuesModal(ctx, result);
+  } else if (m === 'level_complete') {
+    SA.UI.renderLevelCompleteModal(ctx);
+  } else if (m === 'card') {
+    SA.UI.renderCardDetail(ctx, SA.Cards.byId[SA.Game.modalCard]);
+  }
+};
+
+SA.UI.renderMaterialPicker = function (ctx, category) {
+  SA.UI.backdrop(ctx);
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  var px = safe.l + 10, py = safe.t + 60, pw = w - safe.l - safe.r - 20, ph = h - py - safe.b - 20;
+  SA.UI.panel(ctx, px, py, pw, ph);
+  var title = category === 'wall' ? 'Walls' : (category === 'schach' ? 'Schach' : 'Decorations');
+  SA.Draw.text(ctx, title, px + pw / 2, py + 26, { size: 17, color: '#fff', weight: '700' });
+  SA.UI.btn(ctx, px + pw - 70, py + 8, 56, 36, 'Close', 'modal_close', {});
+
+  var list = SA.Game.availableMaterials(category);
+  var cols = pw > 460 ? 4 : 3;
+  var cellW = (pw - 24) / cols, cellH = 96;
+  var gridTop = py + 46;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(px, gridTop, pw, ph - 46 - 20); ctx.clip();
+  var yy = gridTop - SA.Game.modalScroll;
+  for (var i = 0; i < list.length; i++) {
+    var mat = list[i];
+    var col = i % cols, row = Math.floor(i / cols);
+    var cx2 = px + 12 + col * cellW, cy2 = yy + row * cellH;
+    if (cy2 + cellH > gridTop && cy2 < py + ph - 20) {
+      var active = SA.Tool.category === category && SA.Tool.materialId === mat.id;
+      SA.Draw.roundRect(ctx, cx2 + 4, cy2 + 4, cellW - 8, cellH - 12, 10);
+      ctx.fillStyle = active ? 'rgba(240,217,138,0.22)' : 'rgba(255,255,255,0.05)'; ctx.fill();
+      ctx.strokeStyle = active ? 'rgba(240,217,138,0.9)' : 'rgba(255,255,255,0.16)'; ctx.lineWidth = active ? 2 : 1; ctx.stroke();
+      if (category === 'decor') SA.Draw.decorIcon(ctx, cx2 + cellW / 2 - 4, cy2 + 28, 1.3, mat);
+      else {
+        ctx.fillStyle = SA.UI.materialSwatchColor(mat);
+        SA.Draw.roundRect(ctx, cx2 + cellW / 2 - 22, cy2 + 10, 44, 32, 6);
+        ctx.fill();
+      }
+      var lbl = SA.UI.materialLabel(mat);
+      SA.Draw.text(ctx, lbl, cx2 + cellW / 2 - 4, cy2 + cellH - 18, { size: 10.5, color: '#fff' });
+      SA.Pick.addRect('material_pick', { category: category, id: mat.id }, cx2 + 4, cy2 + 4, cellW - 8, cellH - 12);
+    }
+    yy = yy; // no-op, row advances via loop math
+  }
+  ctx.restore();
+  var rows = Math.ceil(list.length / cols);
+  SA.Game.modalScrollMax = Math.max(0, rows * cellH - (ph - 46 - 20));
+};
+
+SA.UI.renderSizeModal = function (ctx) {
+  SA.UI.backdrop(ctx);
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  var pw = Math.min(360, w - 40), px = (w - pw) / 2, py = h * 0.28, ph = 320;
+  SA.UI.panel(ctx, px, py, pw, ph);
+  SA.Draw.text(ctx, 'Footprint', px + pw / 2, py + 30, { size: 17, color: '#fff', weight: '700' });
+  var st = SA.Game.state;
+  var lockFP = SA.Game.level && SA.Game.level.lockFootprint;
+
+  SA.Draw.text(ctx, 'Width', px + 40, py + 70, { size: 13, color: 'rgba(255,255,255,0.7)', align: 'left' });
+  SA.Draw.text(ctx, SA.Lang.fmt('{n} tefachim', { n: st.footprint.w }), px + pw / 2, py + 100, { size: 20, color: '#fff', weight: '700' });
+  if (!lockFP) {
+    SA.UI.btn(ctx, px + 24, py + 84, 44, 36, '-', 'size_w_minus', {});
+    SA.UI.btn(ctx, px + pw - 68, py + 84, 44, 36, '+', 'size_w_plus', {});
+  }
+
+  SA.Draw.text(ctx, 'Depth', px + 40, py + 140, { size: 13, color: 'rgba(255,255,255,0.7)', align: 'left' });
+  SA.Draw.text(ctx, SA.Lang.fmt('{n} tefachim', { n: st.footprint.d }), px + pw / 2, py + 170, { size: 20, color: '#fff', weight: '700' });
+  if (!lockFP) {
+    SA.UI.btn(ctx, px + 24, py + 154, 44, 36, '-', 'size_d_minus', {});
+    SA.UI.btn(ctx, px + pw - 68, py + 154, 44, 36, '+', 'size_d_plus', {});
+  }
+
+  SA.Draw.text(ctx, 'Roof Height', px + 40, py + 210, { size: 13, color: 'rgba(255,255,255,0.7)', align: 'left' });
+  SA.Draw.text(ctx, SA.Lang.fmt('{n} tefachim', { n: st.roofHeight }), px + pw / 2, py + 240, { size: 20, color: '#fff', weight: '700' });
+  SA.UI.btn(ctx, px + 24, py + 224, 44, 36, '-', 'size_h_minus', {});
+  SA.UI.btn(ctx, px + pw - 68, py + 224, 44, 36, '+', 'size_h_plus', {});
+
+  SA.UI.btn(ctx, px + pw / 2 - 60, py + ph - 46, 120, 38, 'Close', 'modal_close', {});
+};
+
+SA.UI.renderIssuesModal = function (ctx, result) {
+  SA.UI.backdrop(ctx);
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  var px = safe.l + 16, py = h * 0.2, pw = w - safe.l - safe.r - 32, ph = h * 0.6;
+  SA.UI.panel(ctx, px, py, pw, ph);
+  SA.Draw.text(ctx, 'Issues', px + pw / 2, py + 26, { size: 17, color: '#fff', weight: '700' });
+  SA.UI.btn(ctx, px + pw - 70, py + 8, 56, 36, 'Close', 'modal_close', {});
+  var yy = py + 56;
+  var relevant = result.issues.filter(function (it) { return it.severity !== 'lchatchila'; });
+  if (!relevant.length) {
+    SA.Draw.text(ctx, 'No open issues right now.', px + pw / 2, yy + 20, { size: 13, color: 'rgba(255,255,255,0.7)' });
+  }
+  for (var i = 0; i < relevant.length && yy < py + ph - 40; i++) {
+    var it = relevant[i];
+    var color = it.severity === 'pasul' ? '#e05b46' : it.severity === 'incomplete' ? '#e0b23c' : '#4fb7c9';
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(px + 20, yy + 10, 5, 0, 7); ctx.fill();
+    var lines = SA.UI.wrapText(ctx, SA.Lang.t(it.en), pw - 50, 12.5);
+    for (var l = 0; l < lines.length; l++) { SA.Draw.text(ctx, lines[l], px + 34, yy + l * 17, { size: 12.5, color: '#fff', align: 'left' }); }
+    SA.Pick.addRect('issue_row', { cardId: it.cardId }, px + 8, yy - 8, pw - 16, lines.length * 17 + 14);
+    yy += lines.length * 17 + 16;
+  }
+};
+
+SA.UI.renderLevelCompleteModal = function (ctx) {
+  SA.UI.backdrop(ctx);
+  var w = SA.View.w, h = SA.View.h;
+  var pw = Math.min(340, w - 40), px = (w - pw) / 2, py = h * 0.3, ph = 260;
+  SA.UI.panel(ctx, px, py, pw, ph);
+  SA.Draw.text(ctx, 'Level Complete', px + pw / 2, py + 34, { size: 19, color: '#f0d98a', weight: '800' });
+  var reward = SA.Game.pendingReward || { families: [], sites: [], decorCats: [], animals: [] };
+  var names = [];
+  for (var i = 0; i < reward.families.length; i++) names.push(SA.Mat.families[reward.families[i]].en);
+  for (var j = 0; j < reward.sites.length; j++) names.push(SA.BG.byId[reward.sites[j]].en);
+  for (var k = 0; k < reward.animals.length; k++) names.push(SA.Mat.ANIMAL_BY_ID[reward.animals[k]].en);
+  var yy = py + 70;
+  if (names.length) {
+    SA.Draw.text(ctx, 'Unlocked!', px + pw / 2, yy, { size: 14, color: '#9ee6ac' });
+    yy += 24;
+    for (var n = 0; n < names.length && n < 5; n++) { SA.Draw.text(ctx, names[n], px + pw / 2, yy, { size: 13, color: '#fff' }); yy += 20; }
+  } else {
+    SA.Draw.text(ctx, 'Read the Card', px + pw / 2, yy, { size: 13, color: 'rgba(255,255,255,0.7)' });
+  }
+  SA.UI.btn(ctx, px + pw / 2 - 130, py + ph - 54, 120, 40, 'Read the Card', 'levelc_card', {});
+  SA.UI.btn(ctx, px + pw / 2 + 10, py + ph - 54, 120, 40, 'Next Level', 'levelc_next', {});
+};
+
+/* ---------------------------------------------- 17h. SANDBOX TAP DISPATCH */
+SA.UI.onSandboxTap = function (hit) {
+  var st = SA.Game.state;
+  if (hit.kind === 'modal_close' || hit.kind === 'card_close') { SA.Game.modal = null; SA.Game.modalCard = null; return; }
+  if (hit.kind === 'modal_backdrop') { SA.Game.modal = null; SA.Game.modalCard = null; return; }
+  if (hit.kind === 'sb_back') { SA.Save.markDirty(); SA.Save.flush(); SA.Game.screen = SA.Game.level ? 'levels' : 'title'; return; }
+  if (hit.kind === 'sb_meter') { SA.Game.modal = 'issues'; SA.Game.modalScroll = 0; return; }
+  if (hit.kind === 'sb_hint') return;
+  if (hit.kind === 'sb_tab_wall') { SA.Tool.category = 'wall'; SA.Game.modal = 'materials_wall'; SA.Game.modalScroll = 0; return; }
+  if (hit.kind === 'sb_tab_schach') { SA.Tool.category = 'schach'; SA.Game.modal = 'materials_schach'; SA.Game.modalScroll = 0; return; }
+  if (hit.kind === 'sb_tab_decor') { SA.Tool.category = 'decor'; SA.Game.modal = 'materials_decor'; SA.Game.modalScroll = 0; return; }
+  if (hit.kind === 'sb_tab_erase') { SA.Tool.category = SA.Tool.category === 'erase' ? 'wall' : 'erase'; return; }
+  if (hit.kind === 'sb_fill') {
+    if (SA.Tool.category === 'schach') SA.Act.fillSchach(st);
+    else if (SA.Tool.materialId) SA.Act.fillWall(st, SA.Tool.wallSide);
+    return;
+  }
+  if (hit.kind === 'sb_rotate') { SA.Camera.rotateStep(1); return; }
+  if (hit.kind === 'sb_inside') { SA.Camera.inside = !SA.Camera.inside; return; }
+  if (hit.kind === 'sb_overlay') { st.overlayOn = !st.overlayOn; return; }
+  if (hit.kind === 'sb_size') { SA.Game.modal = 'size'; return; }
+  if (hit.kind === 'sb_share') { SA.Share.shareSukkah(st, SA.Game.lastResult); return; }
+
+  if (hit.kind === 'material_pick') {
+    SA.Tool.category = hit.payload.category;
+    SA.Tool.materialId = hit.payload.id;
+    SA.Game.modal = null;
+    return;
+  }
+
+  if (hit.kind === 'floor_cell') return;
+  if (hit.kind === 'wall_cell') { SA.UI.onWallCellTap(st, hit.payload); return; }
+  if (hit.kind === 'schach_cell') { SA.UI.onSchachCellTap(st, hit.payload); return; }
+  if (hit.kind === 'decor_item') { SA.Game.selectedDecor = hit.payload.uid; SA.Game.selectedPanel = null; return; }
+  if (hit.kind === 'issue_marker') { if (hit.payload.issue.cardId) { SA.Game.modal = 'card'; SA.Game.modalCard = hit.payload.issue.cardId; } return; }
+  if (hit.kind === 'issue_row') { if (hit.payload.cardId) { SA.Game.modal = 'card'; SA.Game.modalCard = hit.payload.cardId; } return; }
+
+  if (hit.kind === 'sb_tie') { SA.Act.tieToggle(st, SA.Game.selectedPanel.side, SA.Game.selectedPanel.uid); return; }
+  if (hit.kind === 'sb_posture') { SA.Act.postureToggle(st, SA.Game.selectedPanel.side, SA.Game.selectedPanel.uid); return; }
+  if (hit.kind === 'sb_panel_erase') { SA.Act.eraseWall(st, SA.Game.selectedPanel.side, SA.State.findPanel(st, SA.Game.selectedPanel.side, SA.Game.selectedPanel.uid).col); SA.Game.selectedPanel = null; return; }
+  if (hit.kind === 'sb_dec_less' || hit.kind === 'sb_dec_more') {
+    var dec = null;
+    for (var i = 0; i < st.decor.length; i++) if (st.decor[i].uid === SA.Game.selectedDecor) dec = st.decor[i];
+    if (dec) SA.State.setDecorClearance(st, dec.uid, dec.clearance + (hit.kind === 'sb_dec_more' ? 1 : -1));
+    SA.Save.markDirty();
+    return;
+  }
+  if (hit.kind === 'sb_dec_erase') { SA.State.removeDecor(st, SA.Game.selectedDecor); SA.Game.selectedDecor = null; SA.Save.markDirty(); return; }
+
+  if (hit.kind === 'size_w_minus') SA.Act.setFootprint(st, st.footprint.w - 1, st.footprint.d);
+  if (hit.kind === 'size_w_plus') SA.Act.setFootprint(st, st.footprint.w + 1, st.footprint.d);
+  if (hit.kind === 'size_d_minus') SA.Act.setFootprint(st, st.footprint.w, st.footprint.d - 1);
+  if (hit.kind === 'size_d_plus') SA.Act.setFootprint(st, st.footprint.w, st.footprint.d + 1);
+  if (hit.kind === 'size_h_minus') SA.Act.setRoofHeight(st, st.roofHeight - 1);
+  if (hit.kind === 'size_h_plus') SA.Act.setRoofHeight(st, st.roofHeight + 1);
+
+  if (hit.kind === 'levelc_card') { SA.Game.modal = 'card'; SA.Game.modalCard = SA.Game.level.cardId; }
+  if (hit.kind === 'levelc_next') {
+    var idx = SA.Levels.indexOf(SA.Game.level);
+    SA.Game.modal = null;
+    if (idx >= 0 && idx < SA.Levels.length - 1) SA.Game.startLevel(SA.Levels[idx + 1].id);
+    else SA.Game.goLevels();
+  }
+};
+
+SA.UI.onWallCellTap = function (st, payload) {
+  SA.Tool.wallSide = payload.side;
+  if (SA.Tool.category === 'erase') { SA.Act.eraseWall(st, payload.side, payload.col); return; }
+  var entry = payload.uid ? SA.State.materialById(SA.State.findPanel(st, payload.side, payload.uid).matId) : null;
+  if (payload.uid && entry && (entry.matKind === 'animal' || entry.swaysInWind)) {
+    SA.Game.selectedPanel = { side: payload.side, uid: payload.uid };
+    SA.Game.selectedDecor = null;
+    return;
+  }
+  if (SA.Tool.category === 'wall' && SA.Tool.materialId) SA.Act.placeWall(st, payload.side, payload.col);
+};
+
+SA.UI.onSchachCellTap = function (st, payload) {
+  if (SA.Tool.category === 'erase') { SA.Act.eraseSchach(st, payload.x, payload.z); return; }
+  if (SA.Tool.category === 'schach' && SA.Tool.materialId) { SA.Act.placeSchach(st, payload.x, payload.z); return; }
+  if (SA.Tool.category === 'decor' && SA.Tool.materialId) SA.Act.placeDecor(st, payload.x, payload.z);
+};
+
+SA.UI.onTap = function (px, py) {
+  var hit = SA.Pick.hitTest(px, py);
+  if (!hit) { if (SA.Game.modal && SA.Game.screen === 'sandbox') SA.Game.modal = null; return; }
+  if (SA.Game.screen === 'title') SA.UI.onTitleTap(hit);
+  else if (SA.Game.screen === 'levels') SA.UI.onLevelsTap(hit);
+  else if (SA.Game.screen === 'cards') SA.UI.onCardsTap(hit);
+  else if (SA.Game.screen === 'sandbox') SA.UI.onSandboxTap(hit);
+};
+
+SA.Lang.add({
+  'Sukkah Size': 'גודל הסוכה',
+  '{n} tefachim': '{n} טפחים',
+  'Tap a level to see its title and start.': 'הקישו על שלב כדי לראות את הכותרת שלו ולהתחיל.',
+  'No open issues right now.': 'אין כרגע הערות פתוחות.'
+});
+
+</script>
+<script>
+/* ---------------------------------------------- 18. POINTER INPUT */
+/* One canvas, pointer events only (works for mouse, touch and pen alike).
+   A single active pointer does tap-or-drag (footprint handle resize, or a
+   modal's scroll list); a second simultaneous pointer switches to pinch
+   zoom. Tap-vs-drag is decided by total movement, not by gesture velocity,
+   so a slow careful placement never gets misread as a scroll. */
+SA.Input = {
+  pointers: {},
+  primaryId: null,
+  moved: false,
+  dragMode: null,     // null | 'footprint_w' | 'footprint_d' | 'scroll'
+  startX: 0, startY: 0,
+  lastX: 0, lastY: 0,
+  scrollBase: 0,
+  pinchDist0: 0,
+  pinchZoom0: 1
+};
+
+SA.Input.countPointers = function () {
+  var n = 0;
+  for (var k in SA.Input.pointers) n++;
+  return n;
+};
+
+SA.Input.handleFootprintZone = function (x, y) {
+  if (SA.Game.screen !== 'sandbox' || SA.Game.modal) return null;
+  if (SA.Game.level && SA.Game.level.lockFootprint) return null;
+  var handles = SA.Scene.footprintHandles(SA.Game.state);
+  var dw = Math.hypot(x - handles.width.sx, y - handles.width.sy);
+  var dd = Math.hypot(x - handles.depth.sx, y - handles.depth.sy);
+  if (dw < 28 && dw <= dd) return 'footprint_w';
+  if (dd < 28) return 'footprint_d';
+  return null;
+};
+
+SA.Input.onDown = function (x, y) {
+  SA.Input.moved = false;
+  SA.Input.startX = x; SA.Input.startY = y;
+  SA.Input.lastX = x; SA.Input.lastY = y;
+  SA.Input.dragMode = SA.Input.handleFootprintZone(x, y);
+  if (!SA.Input.dragMode && SA.Game.modal) {
+    SA.Input.dragMode = 'scroll';
+    SA.Input.scrollBase = SA.Game.modalScroll;
+  }
+};
+
+SA.Input.onMove = function (x, y) {
+  var dx = x - SA.Input.startX, dy = y - SA.Input.startY;
+  if (Math.hypot(dx, dy) > 8) SA.Input.moved = true;
+  if (!SA.Input.moved) { SA.Input.lastX = x; SA.Input.lastY = y; return; }
+  if (SA.Input.dragMode === 'footprint_w') {
+    SA.Act.setFootprint(SA.Game.state, SA.Scene.nearestWidthForPoint(SA.Game.state, x, y), SA.Game.state.footprint.d);
+  } else if (SA.Input.dragMode === 'footprint_d') {
+    SA.Act.setFootprint(SA.Game.state, SA.Game.state.footprint.w, SA.Scene.nearestDepthForPoint(SA.Game.state, x, y));
+  } else if (SA.Input.dragMode === 'scroll') {
+    var totalDy = y - SA.Input.startY;
+    var next = SA.Input.scrollBase - totalDy;
+    var max = SA.Game.modalScrollMax || 0;
+    SA.Game.modalScroll = Math.max(0, Math.min(max, next));
+  }
+  SA.Input.lastX = x; SA.Input.lastY = y;
+};
+
+SA.Input.onUp = function (x, y) {
+  if (!SA.Input.moved) SA.UI.onTap(x, y);
+  SA.Input.dragMode = null;
+};
+
+SA.Input.pinchUpdate = function () {
+  var ids = Object.keys(SA.Input.pointers);
+  if (ids.length !== 2) return;
+  var a = SA.Input.pointers[ids[0]], b = SA.Input.pointers[ids[1]];
+  var dist = Math.hypot(a.x - b.x, a.y - b.y);
+  if (!SA.Input.pinchDist0) { SA.Input.pinchDist0 = dist; SA.Input.pinchZoom0 = SA.Camera.zoom; return; }
+  var ratio = dist / Math.max(1, SA.Input.pinchDist0);
+  SA.Camera.zoom = Math.max(SA.Camera.minZoom, Math.min(SA.Camera.maxZoom, SA.Input.pinchZoom0 * ratio));
+};
+
+SA.Input.toLocal = function (e) {
+  var rect = SA.View.canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+};
+
+SA.Input.bind = function () {
+  var cv = SA.View.canvas;
+  cv.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    var p = SA.Input.toLocal(e);
+    SA.Input.pointers[e.pointerId] = p;
+    var n = SA.Input.countPointers();
+    if (n === 1) { SA.Input.primaryId = e.pointerId; SA.Input.onDown(p.x, p.y); }
+    else if (n === 2) { SA.Input.pinchDist0 = 0; SA.Input.dragMode = null; }
+  }, { passive: false });
+
+  cv.addEventListener('pointermove', function (e) {
+    if (!(e.pointerId in SA.Input.pointers)) return;
+    var p = SA.Input.toLocal(e);
+    SA.Input.pointers[e.pointerId] = p;
+    var n = SA.Input.countPointers();
+    if (n >= 2) SA.Input.pinchUpdate();
+    else if (n === 1 && e.pointerId === SA.Input.primaryId) SA.Input.onMove(p.x, p.y);
+  }, { passive: false });
+
+  function release(e) {
+    if (!(e.pointerId in SA.Input.pointers)) return;
+    var wasPrimary = e.pointerId === SA.Input.primaryId;
+    var p = SA.Input.toLocal(e);
+    delete SA.Input.pointers[e.pointerId];
+    SA.Input.pinchDist0 = 0;
+    if (wasPrimary) {
+      SA.Input.onUp(p.x, p.y);
+      SA.Input.primaryId = null;
+      var remaining = Object.keys(SA.Input.pointers);
+      if (remaining.length) { SA.Input.primaryId = Number(remaining[0]); SA.Input.onDown(SA.Input.pointers[remaining[0]].x, SA.Input.pointers[remaining[0]].y); }
+    }
+  }
+  cv.addEventListener('pointerup', release, { passive: false });
+  cv.addEventListener('pointercancel', release, { passive: false });
+
+  cv.addEventListener('wheel', function (e) {
+    if (SA.Game.screen !== 'sandbox') return;
+    e.preventDefault();
+    var delta = e.deltaY < 0 ? 1.06 : 0.94;
+    SA.Camera.zoom = Math.max(SA.Camera.minZoom, Math.min(SA.Camera.maxZoom, SA.Camera.zoom * delta));
+  }, { passive: false });
+
+  window.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+};
+</script>
+<script>
+/* ---------------------------------------------- 19. PROGRESS + AUTOSAVE */
+/* Sandbox is the main mode; the ladder in p15 only ever ADDS to what the
+   sandbox can already do. Unlocks and the current build both live in
+   localStorage - there is no account/server anywhere in this game. */
+SA.Progress.unlocked = {
+  families: SA.Progress.STARTER_FAMILIES.slice(),
+  sites: SA.Progress.STARTER_SITES.slice(),
+  decorCats: SA.Progress.STARTER_DECOR_CATS.slice(),
+  animals: SA.Progress.STARTER_ANIMALS.slice()
+};
+SA.Progress.completed = {};
+SA.Progress.STORE_KEY = 'sukkah_architect.progress';
+
+SA.Progress.grant = function (reward) {
+  if (!reward) return;
+  var keys = ['families', 'sites', 'decorCats', 'animals'];
+  for (var k = 0; k < keys.length; k++) {
+    var list = reward[keys[k]] || [];
+    for (var i = 0; i < list.length; i++) {
+      if (SA.Progress.unlocked[keys[k]].indexOf(list[i]) < 0) SA.Progress.unlocked[keys[k]].push(list[i]);
+    }
+  }
+  SA.Progress.save();
+};
+
+SA.Progress.markLevelDone = function (id) { SA.Progress.completed[id] = true; SA.Progress.save(); };
+
+/* Hook point for the tool layer (p11 SA.Act.*) - currently no scoring or
+   analytics hangs off it, so it stays a cheap no-op rather than doing any
+   per-action work (siddur-performance's "cheap gate first", applied here
+   even though this file predates that codebase). */
+SA.Progress.onAction = function (kind, materialId) {};
+
+SA.Progress.save = function () {
+  try { localStorage.setItem(SA.Progress.STORE_KEY, JSON.stringify({ unlocked: SA.Progress.unlocked, completed: SA.Progress.completed })); } catch (e) {}
+};
+
+SA.Progress.load = function () {
+  try {
+    var raw = localStorage.getItem(SA.Progress.STORE_KEY);
+    if (!raw) return;
+    var obj = JSON.parse(raw);
+    if (obj && obj.unlocked) SA.Progress.unlocked = obj.unlocked;
+    if (obj && obj.completed) SA.Progress.completed = obj.completed;
+  } catch (e) {}
+};
+
+/* ---------------------------------------------- 19a. SANDBOX AUTOSAVE */
+SA.Save = {
+  KEY: 'sukkah_architect.sandbox',
+  dirty: false
+};
+
+SA.Save.markDirty = function () {
+  SA.Save.dirty = true;
+  SA.Save.flush();
+};
+
+SA.Save.flush = function () {
+  if (!SA.Save.dirty || !SA.Game.state || SA.Game.level) { SA.Save.dirty = false; return; }
+  try { localStorage.setItem(SA.Save.KEY, JSON.stringify(SA.Game.state)); } catch (e) {}
+  SA.Save.dirty = false;
+};
+
+SA.Save.load = function () {
+  try {
+    var raw = localStorage.getItem(SA.Save.KEY);
+    if (!raw) return null;
+    var st = JSON.parse(raw);
+    if (!st || !st.footprint || !st.walls || !st.schach) return null;
+    return st;
+  } catch (e) { return null; }
+};
+</script>
+<script>
+/* ---------------------------------------------- 20. SHARE */
+/* Renders a postcard PNG on an offscreen canvas (never touches the live
+   #stage), then hands it to the host. Contract with the Kotlin side (see
+   PlatformLocalHtmlWebView.evaluate): right before navigating, this sets
+   window.__mitzShare = { png: <full data: URL>, text: <one-line summary> }.
+   A data: URL is far too long for the host to read off the URL itself, so
+   mitz://share/sukkah is only a doorbell - the host pulls the payload back
+   with evaluateJavascript('JSON.stringify(window.__mitzShare||null)') and
+   strips the "data:image/png;base64," prefix itself before writing bytes. */
+SA.Share = {};
+
+SA.Share.summaryText = function (state, result) {
+  var verdict = result.status === 'kosher' ? SA.Lang.t('KOSHER') : (result.status === 'pasul' ? SA.Lang.t('PASUL') : SA.Lang.t('NOT KOSHER YET'));
+  return SA.Lang.t('I built a sukkah in Sukkah Architect!') + ' ' + verdict + ' - ' +
+    SA.Lang.fmt('{w}x{d} tefachim, {p}% shaded.', { w: state.footprint.w, d: state.footprint.d, p: Math.round((result.shadeRatio || 0) * 100) });
+};
+
+SA.Share.render = function (state, result) {
+  var W = 800, H = 1000;
+  var off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  var octx = off.getContext('2d', { alpha: false });
+
+  var savedCanvas = SA.View.canvas, savedCtx = SA.View.ctx, savedW = SA.View.w, savedH = SA.View.h;
+  var savedAngle = SA.Camera.angle, savedTarget = SA.Camera.targetAngle, savedZoom = SA.Camera.zoom;
+  var savedPan = { x: SA.Camera.pan.x, y: SA.Camera.pan.y }, savedInside = SA.Camera.inside;
+  var savedOverlay = state.overlayOn;
+
+  SA.View.canvas = off; SA.View.ctx = octx; SA.View.w = W; SA.View.h = H;
+  SA.Camera.pan.x = 0; SA.Camera.pan.y = -80;
+  SA.Camera.angle = 35; SA.Camera.targetAngle = 35; SA.Camera.inside = false;
+  state.overlayOn = false;
+  SA.Camera.zoom = 1;
+  SA.Iso.setViewport(W, H - 170);
+  SA.Camera.zoom = SA.Share.fitZoom(state, W * 0.78, (H - 170) * 0.7);
+  SA.Iso.setViewport(W, H - 170);
+  SA.Scene.render(octx, state, result);
+
+  SA.View.canvas = savedCanvas; SA.View.ctx = savedCtx; SA.View.w = savedW; SA.View.h = savedH;
+  SA.Camera.angle = savedAngle; SA.Camera.targetAngle = savedTarget; SA.Camera.zoom = savedZoom;
+  SA.Camera.pan = savedPan; SA.Camera.inside = savedInside;
+  state.overlayOn = savedOverlay;
+
+  SA.Share.drawStamp(octx, W, H, state, result);
+  return off.toDataURL('image/png');
+};
+
+SA.Share.fitZoom = function (state, availW, availH) {
+  var w = state.footprint.w, d = state.footprint.d, cx = w / 2, cz = d / 2;
+  var corners = [
+    [0, 0, 0], [w, 0, 0], [0, 0, d], [w, 0, d],
+    [0, state.roofHeight, 0], [w, state.roofHeight, 0], [0, state.roofHeight, d], [w, state.roofHeight, d]
+  ];
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (var i = 0; i < corners.length; i++) {
+    var p = SA.Iso.project(corners[i][0], corners[i][1], corners[i][2], cx, cz);
+    var rx = p.sx - SA.Iso.originX, ry = p.sy - SA.Iso.originY;
+    minX = Math.min(minX, rx); maxX = Math.max(maxX, rx);
+    minY = Math.min(minY, ry); maxY = Math.max(maxY, ry);
+  }
+  var spanW = Math.max(1, maxX - minX), spanH = Math.max(1, maxY - minY);
+  return Math.max(0.25, Math.min(3.2, Math.min(availW / spanW, availH / spanH)));
+};
+
+SA.Share.drawStamp = function (ctx, W, H, state, result) {
+  var bandY = H - 170;
+  ctx.fillStyle = '#141821';
+  ctx.fillRect(0, bandY, W, 170);
+  var color = SA.UI.KOSHER_COLOR[result.status];
+  var label = result.status === 'kosher' ? 'KOSHER' : (result.status === 'pasul' ? 'PASUL' : 'NOT KOSHER YET');
+  SA.Draw.roundRect(ctx, W / 2 - 130, bandY + 18, 260, 46, 23);
+  ctx.fillStyle = color; ctx.fill();
+  SA.Draw.text(ctx, label, W / 2, bandY + 42, { size: 20, color: '#111', weight: '800' });
+  SA.Draw.text(ctx, 'SUKKAH ARCHITECT', W / 2, bandY + 84, { size: 16, color: '#f0d98a', weight: '700' });
+  SA.Draw.text(ctx, SA.Lang.fmt('{w}x{d} tefachim', { w: state.footprint.w, d: state.footprint.d }) +
+    '  \u2022  ' + SA.Lang.fmt('{p}% shaded', { p: Math.round((result.shadeRatio || 0) * 100) }),
+    W / 2, bandY + 116, { size: 14, color: 'rgba(255,255,255,0.82)' });
+  SA.Draw.text(ctx, SA.Lang.t('Design a kosher sukkah, piece by piece.'), W / 2, bandY + 144, { size: 12, color: 'rgba(255,255,255,0.55)' });
+};
+
+SA.Share.shareSukkah = function (state, result) {
+  var dataUrl = SA.Share.render(state, result);
+  var text = SA.Share.summaryText(state, result);
+  if (SA.Host.inApp()) {
+    window.__mitzShare = { png: dataUrl, text: text };
+    try { location.href = 'mitz://share/sukkah'; } catch (e) {}
+    return;
+  }
+  SA.Share.webFallback(dataUrl, text);
+};
+
+SA.Share.webFallback = function (dataUrl, text) {
+  if (!navigator.share) { SA.Share.download(dataUrl); return; }
+  fetch(dataUrl).then(function (res) { return res.blob(); }).then(function (blob) {
+    var file = new File([blob], 'sukkah-architect.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], text: text, title: 'Sukkah Architect' }).catch(function () { SA.Share.download(dataUrl); });
+    } else {
+      SA.Share.download(dataUrl);
+    }
+  }).catch(function () { SA.Share.download(dataUrl); });
+};
+
+SA.Share.download = function (dataUrl) {
+  var a = document.createElement('a');
+  a.href = dataUrl; a.download = 'sukkah-architect.png';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+};
+
+SA.Lang.add({
+  'I built a sukkah in Sukkah Architect!': 'בניתי סוכה במשחק אדריכל הסוכה!',
+  '{w}x{d} tefachim, {p}% shaded.': '{w}x{d} טפחים, {p}% מוצל.',
+  '{w}x{d} tefachim': '{w}x{d} טפחים',
+  '{p}% shaded': '{p}% מוצל',
+  '20 Amos - the height ceiling': 'עשרים אמה - תקרת הגובה'
+});
+</script>
+<script>
+/* ---------------------------------------------- 21. BOOT + GAME LOOP */
+SA.Loop.update = function (dt) {
+  SA.Camera.update(dt);
+};
+
+SA.Loop.render = function () {
+  var ctx = SA.View.ctx;
+  if (SA.Game.screen === 'sandbox') {
+    var result = SA.Halacha.evaluate(SA.Game.state);
+    SA.Game.lastResult = result;
+    SA.Scene.render(ctx, SA.Game.state, result);
+    SA.UI.renderSandbox(ctx, result);
+    if (!SA.Game.modal) SA.Game.checkLevelGoal(result);
+  } else if (SA.Game.screen === 'levels') {
+    SA.UI.renderLevels(ctx);
+  } else if (SA.Game.screen === 'cards') {
+    SA.UI.renderCards(ctx);
+  } else {
+    SA.UI.renderTitle(ctx);
+  }
+};
+
+SA.start = function () {
+  SA.boot();
+  SA.Lang.boot();
+  SA.Progress.load();
+  SA.Input.bind();
+  SA.Game.screen = 'title';
+  SA.Loop.start();
+};
+
+window.addEventListener('load', SA.start);
+window.addEventListener('pagehide', function () { SA.Save.flush(); });
+window.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') SA.Save.flush(); });
+</script>
+</body>
+</html>
