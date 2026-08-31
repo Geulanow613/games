@@ -347,8 +347,11 @@ var Lang = {
     'DASH': 'דאש',
     'Six arcade minigames. Real halacha.': 'שש משחקים. הלכה אמיתית.',
     'Seven arcade minigames. Real halacha.': 'שבע משחקים. הלכה אמיתית.',
+    'Eight arcade minigames. Real halacha.': 'שמונה משחקים. הלכה אמיתית.',
     'Camp Kosh': 'קעמפ כשר',
     'Feed the boys, keep it kosher': 'תאכיל את הבחורים, תשמור על כשרות',
+    'Sukkah Architect': 'אדריכל הסוכה',
+    'Build it kosher, piece by piece': 'בנה אותה כשרה, חלק אחר חלק',
     'HALACHA GALLERY': 'גלריית ההלכה',
     'BACK': 'חזרה',
     'PLAY': 'שחק',
@@ -1064,10 +1067,6 @@ var Lang = {
     'the jets do not wait': 'הסילונים לא מחכים',
     'night lamps. the zman is still the zman': 'פנסי לילה. הזמן עדיין הזמן',
     'darker. still hopping': 'יותר חשוך. ממשיכים לקפוץ',
-    'big buses. hop the gap - or grab a kosher ride': 'אוטובוסים גדולים. קפצו ברווח - או תפסו טרמפ כשר',
-    'the bus is longer than it looks': 'האוטובוס ארוך ממה שנראה',
-    'cones close a square. weave': 'קונוסים סוגרים משבצת. תתחמקו',
-    'weave. the scooter does not wait': 'תתחמקו. הקורקינט לא מחכה',
     'hop onto a walker - miss the gap and they bump you back': 'קפצו על הולך - פספסתם והם דוחפים אחורה',
     'more walkers. the bump still costs no life': 'עוד הולכים. הדחיפה עדיין לא עולה חיים',
     'narrow streets. buses AND stalls': 'רחובות צרים. אוטובוסים וגם דוכנים',
@@ -1081,7 +1080,11 @@ var Lang = {
     'you can see the shul from here': 'מכאן רואים את בית הכנסת',
     'do not slow down now': 'אל תאטו עכשיו',
     'one more street': 'עוד רחוב אחד',
-    'the deadline is close. RUN': 'הזמן נגמר. רוצו'
+    'the deadline is close. RUN': 'הזמן נגמר. רוצו',
+    'big buses. hop the gap - or grab a kosher ride': 'אוטובוסים גדולים. קפצו ברווח - או תפסו טרמפ כשר',
+    'the bus is longer than it looks': 'האוטובוס ארוך ממה שנראה',
+    'cones close a square. weave': 'קונוסים סוגרים משבצת. תתחמקו',
+    'weave. the scooter does not wait': 'תתחמקו. הקורקינט לא מחכה'
   }
 };
 
@@ -2644,6 +2647,18 @@ var Icons = {
         ctx.beginPath(); ctx.moveTo(s * 8, -26); ctx.lineTo(s * 18, -40); ctx.stroke();
       });
     },
+    sukkah: function (ctx) {
+      ctx.beginPath();
+      ctx.moveTo(-32, 36); ctx.lineTo(-32, -2);
+      ctx.moveTo(32, 36); ctx.lineTo(32, -2);
+      ctx.moveTo(-32, 36); ctx.lineTo(32, 36);
+      ctx.stroke();
+      ctx.beginPath();
+      [-30, -12, 6, 24].forEach(function (sx) {
+        ctx.moveTo(sx, -2); ctx.lineTo(sx + 14, -22);
+      });
+      ctx.stroke();
+    },
     candle: function (ctx) {
       ctx.beginPath(); ctx.rect(-12, -8, 24, 44); ctx.stroke();
       ctx.beginPath();
@@ -2851,6 +2866,10 @@ var Game = {
   startGame: function (id) {
     if (id === 'chain') {
       MitzHost.open('kosher-chain');
+      return;
+    }
+    if (id === 'sukkah') {
+      MitzHost.open('sukkah');
       return;
     }
     FX.reset();
@@ -3214,7 +3233,9 @@ var GAMES = [
   /* hidden from the menu, not deleted - may bring it back later */
   { id:'kitchen', name:'Kitchen Match',  tag:'Make a kosher plate',       icon:'leaf',  color:'#5ee0c0', hidden: true },
   { id:'matzah',  name:'Matzah Havoc',   tag:'Twelve-route dash',         icon:'truck', color:'#ff8a6b' },
-  { id:'tzedaka', name:'Tzedaka Blast',  tag:'Into their hands',          icon:'coin',  color:'#c9adff' }
+  { id:'tzedaka', name:'Tzedaka Blast',  tag:'Into their hands',          icon:'coin',  color:'#c9adff' },
+  /* own engine, same as Camp Kosh above - a builder, not an arcade dash */
+  { id:'sukkah',  name:'Sukkah Architect', tag:'Build it kosher, piece by piece', icon:'sukkah', color:'#d1975a', external: true }
 ];
 /* what the Play tab grid actually shows */
 var VISIBLE_GAMES = GAMES.filter(function (g) { return !g.hidden; });
@@ -3228,6 +3249,9 @@ var MitzHost = {
     }
     if (game === 'kosher-chain' || game === 'chain') {
       try { location.href = 'kosher-chain/index.html'; return true; } catch (e) {}
+    }
+    if (game === 'sukkah' || game === 'sukkah-architect') {
+      try { location.href = 'sukkah-architect/index.html'; return true; } catch (e) {}
     }
     return false;
   }
@@ -3296,7 +3320,7 @@ var Screens = {
         size: 64, color: C.cream, align: 'center', weight: '900',
         stroke: 'rgba(0,0,0,.6)', strokeW: 8, shadow: 'rgba(120,200,255,.4)', shadowBlur: 24
       });
-      Draw.text(ctx, 'Seven arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
+      Draw.text(ctx, 'Eight arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
         size: 22, color: 'rgba(255,255,255,.72)', align: 'center', weight: '600'
       });
 
