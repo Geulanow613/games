@@ -8646,6 +8646,28 @@ SA.Mat.beamCountsAsSchach = function (entry) {
   return !!(entry && entry.matKind === 'beam' && !entry.mekabelTumah);
 };
 
+/* How much of a roof CELL this covering actually shades (tzilata merubah).
+   Thin bamboo culms leave most of the cell as sky - they must NOT count as a
+   full shaded tefach just because a pole occupies the grid square. Mats and
+   leafy armfuls fill the cell. */
+SA.Mat.schachShadeFill = function (entry) {
+  if (!entry) return 0;
+  if (entry.tex === 'pole' || entry.tex === 'pole_metal') return 0.42;
+  if (entry.tex === 'wood') {
+    /* Narrow slats still leak sky; a bought slat/cedar mat is denser. */
+    if (/mat/i.test(entry.id || '') || (entry.tier != null && entry.tier >= 2)) return 0.88;
+    return 0.55;
+  }
+  if (entry.tex === 'stalk' || entry.tex === 'frond' || entry.tex === 'branch') return 0.92;
+  if (entry.tex === 'mat' || entry.tex === 'quilt') return 0.95;
+  return 1;
+};
+SA.Mat.beamShadeFill = function (entry) {
+  if (!entry || !SA.Mat.beamCountsAsSchach(entry)) return 0;
+  /* A frame member is a thin stick across the cell - never a solid roof. */
+  return 0.32;
+};
+
 /* ---------------------------------------------- 8a. SCHACH PALETTE */
 /* Five value steps of every colour, so a roof of a hundred cells can pick a
    slightly different one per cell and stop reading as one flat sheet. The
@@ -14762,20 +14784,24 @@ SA.Halacha.evaluateSchach = function (state, issues, measurements) {
   var frameSup = measurements && measurements.frameSupport;
   var cls = [];
   var kosherCount = 0;
+  var shadeUnits = 0;
   for (var x = 0; x < w; x++) {
     var col = [];
     for (var z = 0; z < d; z++) {
       if (hazardSet[x + '_' + z]) { col.push({ type: 'pasul', reason: 'overhead' }); continue; }
       var cell = state.schach[x][z];
       if (!cell) {
-        /* A wooden / bamboo pole is covering as well as a frame. Once it is
-           actually carried, the cell it occupies shades the floor. Metal never
-           grew, so a pipe is never schach. */
+        /* A wooden / bamboo pole can shade a little as well as frame - but only
+           the thin stick, not the whole cell. Metal never grew, so a pipe is
+           never schach. */
         var beamHere = SA.State.beamAt(state, x, z);
         var bEnt = beamHere && SA.Mat.BEAM_BY_ID[beamHere.matId];
         if (beamHere && !beamHere.auto && SA.Mat.beamCountsAsSchach(bEnt) &&
             frameSup && frameSup.landedBeams[beamHere.uid]) {
-          col.push({ type: 'kosher' }); kosherCount++;
+          var bFill = SA.Mat.beamShadeFill(bEnt);
+          col.push({ type: 'kosher', shadeFill: bFill });
+          kosherCount++;
+          shadeUnits += bFill;
         } else {
           col.push({ type: 'avir' });
         }
@@ -14785,15 +14811,19 @@ SA.Halacha.evaluateSchach = function (state, issues, measurements) {
       var widthFail = entry.widthTefachim >= SA.Rule.GEZEIRAS_TIKRAH_WIDTH;
       var baseFail = entry.reasonCode != null;
       if (widthFail || baseFail) col.push({ type: 'pasul', reason: baseFail ? entry.reasonCode : 'width', matId: entry.id });
-      else { col.push({ type: 'kosher' }); kosherCount++; }
+      else {
+        var sFill = SA.Mat.schachShadeFill(entry);
+        col.push({ type: 'kosher', shadeFill: sFill, matId: entry.id });
+        kosherCount++;
+        shadeUnits += sFill;
+      }
     }
     cls.push(col);
   }
   var totalCells = w * d;
   /* Lavud (OC 632:2): a gap under three tefachim is nullified into the schach
-     around it. The tip below already says so, but shadeRatio used to count only
-     filled kosher cells - a roof that looks solid because armfuls overlap with
-     one-tefach seams read as ~49% shaded. Those seams shade the floor. */
+     around it. Those seams inherit the average fill of the kosher cells they
+     sit between - sparse poles do not magically become a solid roof via lavud. */
   var comps = saFloodComponents(w, d, cls);
   var lavudShade = 0;
   for (var li = 0; li < comps.length; li++) {
@@ -14801,11 +14831,13 @@ SA.Halacha.evaluateSchach = function (state, issues, measurements) {
       lavudShade += comps[li].cells.length;
     }
   }
-  var shadeCount = kosherCount + lavudShade;
+  var avgFill = kosherCount ? (shadeUnits / kosherCount) : 1;
+  var shadeCount = shadeUnits + lavudShade * avgFill;
   var shadeRatio = totalCells ? shadeCount / totalCells : 0;
   measurements.shadeRatio = shadeRatio;
   measurements.kosherSchachCount = kosherCount;
   measurements.lavudShadeCount = lavudShade;
+  measurements.shadeUnits = shadeUnits;
   measurements.cellClass = cls; // per-cell kosher/avir/pasul, for the overlay's floor coverage map (never a drawn sun)
   var shadeOk = shadeRatio > SA.Rule.SHADE_MIN;
   if (!shadeOk) {
@@ -14820,9 +14852,10 @@ SA.Halacha.evaluateSchach = function (state, issues, measurements) {
         ? 'Nothing is shading the floor yet - kosher schach has to cover more than half of it (tzilata merubah, OC 631:1).'
         : SA.Lang.fmt('The schach shades {p} percent of the floor. It only has to get past fifty (tzilata merubah, OC 631:1).', { p: Math.round(shadeRatio * 100) }),
       cardId: 'sk_shade' });
-  } else if (kosherCount === totalCells && totalCells > 0) {
+  } else if (kosherCount === totalCells && totalCells > 0 && avgFill >= 0.98) {
     /* Rema / OC 631:3 - l'chatchila prefer light through the schach. Sealed
-       coverage is still fully kosher; this tip never fails the meter. */
+       coverage is still fully kosher; this tip never fails the meter.
+       Reed/bamboo mats and poles leave sky through - only a near-solid sheet. */
     issues.push({ severity: 'tip', code: 'schach_too_thick',
       en: 'The schach is so dense no sky shows through. Still kosher - Rema prefers a little light (OC 631:3).',
       cardId: 'sk_schach_thickness' });
@@ -17576,7 +17609,7 @@ SA.UI.renderSettings = function (ctx) {
   var w = SA.View.w, h = SA.View.h;
   ctx.fillStyle = 'rgba(6,8,14,0.55)'; ctx.fillRect(0, 0, w, h);
   SA.Pick.addRect('modal_backdrop', {}, 0, 0, w, h);
-  var pw = Math.min(340, w - 40), ph = 318;
+  var pw = Math.min(340, w - 40), ph = 378;
   var px = (w - pw) / 2, py = (h - ph) / 2 - 20;
   SA.Draw.roundRect(ctx, px, py, pw, ph, 18);
   ctx.fillStyle = 'rgba(22,26,36,0.97)'; ctx.fill();
@@ -17585,25 +17618,35 @@ SA.UI.renderSettings = function (ctx) {
   SA.Draw.text(ctx, SA.Lang.t('On-screen ruler only. Kosher rules stay in tefachim.'),
     w / 2, py + 56, { size: 11, color: 'rgba(255,255,255,0.4)' });
 
-  SA.Draw.text(ctx, SA.Lang.t('Units'), w / 2, py + 84, { size: 12, color: 'rgba(255,255,255,0.55)' });
+  SA.Draw.text(ctx, SA.Lang.t('Sound & music'), w / 2, py + 84, { size: 12, color: 'rgba(255,255,255,0.55)' });
+  var soundLabel = SA.Audio.enabled
+    ? SA.Lang.t('Sound: On')
+    : SA.Lang.t('Sound: Off');
+  SA.UI.btn(ctx, px + 24, py + 96, pw - 48, 44, soundLabel, 'settings_sound', {}, true);
+
+  SA.Draw.text(ctx, SA.Lang.t('Units'), w / 2, py + 156, { size: 12, color: 'rgba(255,255,255,0.55)' });
   var unitsLabel = SA.Shiur.units === 'metric' ? 'Metric (cm / m)' : 'Imperial (in / ft)';
-  SA.UI.btn(ctx, px + 24, py + 96, pw - 48, 44,
+  SA.UI.btn(ctx, px + 24, py + 168, pw - 48, 44,
     SA.Lang.fmt('Units: {name}', { name: SA.Lang.t(unitsLabel) }), 'settings_units', {}, true);
 
-  SA.Draw.text(ctx, SA.Lang.t('Measurement shiur'), w / 2, py + 160, { size: 12, color: 'rgba(255,255,255,0.55)' });
+  SA.Draw.text(ctx, SA.Lang.t('Measurement shiur'), w / 2, py + 228, { size: 12, color: 'rgba(255,255,255,0.55)' });
   var shiurLabel = SA.Shiur.current === 'naeh' ? 'Rav Chaim Naeh (8 cm)' : 'Chazon Ish (9.6 cm)';
-  SA.UI.btn(ctx, px + 24, py + 172, pw - 48, 44,
+  SA.UI.btn(ctx, px + 24, py + 240, pw - 48, 44,
     SA.Lang.fmt('Shiur: {name}', { name: SA.Lang.t(shiurLabel) }), 'settings_shiur', {}, true);
 
   var sample = SA.Shiur.formatDim(7);
   SA.Draw.text(ctx, SA.Lang.fmt('Booth opens at 12×12 ft. Minimum mark is {sample}.', { sample: sample }),
-    w / 2, py + 236, { size: 11, color: 'rgba(240,217,138,0.85)' });
+    w / 2, py + 300, { size: 11, color: 'rgba(240,217,138,0.85)' });
 
-  SA.UI.btn(ctx, px + 24, py + 258, pw - 48, 36, 'Close', 'settings_close', {});
+  SA.UI.btn(ctx, px + 24, py + 322, pw - 48, 36, 'Close', 'settings_close', {});
 };
 
 SA.UI.onTitleTap = function (hit) {
   if (SA.Game.modal === 'settings') {
+    if (hit.kind === 'settings_sound') {
+      SA.Audio.setEnabled(!SA.Audio.enabled);
+      return;
+    }
     if (hit.kind === 'settings_units') {
       SA.Shiur.units = SA.Shiur.units === 'metric' ? 'imperial' : 'metric';
       if (SA.Prefs && SA.Prefs.save) SA.Prefs.save();
@@ -17960,9 +18003,25 @@ SA.UI.renderBuild = function (ctx, result) {
   if (!SA.Game.winTour && SA.Game.selectedDecor) SA.UI.renderDecorInspector(ctx, trayTop);
   /* Win-tour is for looking at the booth - no toast pile over the schach. */
   if (!SA.Game.winTour) SA.UI.renderToasts(ctx, trayTop - 8);
+  /* Goal met: keep the booth open for decorations until they tap Done. */
+  if (!SA.Game.winTour && SA.Scramble.run && SA.Scramble.run.goalMet &&
+      SA.Scramble.run.status === 'building') {
+    SA.UI.renderFinishBar(ctx, trayTop);
+  }
   if (SA.Pile.dragging) SA.UI.renderDragGhost(ctx);
   if (SA.Game.winTour) SA.UI.renderWinTourChrome(ctx);
   if (SA.Game.modal) SA.UI.renderBuildModal(ctx, result);
+};
+
+SA.UI.renderFinishBar = function (ctx, trayTop) {
+  var w = SA.View.w, safe = SA.View.safe;
+  var bw = Math.min(220, w - safe.l - safe.r - 24);
+  var bx = (w - bw) / 2;
+  var by = trayTop - 54;
+  SA.Draw.text(ctx, SA.Lang.t('Ready when you are'), w / 2, by - 12, {
+    size: 12, color: 'rgba(240,217,138,0.92)', weight: '700'
+  });
+  SA.UI.btnTitle(ctx, bx, by, bw, 40, 'Done', 'sb_finish', {}, true);
 };
 
 /* Motzei Yom Kippur on the left, Sukkot on the right, and a bar that walks
@@ -18111,7 +18170,7 @@ SA.UI.renderToolStrip = function (ctx) {
   if (hint && SA.FX.now() - hint.t < 1500) {
     for (var j = 0; j < list.length; j++) {
       if (list[j][1] !== hint.kind) continue;
-      var label = SA.Lang.t(SA.UI.TOOL_NAMES[hint.kind] || '');
+      var label = SA.Lang.t(SA.UI.toolName(hint.kind));
       if (!label) break;
       var fade = Math.min(1, (1500 - (SA.FX.now() - hint.t)) / 350);
       ctx.save();
@@ -18135,6 +18194,10 @@ SA.UI.TOOL_NAMES = {
   sb_overlay: 'Measuring overlay', sb_size: 'Sukkah size', sb_sound: 'Sound',
   sb_erase: 'Eraser', sb_share: 'Share a picture', sb_restart: 'Start over'
 };
+SA.UI.toolName = function (kind) {
+  if (kind === 'sb_sound') return SA.Audio.enabled ? 'Sound on' : 'Sound off';
+  return SA.UI.TOOL_NAMES[kind] || '';
+};
 
 SA.Lang.add({
   'Undo': 'בטלו',
@@ -18147,6 +18210,14 @@ SA.Lang.add({
   'Measuring overlay': 'שכבת מדידה',
   'Sukkah size': 'מידות הסוכה',
   'Sound': 'צליל',
+  'Sound on': 'צליל פועל',
+  'Sound off': 'צליל כבוי',
+  'Sound & music': 'צליל ומוזיקה',
+  'Sound: On': 'צליל: פועל',
+  'Sound: Off': 'צליל: כבוי',
+  'Done': 'סיום',
+  'Ready when you are': 'מוכנים כשאתם מוכנים',
+  'Kosher! Keep decorating, then tap Done.': 'כשר! אפשר להמשיך לקשט, ואז להקיש על סיום.',
   'Settings': 'הגדרות',
   'Units': 'יחידות',
   'Measurement shiur': 'שיעור מדידה',
@@ -18973,6 +19044,7 @@ SA.UI.onBuildTap = function (hit) {
     return;
   }
   if (hit.kind === 'sb_sound') { SA.Audio.setEnabled(!SA.Audio.enabled); return; }
+  if (hit.kind === 'sb_finish') { SA.Scramble.finishWin(); return; }
   if (hit.kind === 'sb_shelf_tab') { SA.Pile.setShelfTab(hit.payload.tab); SA.Audio.play('page'); return; }
   if (hit.kind === 'sb_tray_prev') { SA.Pile.trayStep(-1); SA.Audio.play('page'); return; }
   if (hit.kind === 'sb_tray_next') { SA.Pile.trayStep(1); SA.Audio.play('page'); return; }
@@ -21231,6 +21303,20 @@ SA.Pile.roll = function (cfg, state, seed) {
       out.push(spFull);
       schachHave = roofCells;
     }
+  } else if (cfg.forcedSchach && cfg.forcedSchach.length) {
+    /* Seed specific covering (e.g. thin bamboo poles) without making that one
+       piece the whole roof - shade fill still has to get past fifty. */
+    for (var fsi = 0; fsi < cfg.forcedSchach.length; fsi++) {
+      var fsEnt = SA.Mat.SCHACH_BY_ID[cfg.forcedSchach[fsi]];
+      if (!fsEnt) continue;
+      var fsP = SA.Pile.makeSchachPiece(fsEnt);
+      if (backyard) {
+        fsP.cw = state.footprint.w;
+        fsP.cd = state.footprint.d;
+      }
+      out.push(fsP);
+      schachHave += fsP.cw * fsP.cd;
+    }
   }
   while (schachHave < schachNeed && guard++ < (backyard ? 8 : 400)) {
     var st2 = saPileTier(rnd, weights, pools.schach);
@@ -22322,16 +22408,17 @@ SA.Scramble.OVERRIDE = {
   /* The trap IS the lesson on these runs, so force the exact bait. */
   boards_too_wide: { forcedTraps: ['sch_wide_boards', 'sch_wide_boards'] },
   ladder_in_middle: { forcedTraps: ['sch_old_ladder', 'sch_old_door'] },
-  /* Shade lessons on a backyard pad: rigid poles can span the middle; soft
-     mats alone only sit on wall-tops. Always bamboo poles (rigid) - never a
-     soft reed mat that cannot cover the open middle. */
+  /* Shade lessons on a backyard pad: rigid bamboo poles span the middle as a
+     FRAME, but they are thin - they do not shade past fifty alone. Rema gets a
+     reed mat (sky shows through); Too Much Sun gets poles plus mats so the
+     player has to pile covering until the floor is more shade than sun. */
   rema_thin_schach: {
     schachSlack: 0.7, beamSlack: 2.2,
-    singleSchach: true, forcedSchach: ['sch_bamboo_poles']
+    singleSchach: true, forcedSchach: ['sch_reed_mat', 'sch_bamboo_mat']
   },
   too_much_sun: {
-    schachSlack: 0.7, beamSlack: 2.2,
-    singleSchach: true, forcedSchach: ['sch_bamboo_poles']
+    schachSlack: 1.45, beamSlack: 2.2,
+    forcedSchach: ['sch_bamboo_poles']
   },
   /* Metal twice over, because it is two different halachos: as a covering it is
      pasul outright, as a frame it is fine with wood laid over it. */
@@ -22429,7 +22516,7 @@ SA.Scramble.start = function (levelId) {
   SA.Scramble.run = {
     levelId: level.id, index: index, cfg: cfg,
     elapsed: 0, duration: cfg.seconds,
-    status: 'building', etrogim: 0,
+    status: 'building', etrogim: 0, goalMet: false,
     prevCodes: null, taughtTie: false, placed: 0
   };
   SA.Scramble.toasts = [];
@@ -22468,7 +22555,9 @@ SA.Scramble.tick = function (dt) {
   }
   if (run.elapsed >= run.duration) {
     run.elapsed = run.duration;
-    SA.Scramble.fail();
+    /* Time's up: if the booth already passed the lesson, bank the win; else lose. */
+    if (run.goalMet) SA.Scramble.finishWin();
+    else SA.Scramble.fail();
   }
 };
 
@@ -22541,10 +22630,13 @@ SA.Scramble.etrogimFor = function (fraction) {
   return SA.Scramble.etrogimFromScore(SA.Scramble.scoreFor(fraction, false));
 };
 
+/* Goal met: do NOT slam the win sheet - the player may still want to hang
+   decorations, tidy the roof, or take a postcard. Mark ready + show Done. */
 SA.Scramble.checkGoal = function (result) {
   var run = SA.Scramble.run;
   if (!run || run.status !== 'building') return;
   if (!SA.Levels.checkGoal(SA.Game.level, result)) {
+    if (run.goalMet) run.goalMet = false;
     /* A kosher sukkah that still does not finish the level is the most
        confusing thing the game can do, so it says why - once, when it happens,
        and not again until something changes. */
@@ -22555,8 +22647,24 @@ SA.Scramble.checkGoal = function (result) {
     if (!result.kosher) run.goalNagged = false;
     return;
   }
+  if (run.goalMet) return;
+  run.goalMet = true;
+  /* Meter already played the kosher chime - just invite them to keep building. */
+  SA.Scramble.toast(SA.Lang.t('Kosher! Keep decorating, then tap Done.'), SA.Game.level.cardId, 'info');
+};
+
+/* Bank the win (Done button, or clock expiry while already goal-met). */
+SA.Scramble.finishWin = function () {
+  var run = SA.Scramble.run;
+  if (!run || run.status !== 'building') return;
+  var result = SA.Game.lastResult || (SA.Game.state && SA.Halacha.evaluate(SA.Game.state));
+  if (!result || !SA.Levels.checkGoal(SA.Game.level, result)) {
+    run.goalMet = false;
+    return;
+  }
   var left = 1 - (run.elapsed / run.duration);
   run.status = 'won';
+  run.goalMet = false;
   run.mehadrin = SA.Scramble.isMehadrin(result);
   run.score = SA.Scramble.scoreFor(left, run.mehadrin);
   run.etrogim = SA.Scramble.etrogimFromScore(run.score);
