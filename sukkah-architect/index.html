@@ -497,7 +497,9 @@ SA.Camera = {
   tilt: 0.62,           // vertical foreshortening factor (0..1)
   inside: false,
   insideLookUp: 0,      // 0..1, how far the step-inside view tips upward
+  insideLookTarget: 1,  // snapInside sets this; update lerps toward it
   insideFocusY: 8,       // tefachim - set from the live roof height each frame (p16)
+  _insideFitAng: null,   // last angle we framed for - avoid refit every frame
   /* Auto-fit: the whole box (floor + roof corners) is kept framed in the
      visible viewport between the top HUD and the bottom dock, so a fresh
      sandbox/level never opens zoomed in past its own walls. Pinch/wheel
@@ -511,9 +513,25 @@ SA.Camera = {
     while (d > 180) d -= 360;
     while (d < -180) d += 360;
     SA.Camera.angle += d * Math.min(1, dt * 6);
-    var targetLook = SA.Camera.inside ? 1 : 0;
-    SA.Camera.insideLookUp += (targetLook - SA.Camera.insideLookUp) * Math.min(1, dt * 5);
-    if (SA.Camera.inside || !SA.Game || SA.Game.screen !== 'build' || !SA.Game.state) return;
+    var targetLook = SA.Camera.inside ? SA.Camera.insideLookTarget : 0;
+    SA.Camera.insideLookUp += (targetLook - SA.Camera.insideLookUp) * Math.min(1, dt * 7);
+    if (!SA.Game || SA.Game.screen !== 'build' || !SA.Game.state) return;
+    /* Inside: refit only after a Turn settles (not every degree mid-spin). */
+    if (SA.Camera.inside) {
+      if (Math.abs(d) < 0.8) {
+        var angKey = Math.round(SA.Camera.targetAngle);
+        if (SA.Camera._insideFitAng !== angKey) {
+          SA.Camera._insideFitAng = angKey;
+          SA.Camera.computeInsideFit(SA.Game.state);
+        }
+      }
+      var lerpIn = Math.min(1, dt * 10);
+      SA.Camera.zoom += (SA.Camera.fitZoomTarget - SA.Camera.zoom) * lerpIn;
+      SA.Camera.pan.x += (SA.Camera.fitPanTarget.x - SA.Camera.pan.x) * lerpIn;
+      SA.Camera.pan.y += (SA.Camera.fitPanTarget.y - SA.Camera.pan.y) * lerpIn;
+      return;
+    }
+    SA.Camera._insideFitAng = null;
     if (SA.Camera.autoFit) {
       SA.Camera.computeFit(SA.Game.state);
       var lerp = Math.min(1, dt * 7);
@@ -527,8 +545,17 @@ SA.Camera = {
   /* Clear rectangle between the HUD / clock and the size-guide + tray. */
   playBand: function () {
     var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
-    var top = (SA.UI.topReserve ? SA.UI.topReserve() : safe.t + 56) + 44;
-    var bot = h - safe.b - (SA.UI.TRAY_H || 108) - 22;
+    var tour = SA.Game && SA.Game.winTour;
+    var inside = SA.Camera.inside;
+    /* Win-tour / step-inside: no clock band, no tray - use the full stage. */
+    var top = tour || inside
+      ? (safe.t + 56 + 12)
+      : ((SA.UI.topReserve ? SA.UI.topReserve() : safe.t + 56) + 44);
+    var bot = tour
+      ? (h - safe.b - 72)
+      : (inside
+        ? (h - safe.b - (SA.UI.TRAY_H || 108) - 22)
+        : (h - safe.b - (SA.UI.TRAY_H || 108) - 22));
     var left = safe.l + 12;
     var right = w - safe.r - (SA.UI.STRIP_W || 0) - 10;
     return {
@@ -736,16 +763,111 @@ SA.Camera = {
       gf: gf, z: z, site: state.siteId
     };
   },
+  /* Seated look-up: frame the ROOF first so schach fills the phone, with
+     upper wall as a border - not a face-plant into one board. */
+  computeInsideFit: function (state) {
+    if (!state) return;
+    var w = SA.View.w, h = SA.View.h;
+    var band = SA.Camera.playBand();
+    var availW = Math.max(80, band.right - band.left);
+    var availH = Math.max(80, band.bot - band.top);
+    var midX = band.midX;
+
+    var fw = state.footprint.w, fd = state.footprint.d;
+    var rh = Math.max(8, state.roofHeight || 8);
+    var ccx = fw / 2, ccz = fd / 2;
+    var hasSchach = SA.Camera._boothHasSchach(state);
+    /* Roof patch around the center - the thing you came inside to see. */
+    var half = Math.min(fw, fd, hasSchach ? 14 : 12) / 2;
+    var x0 = ccx - half, x1 = ccx + half, z0 = ccz - half, z1 = ccz + half;
+    var yRoof = rh;
+    var yWall = Math.max(0, rh - Math.min(10, rh * 0.35));
+    var corners = hasSchach
+      ? [
+        [x0, yRoof, z0], [x1, yRoof, z0], [x0, yRoof, z1], [x1, yRoof, z1],
+        [x0, yWall, z0], [x1, yWall, z0], [x0, yWall, z1], [x1, yWall, z1]
+      ]
+      : [
+        [x0, 0, z0], [x1, 0, z0], [x0, 0, z1], [x1, 0, z1],
+        [x0, rh, z0], [x1, rh, z0], [x0, rh, z1], [x1, rh, z1]
+      ];
+    var savedZoom = SA.Camera.zoom, savedOX = SA.Iso.originX, savedOY = SA.Iso.originY;
+    var savedInside = SA.Camera.inside, savedLook = SA.Camera.insideLookUp;
+    var probeLook = SA.Camera.insideLookTarget || (hasSchach ? 0.94 : 0.55);
+    SA.Camera.inside = true;
+    SA.Camera.insideLookUp = probeLook;
+    SA.Camera.zoom = 1;
+    SA.Iso.originX = 0;
+    SA.Iso.originY = 0;
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (var i = 0; i < corners.length; i++) {
+      var p = SA.Iso.project(corners[i][0], corners[i][1], corners[i][2], ccx, ccz);
+      minX = Math.min(minX, p.sx); maxX = Math.max(maxX, p.sx);
+      minY = Math.min(minY, p.sy); maxY = Math.max(maxY, p.sy);
+    }
+    SA.Camera.inside = savedInside;
+    SA.Camera.insideLookUp = savedLook;
+    SA.Camera.zoom = savedZoom;
+    SA.Iso.originX = savedOX;
+    SA.Iso.originY = savedOY;
+
+    var spanW = Math.max(1, maxX - minX), spanH = Math.max(1, maxY - minY);
+    var fill = 0.96;
+    var z = Math.min(availW / spanW, availH / spanH) * fill;
+    z = Math.max(0.75, Math.min(2.6, z));
+    if (!isFinite(z) || z <= 0) z = 1;
+
+    var boxCX = (minX + maxX) / 2;
+    var boxCY = (minY + maxY) / 2;
+    /* Park the roof in the upper half; leave the lower third for wall framing. */
+    var wantCY = band.top + availH * (hasSchach ? 0.38 : 0.50);
+    SA.Camera.fitZoomTarget = z;
+    SA.Camera.fitPanTarget.x = midX - w / 2 - boxCX * z;
+    SA.Camera.fitPanTarget.y = wantCY - h * 0.42 - boxCY * z;
+  },
+  _boothHasSchach: function (state) {
+    if (!state) return false;
+    var fw = state.footprint.w, fd = state.footprint.d, sx, sz;
+    for (sx = 0; sx < fw; sx++) {
+      for (sz = 0; sz < fd; sz++) {
+        if (state.schach[sx] && state.schach[sx][sz]) return true;
+      }
+    }
+    return false;
+  },
   /* Snap to the fitted frame now - used when a Scramble / workshop opens so
-     the previous screen's zoom is not lerped across for a second. */
+     the previous screen's zoom is not lerped across for a second.
+     Always leaves inside: a new outside frame must not inherit look-up. */
   snapFit: function (state) {
     if (!state) return;
     SA.Camera.autoFit = true;
     SA.Camera.inside = false;
+    SA.Camera.insideLookUp = 0;
+    SA.Camera.insideLookTarget = 1;
+    SA.Camera._insideFitAng = null;
     SA.Camera.computeFit(state);
     SA.Camera.zoom = SA.Camera.fitZoomTarget;
     SA.Camera.pan.x = SA.Camera.fitPanTarget.x;
     SA.Camera.pan.y = SA.Camera.fitPanTarget.y;
+  },
+  /* Step inside: square-ish facing, look up at the schach, hard-snap framing. */
+  snapInside: function (state) {
+    if (!state) return;
+    SA.Camera.inside = true;
+    SA.Camera.autoFit = false;
+    var hasSchach = SA.Camera._boothHasSchach(state);
+    /* Classic iso (~35°) from the nearest 90° face - readable walls + ceiling. */
+    var face = Math.round(SA.Camera.targetAngle / 90) * 90;
+    SA.Camera.angle = SA.Camera.targetAngle = face + 32;
+    /* Tip up enough that schach owns the center; walls frame the lower third. */
+    SA.Camera.insideLookTarget = hasSchach ? 0.94 : 0.55;
+    SA.Camera.insideLookUp = SA.Camera.insideLookTarget;
+    SA.Camera._insideFitAng = null;
+    SA.Camera.computeInsideFit(state);
+    SA.Camera.zoom = SA.Camera.fitZoomTarget;
+    SA.Camera.pan.x = SA.Camera.fitPanTarget.x;
+    SA.Camera.pan.y = SA.Camera.fitPanTarget.y;
+    SA.Camera._insideFitAng = Math.round(SA.Camera.targetAngle);
   },
   zoomBy: function (factor) {
     SA.Camera.autoFit = false;
@@ -773,19 +895,12 @@ SA.Iso = {
   project: function (x, y, z, cx, cz) {
     var r = SA.Iso.rotate(x, z, cx, cz);
     var lookUp = SA.Camera.inside ? SA.Camera.insideLookUp : 0;
-    var tiltNow = SA.Camera.tilt * (1 - 0.35 * lookUp);
-    var scale = SA.Camera.zoom * (SA.Camera.inside ? (1.0 + lookUp * 0.22) : 1);
+    /* Moderate flatten - enough that the schach reads as a ceiling, not so
+       much that one wall becomes a flat billboard filling the phone. */
+    var tiltNow = SA.Camera.tilt * (1 - 0.48 * lookUp);
+    var scale = SA.Camera.zoom * (SA.Camera.inside ? (1.0 + lookUp * 0.10) : 1);
     var sx = (r.x - r.z) * SA.Iso.tileW * scale;
-    /* Stepping inside re-centers the vertical frame on the ceiling instead
-       of the floor - without this, "look up" only zoomed in on the same
-       floor-centered crop and the schach stayed a sliver at the top edge.
-
-       0.45, not 0.8: at 0.8 a ten-tefach roof pushed the ground plane about
-       four hundred pixels past the bottom of the canvas, so the inside view had
-       no floor in it at all and the sukkah read as a roof hanging in the air.
-       Just under half keeps both the schach overhead and the ground under your
-       feet in the same frame, which is what sitting in a sukkah looks like. */
-    var yFocus = lookUp * SA.Camera.insideFocusY * 0.38;
+    var yFocus = lookUp * SA.Camera.insideFocusY * 0.58;
     var sy = (r.x + r.z) * SA.Iso.tileH * scale * tiltNow - (y - yFocus) * SA.Iso.tileH * 1.7 * scale;
     return { sx: SA.Iso.originX + sx, sy: SA.Iso.originY + sy };
   },
@@ -793,7 +908,7 @@ SA.Iso = {
      this for animal scale, never the foreshortened wall-edge length. */
   pxPerTefachY: function () {
     var lookUp = SA.Camera.inside ? SA.Camera.insideLookUp : 0;
-    var scale = SA.Camera.zoom * (SA.Camera.inside ? (1.0 + lookUp * 0.22) : 1);
+    var scale = SA.Camera.zoom * (SA.Camera.inside ? (1.0 + lookUp * 0.14) : 1);
     return SA.Iso.tileH * 1.7 * scale;
   },
   depthKey: function (x, y, z, cx, cz) {
@@ -1036,6 +1151,104 @@ SA.Draw.buttonIconLabel = function (ctx, x, y, w, h, label, icon, active) {
   for (var i = 0; i < fit.lines.length; i++) {
     SA.Draw.text(ctx, fit.lines[i], x + w / 2, y0 + i * lineH, { size: fit.size, color: textColor });
   }
+};
+
+/* Title-menu chrome only (SA.UI.btnTitle). In-game tray / dock buttons keep
+   buttonChrome. Primary = premium gold/cream matching the SUKKAH SCRAMBLE
+   wordmark. Secondary = deep navy-charcoal with a gold rim and gold label. */
+SA.Draw.buttonChromeTitle = function (ctx, x, y, w, h, active) {
+  var r = Math.min(16, h / 2.2, w / 2.4);
+  ctx.save();
+  if (active === true) {
+    ctx.shadowColor = 'rgba(48, 26, 4, 0.58)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 5;
+  } else {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.48)';
+    ctx.shadowBlur = 11;
+    ctx.shadowOffsetY = 3;
+  }
+  SA.Draw.roundRect(ctx, x, y, w, h, r);
+  var grad = ctx.createLinearGradient(x, y, x, y + h);
+  if (active === true) {
+    grad.addColorStop(0, '#fff8dc');
+    grad.addColorStop(0.18, '#ffe9a8');
+    grad.addColorStop(0.48, '#f0c85a');
+    grad.addColorStop(0.78, '#d4a028');
+    grad.addColorStop(1, '#b07e14');
+  } else {
+    grad.addColorStop(0, '#2c354c');
+    grad.addColorStop(0.42, '#1a2236');
+    grad.addColorStop(1, '#0c121e');
+  }
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  ctx.strokeStyle = active === true ? 'rgba(255, 238, 176, 0.98)' : 'rgba(232, 196, 96, 0.90)';
+  ctx.lineWidth = active === true ? 1.9 : 1.6;
+  SA.Draw.roundRect(ctx, x + 0.7, y + 0.7, w - 1.4, h - 1.4, Math.max(1, r - 0.7));
+  ctx.stroke();
+
+  if (active === true) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(240, 217, 138, 0.80)';
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = 'rgba(255, 246, 210, 0.55)';
+    ctx.lineWidth = 1;
+    SA.Draw.roundRect(ctx, x, y, w, h, r);
+    ctx.stroke();
+    ctx.restore();
+  } else {
+    ctx.strokeStyle = 'rgba(240, 217, 138, 0.20)';
+    ctx.lineWidth = 1;
+    SA.Draw.roundRect(ctx, x + 2.4, y + 2.2, w - 4.8, h - 4.4, Math.max(1, r - 2.2));
+    ctx.stroke();
+  }
+
+  ctx.save();
+  SA.Draw.roundRect(ctx, x + 1.6, y + 1.4, w - 3.2, h * 0.46, Math.max(1, r - 1.2));
+  ctx.clip();
+  var hi = ctx.createLinearGradient(x, y, x, y + h * 0.52);
+  if (active === true) {
+    hi.addColorStop(0, 'rgba(255, 255, 255, 0.68)');
+    hi.addColorStop(0.45, 'rgba(255, 246, 210, 0.22)');
+    hi.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  } else {
+    hi.addColorStop(0, 'rgba(255, 236, 180, 0.18)');
+    hi.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  }
+  ctx.fillStyle = hi;
+  ctx.fillRect(x, y, w, h * 0.52);
+  ctx.restore();
+  ctx.restore();
+};
+
+SA.Draw.buttonLabelTitle = function (ctx, x, y, w, h, label, active) {
+  var textColor = active === true ? '#2a1a06' : '#f0d98a';
+  var startSize = h >= 52 ? 17 : (h >= 42 ? 15 : 13);
+  var fit = SA.Draw.fitLines(ctx, SA.Lang.t(label), w - 14, h >= 40 ? 2 : 1, startSize, 8);
+  var lineH = fit.size * 1.24;
+  var y0 = y + h / 2 - lineH * (fit.lines.length - 1) / 2;
+  ctx.save();
+  if (active !== true) {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetY = 1;
+  }
+  for (var i = 0; i < fit.lines.length; i++) {
+    SA.Draw.text(ctx, fit.lines[i], x + w / 2, y0 + i * lineH, {
+      size: fit.size, color: textColor, weight: '700'
+    });
+  }
+  ctx.restore();
+};
+
+SA.Draw.buttonTitle = function (ctx, x, y, w, h, label, active) {
+  SA.Draw.buttonChromeTitle(ctx, x, y, w, h, active);
+  SA.Draw.buttonLabelTitle(ctx, x, y, w, h, label, active);
 };
 </script>
 <script>
@@ -10843,6 +11056,10 @@ SA.Mat.DECOR_CATEGORY_TIER = { fruit: 1, chain: 0, light: 1, sign: 1, textile: 2
 SA.Mat.DECOR_TIER_OVERRIDE = {
   dec_corn_husks: 0, dec_hanging_onions: 0, dec_dried_corn: 0, dec_squash: 0,
   dec_folding_chairs: 0, dec_bench: 0, dec_crate_stand: 0, dec_small_rug: 0,
+  dec_folding_table: 0, dec_plastic_folding_table: 0, dec_metal_folding_chair: 0,
+  dec_crate_table: 0, dec_picnic_bench: 0,
+  dec_table: 1, dec_wood_picnic_table: 1, dec_director_chair: 1, dec_bistro_set: 1,
+  dec_teak_table: 2, dec_velvet_chairs: 2, dec_marble_side_table: 2,
   dec_etrog_bowl: 2, dec_fruit_basket: 2, dec_grapevine: 2, dec_mini_pineapples: 2,
   dec_foil_garland: 1, dec_tinsel_garland: 1, dec_paper_flower_garland: 1,
   dec_hurricane_lamp: 2, dec_oil_lamp: 2, dec_glass_votive: 2, dec_candle_sconce: 2,
@@ -10934,6 +11151,16 @@ SA.Mat.DECOR = [
   saDecor('storage_chest', 'Storage Chest', 'מזוודת אחסון', 'furniture', false, 1),
   saDecor('folding_table', 'Folding Table', 'שולחן מתקפל', 'furniture', false, 1),
   saDecor('small_rug', 'Small Rug', 'שטיח קטן', 'furniture', false, 1),
+  saDecor('plastic_folding_table', 'Plastic Folding Table', 'שולחן מתקפל מפלסטיק', 'furniture', false, 2),
+  saDecor('metal_folding_chair', 'Metal Folding Chair', 'כיסא מתכת מתקפל', 'furniture', false, 1),
+  saDecor('crate_table', 'Crate Table', 'שולחן מארגז', 'furniture', false, 1),
+  saDecor('picnic_bench', 'Picnic Bench', 'ספסל פיקניק', 'furniture', false, 2),
+  saDecor('wood_picnic_table', 'Wood Picnic Table', 'שולחן פיקניק מעץ', 'furniture', false, 2),
+  saDecor('director_chair', 'Canvas Director Chair', 'כיסא במאי', 'furniture', false, 1),
+  saDecor('bistro_set', 'Small Bistro Set', 'סט ביסטרו קטן', 'furniture', false, 2),
+  saDecor('teak_table', 'Designer Teak Table', 'שולחן טיק מעצבים', 'furniture', false, 2),
+  saDecor('velvet_chairs', 'Velvet Dining Chairs', 'כיסאות אוכל מקטיפה', 'furniture', false, 2),
+  saDecor('marble_side_table', 'Marble Side Table', 'שולחן צד משיש', 'furniture', false, 1),
 
   saDecor('potted_plant', 'Potted Plant', 'עציץ', 'misc', false, 1),
   saDecor('hanging_ivy_pot', 'Hanging Ivy Pot', 'עציץ קיסוס תלוי', 'misc', true, 1),
@@ -11055,6 +11282,16 @@ SA.Mat.DECOR_ART = {
   dec_storage_chest: ['chest', '#7a5c3a', '#a8874a'],
   dec_folding_table: ['foldtable', '#b0a888', '#8a8268'],
   dec_small_rug: ['braidedrug', '#7a4a5a', '#b08a6a'],
+  dec_plastic_folding_table: ['foldtable', '#d8e2ea', '#9aa8b4'],
+  dec_metal_folding_chair: ['chairs', '#8a9098', '#5a6068'],
+  dec_crate_table: ['crate', '#a8874a', '#7a5c34'],
+  dec_picnic_bench: ['bench', '#8a6b48', '#5a4630'],
+  dec_wood_picnic_table: ['picnictable', '#8a6238', '#5c4024'],
+  dec_director_chair: ['director', '#c4a46a', '#3a3a42'],
+  dec_bistro_set: ['bistro', '#c9b08a', '#4a3a2a'],
+  dec_teak_table: ['teaktable', '#6b4a28', '#d4af37'],
+  dec_velvet_chairs: ['velvetchairs', '#5a1e3a', '#c9a86a'],
+  dec_marble_side_table: ['marbleside', '#e8e4dc', '#8a9098'],
 
   dec_potted_plant: ['plant', '#4f8a45', '#b06a4a'],
   dec_hanging_ivy_pot: ['ivypot', '#3a6b38', '#a86a4a'],
@@ -12541,6 +12778,64 @@ SA.Draw.DECOR_SHAPES = {
   chairs: function (ctx, a, b) {
     saDecChair(ctx, 3.6, 1.0, 0.86, SA.Mat.shadeColor(a, 0.8), SA.Mat.shadeColor(b, 0.9));
     saDecChair(ctx, -3.0, 2.0, 0.98, a, b);
+  },
+  picnictable: function (ctx, a, b) {
+    saDecIsoTop(ctx, 0, -3.2, 12.0, 5.4, SA.Mat.shadeColor(a, 1.12));
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.8);
+    ctx.beginPath();
+    ctx.moveTo(-12.0, -3.2); ctx.lineTo(0, 2.2); ctx.lineTo(12.0, -3.2);
+    ctx.lineTo(12.0, -1.4); ctx.lineTo(0, 4.0); ctx.lineTo(-12.0, -1.4);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    saDecLeg(ctx, -10.4, -2.4, 2.0, 10.0, b);
+    saDecLeg(ctx, 8.4, -2.4, 2.0, 10.0, b);
+    saDecChair(ctx, -8.6, 3.4, 0.55, SA.Mat.shadeColor(a, 1.08), b);
+    saDecChair(ctx, 6.8, 3.0, 0.55, a, b);
+  },
+  director: function (ctx, a, b) {
+    ctx.strokeStyle = b; ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(-5.6, -10.4); ctx.lineTo(4.2, 9.6);
+    ctx.moveTo(5.6, -10.4); ctx.lineTo(-4.2, 9.6);
+    ctx.stroke();
+    ctx.fillStyle = a;
+    ctx.beginPath();
+    ctx.moveTo(-6.4, -2.2); ctx.lineTo(6.4, -2.2); ctx.lineTo(5.0, 2.4); ctx.lineTo(-5.0, 2.4);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-5.8, -9.6); ctx.lineTo(5.8, -9.6); ctx.lineTo(5.0, -3.0); ctx.lineTo(-5.0, -3.0);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+  },
+  bistro: function (ctx, a, b) {
+    saDecChair(ctx, -6.4, 1.2, 0.62, a, b);
+    saDecChair(ctx, 6.2, 1.0, 0.62, SA.Mat.shadeColor(a, 0.88), b);
+    saDecLeg(ctx, -1.4, -4.0, 2.8, 10.4, b);
+    ctx.fillStyle = SA.Mat.shadeColor(a, 1.14);
+    ctx.beginPath(); ctx.ellipse(0, -4.2, 7.2, 3.4, 0, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+  },
+  teaktable: function (ctx, a, b) {
+    saDecLeg(ctx, -10.8, -2.0, 2.4, 9.2, SA.Mat.shadeColor(a, 0.7));
+    saDecLeg(ctx, 8.4, -2.0, 2.4, 9.2, SA.Mat.shadeColor(a, 0.7));
+    saDecLeg(ctx, -1.2, 3.4, 2.4, 8.4, a);
+    saDecIsoTop(ctx, 0, -3.0, 12.2, 6.4, SA.Mat.shadeColor(a, 1.18));
+    ctx.strokeStyle = b; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-8.0, -3.0); ctx.lineTo(8.0, -3.0); ctx.stroke();
+    saDecGloss(ctx, -4.4, -4.8, 3.2, 1.2);
+  },
+  velvetchairs: function (ctx, a, b) {
+    saDecChair(ctx, 3.8, 0.6, 0.9, SA.Mat.shadeColor(a, 1.12), b);
+    saDecChair(ctx, -3.4, 1.8, 1.02, a, b);
+    ctx.fillStyle = b;
+    ctx.beginPath(); ctx.ellipse(-2.2, -1.2, 2.4, 1.1, 0, 0, 7); ctx.fill();
+  },
+  marbleside: function (ctx, a, b) {
+    saDecLeg(ctx, -1.6, -3.0, 3.2, 10.4, b);
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.82);
+    ctx.beginPath(); ctx.ellipse(0, -2.4, 8.8, 4.0, 0, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = a;
+    ctx.beginPath(); ctx.ellipse(0, -4.0, 8.8, 4.0, 0, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    saDecGloss(ctx, -3.8, -5.2, 2.8, 1.2);
+    ctx.strokeStyle = SA.Mat.shadeColor(a, 0.7); ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.ellipse(1.6, -3.6, 3.4, 1.4, 0.4, 0, 7); ctx.stroke();
   },
   shtender: function (ctx, a, b) {
     ctx.fillStyle = SA.Mat.shadeColor(a, 0.8);
@@ -14061,11 +14356,51 @@ SA.Act.fillSchach = function (st) {
 
 SA.Act.eraseSchach = function (st, x, z) { SA.Undo.mark(); SA.State.eraseSchach(st, x, z); SA.Save.markDirty(); };
 
+/* Floor furniture and hanging fruit land on the cell under the finger, clamped
+   inside the footprint. Never teleport to the booth centre or a wall-side
+   anchor - the ghost (p16) and the drop share this same cell. */
+SA.Act.clampDecorCell = function (state, x, z) {
+  var w = (state && state.footprint && state.footprint.w) || 1;
+  var d = (state && state.footprint && state.footprint.d) || 1;
+  return {
+    x: Math.max(0, Math.min(w - 1, x | 0)),
+    z: Math.max(0, Math.min(d - 1, z | 0))
+  };
+};
+
+SA.Act.cellFromDecorHit = function (state, hit) {
+  if (!hit || !hit.payload) return null;
+  if (hit.kind === 'floor_cell' || hit.kind === 'schach_cell') {
+    return SA.Act.clampDecorCell(state, hit.payload.x, hit.payload.z);
+  }
+  if (hit.kind === 'wall_cell') {
+    var xz = SA.Pile.floorCellInsideWall(state, hit.payload);
+    return xz ? SA.Act.clampDecorCell(state, xz.x, xz.z) : null;
+  }
+  return null;
+};
+
+/* Hang: roof / under-roof cell under the finger (string to roofHeight even
+   with no schach there yet). Floor: packed-earth cell under the finger. */
+SA.Act.coerceDecorHit = function (piece, hit, state) {
+  if (!piece || !hit || piece.kind !== 'decor') return hit;
+  var entry = SA.Pile.entryOf ? SA.Pile.entryOf(piece) : null;
+  if (!entry) return hit;
+  var xz = SA.Act.cellFromDecorHit(state, hit);
+  if (!xz) return hit;
+  return {
+    kind: entry.hang ? 'schach_cell' : 'floor_cell',
+    payload: { x: xz.x, z: xz.z },
+    quad: hit.quad
+  };
+};
+
 SA.Act.placeDecor = function (st, x, z) {
   var mat = SA.Tool.currentMaterial();
   if (!mat) return;
+  var cell = SA.Act.clampDecorCell(st, x, z);
   SA.Undo.mark();
-  SA.State.placeDecor(st, mat, x, z, { wallSide: SA.Tool.wallSide });
+  SA.State.placeDecor(st, mat, cell.x, cell.z, {});
   SA.Progress.onAction('place_decor', mat.id);
   SA.Save.markDirty();
 };
@@ -14753,6 +15088,16 @@ SA.Halacha.schachRectSupported = function (held, x0, z0, cw, cd, rigid) {
   return true;
 };
 
+/* Three carrying sides (or two plus a landed slat / rigid covering) can
+   hold the whole roof plane. One drop then fills the pad - no wall-top
+   ribbons. 0–1 walls still refuse. */
+SA.Halacha.schachRoofReady = function (snap, rigid) {
+  if (!snap) return false;
+  if (snap.nCarry >= 3) return true;
+  if (snap.nCarry >= 2 && (rigid || snap.landed >= 1)) return true;
+  return false;
+};
+
 SA.Halacha.schachWouldRest = function (state, x0, z0, cw, cd, matEntry) {
   var snap = SA.Halacha.schachSupportSnap(state);
   var settleRoof = snap.settleRoof;
@@ -14769,6 +15114,9 @@ SA.Halacha.schachWouldRest = function (state, x0, z0, cw, cd, matEntry) {
     return { ok: false, reason: 'need_frame', settleRoof: settleRoof };
   }
   var rigid = !!(matEntry && SA.Mat.isRigidSchach(matEntry));
+  if (SA.Halacha.schachRoofReady(snap, rigid)) {
+    return { ok: true, settleRoof: settleRoof };
+  }
   if (!SA.Halacha.schachRectSupported(snap.sup.held, x0, z0, cw, cd, rigid)) {
     return { ok: false, reason: 'unsupported', settleRoof: settleRoof };
   }
@@ -14807,7 +15155,9 @@ SA.Halacha.schachGrowOnSupport = function (held, seedX, seedZ, maxCw, maxCd, w, 
 
 /* Finger on the roof is rarely exact on a wall-top. Fit the armful onto the
    frame - shrink to what is held, snap to the nearest support. A forty-six
-   mat on a seven-tefach corner becomes a strip on the walls, not a flying rug. */
+   mat on a seven-tefach corner becomes a strip on the walls, not a flying rug.
+   Once three sides carry (or two plus slats / rigid covering), skip the
+   shrink: one drop covers the whole pad. Card size must not force a ribbon. */
 SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
   var w = state.footprint.w, d = state.footprint.d;
   var wantCw = Math.max(1, Math.min(w, cw));
@@ -14831,31 +15181,43 @@ SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
   }
 
   var rigid = !!(matEntry && SA.Mat.isRigidSchach(matEntry));
+  if (SA.Halacha.schachRoofReady(snap, rigid)) {
+    return {
+      ok: true, reason: null,
+      x: 0, z: 0, cw: w, cd: d,
+      settleRoof: settleRoof, fitted: false
+    };
+  }
   var held = snap.sup.held;
   var hx = Math.max(0, Math.min(w - 1, hitX | 0));
   var hz = Math.max(0, Math.min(d - 1, hitZ | 0));
-  var seeds = [[hx, hz]], sx, sz, s, dist, bestSeed = null, bestSeedDist = Infinity;
-  /* Nearest held (or rigid-touch) cells to grow from. */
+  /* Sample nearby support cells - not only the nearest. Soft mats used to
+     snap onto a one-row wall-top under the finger while a wide beam a few
+     tefachim away could have held a much bigger patch. */
+  var near = [], sx, sz, dist, i;
   for (sx = 0; sx < w; sx++) {
     for (sz = 0; sz < d; sz++) {
       if (!SA.Halacha.schachRectSupported(held, sx, sz, 1, 1, rigid)) continue;
       dist = Math.abs(sx - hx) + Math.abs(sz - hz);
-      if (dist < bestSeedDist) {
-        bestSeedDist = dist;
-        bestSeed = [sx, sz];
-      }
+      near.push({ x: sx, z: sz, dist: dist });
     }
   }
-  if (bestSeed) seeds.unshift(bestSeed);
+  near.sort(function (a, b) { return a.dist - b.dist; });
+  var seeds = [[hx, hz]];
+  var seedCap = Math.min(36, near.length);
+  for (i = 0; i < seedCap; i++) seeds.push([near[i].x, near[i].z]);
 
-  var best = null, bestArea = 0, bestDist = Infinity, i;
+  var best = null, bestArea = 0, bestDist = Infinity;
   for (i = 0; i < seeds.length; i++) {
     var grown = SA.Halacha.schachGrowOnSupport(
       held, seeds[i][0], seeds[i][1], wantCw, wantCd, w, d, rigid);
     if (!grown) continue;
     var area = grown.cw * grown.cd;
     var gDist = Math.abs(grown.x + (grown.cw >> 1) - hx) + Math.abs(grown.z + (grown.cd >> 1) - hz);
-    if (area > bestArea || (area === bestArea && gDist < bestDist)) {
+    /* Prefer a much larger patch even a little farther away - that is the
+       difference between a wall-top ribbon and a real armful on the poles. */
+    if (area > bestArea + 4 || (area >= bestArea && gDist < bestDist) ||
+        (area > bestArea && gDist <= bestDist + 10)) {
       bestArea = area;
       bestDist = gDist;
       best = grown;
@@ -14958,49 +15320,85 @@ SA.Halacha.beamWouldLand = function (state, x, z, cw, cd) {
   return SA.Halacha.beamFullyCarried(SA.Halacha.frameSupport(state).solid, x, z, cw, cd);
 };
 
-/* One orientation attempt against a fixed carries map (no roof mutation). */
+/* One orientation attempt against a fixed carries map (no roof mutation).
+   Only offer lines the frame can actually hold: wall-top solid cells and
+   already-landed poles. The old "carries.E && carries.W → any mid line"
+   accepted a full-span stick over open air, then the draw pass hid it
+   because landedBeams stayed empty - sticks vanished after you dropped them. */
 SA.Halacha.beamDropLayoutAt = function (state, alongZ, hitX, hitZ, carries) {
   var w = state.footprint.w, d = state.footprint.d;
-  var lines = [];
-  var i, dist, best, bestDist;
+  var solid = SA.Halacha.frameSupport(state).solid;
+  var cands = [], x, z, start, i, key;
+  var seen = {};
+
+  function addCand(bx, bz, bcw, bcd) {
+    if (bcw < 2 && bcd < 2) return;
+    if (bx < 0 || bz < 0 || bx + bcw > w || bz + bcd > d) return;
+    if (!SA.Halacha.beamFullyCarried(solid, bx, bz, bcw, bcd)) return;
+    key = bx + ',' + bz + ',' + bcw + ',' + bcd;
+    if (seen[key]) return;
+    seen[key] = 1;
+    cands.push({ x: bx, z: bz, cw: bcw, cd: bcd });
+  }
+
   if (alongZ) {
-    if (carries.W) lines.push(0);
-    if (carries.E) lines.push(w - 1);
-    if (carries.N && carries.S) {
-      for (i = 0; i < w; i++) {
-        if ((i === 0 && carries.W) || (i === w - 1 && carries.E)) continue;
-        lines.push(i);
+    for (x = 0; x < w; x++) addCand(x, 0, 1, d);
+    for (x = 0; x < w; x++) {
+      start = -1;
+      for (z = 0; z <= d; z++) {
+        var onZ = z < d && solid[x + '_' + z];
+        if (onZ && start < 0) start = z;
+        if (!onZ && start >= 0) {
+          addCand(x, start, 1, z - start);
+          start = -1;
+        }
       }
     }
-    if (!lines.length) {
-      return { ok: false, reason: carries.N || carries.S ? 'turn_pole' : 'no_wall',
-        x: Math.max(0, Math.min(w - 1, hitX | 0)), z: 0, cw: 1, cd: d };
-    }
-    best = lines[0]; bestDist = Math.abs(lines[0] - hitX);
-    for (i = 1; i < lines.length; i++) {
-      dist = Math.abs(lines[i] - hitX);
-      if (dist < bestDist) { bestDist = dist; best = lines[i]; }
-    }
-    return { ok: true, reason: null, x: best, z: 0, cw: 1, cd: d };
-  }
-  if (carries.N) lines.push(0);
-  if (carries.S) lines.push(d - 1);
-  if (carries.E && carries.W) {
-    for (i = 0; i < d; i++) {
-      if ((i === 0 && carries.N) || (i === d - 1 && carries.S)) continue;
-      lines.push(i);
+  } else {
+    for (z = 0; z < d; z++) addCand(0, z, w, 1);
+    for (z = 0; z < d; z++) {
+      start = -1;
+      for (x = 0; x <= w; x++) {
+        var onX = x < w && solid[x + '_' + z];
+        if (onX && start < 0) start = x;
+        if (!onX && start >= 0) {
+          addCand(start, z, x - start, 1);
+          start = -1;
+        }
+      }
     }
   }
-  if (!lines.length) {
-    return { ok: false, reason: carries.E || carries.W ? 'turn_pole' : 'no_wall',
-      x: 0, z: Math.max(0, Math.min(d - 1, hitZ | 0)), cw: w, cd: 1 };
+
+  if (!cands.length) {
+    if (alongZ) {
+      return {
+        ok: false, reason: carries.N || carries.S ? 'turn_pole' : 'no_wall',
+        x: Math.max(0, Math.min(w - 1, hitX | 0)), z: 0, cw: 1, cd: d
+      };
+    }
+    return {
+      ok: false, reason: carries.E || carries.W ? 'turn_pole' : 'no_wall',
+      x: 0, z: Math.max(0, Math.min(d - 1, hitZ | 0)), cw: w, cd: 1
+    };
   }
-  best = lines[0]; bestDist = Math.abs(lines[0] - hitZ);
-  for (i = 1; i < lines.length; i++) {
-    dist = Math.abs(lines[i] - hitZ);
-    if (dist < bestDist) { bestDist = dist; best = lines[i]; }
+
+  var hx = hitX | 0, hz = hitZ | 0;
+  /* Prefer a full wall-to-wall member (w×1 or 1×d) over a short ledger
+     under the finger. Three carrying walls should get slats that span. */
+  var fulls = [];
+  for (i = 0; i < cands.length; i++) {
+    if ((cands[i].cw === w && cands[i].cd === 1) || (cands[i].cw === 1 && cands[i].cd === d)) {
+      fulls.push(cands[i]);
+    }
   }
-  return { ok: true, reason: null, x: 0, z: best, cw: w, cd: 1 };
+  var pool = fulls.length ? fulls : cands;
+  var best = pool[0], bestScore = Infinity;
+  for (i = 0; i < pool.length; i++) {
+    var c = pool[i];
+    var dist = Math.abs(c.x + (c.cw >> 1) - hx) + Math.abs(c.z + (c.cd >> 1) - hz);
+    if (dist < bestScore) { bestScore = dist; best = c; }
+  }
+  return { ok: true, reason: null, x: best.x, z: best.z, cw: best.cw, cd: best.cd };
 };
 
 /* Where a dragged pole should actually land. Catalog sticks are often shorter
@@ -15134,6 +15532,19 @@ SA.Halacha.frameSupport = function (state) {
     held[k] = 1;
     held[(px - 1) + '_' + pz] = 1; held[(px + 1) + '_' + pz] = 1;
     held[px + '_' + (pz - 1)] = 1; held[px + '_' + (pz + 1)] = 1;
+  }
+  /* Three carrying sides (or two plus a landed slat) hold the roof plane,
+     so a full-pad mat is not left floating after one drop. Corner booths
+     with only two walls still leave the open middle unsupported. */
+  var nCarry = 0, sideId;
+  for (sideId in tops.carries) if (tops.carries[sideId]) nCarry++;
+  var landedN = 0, lu;
+  for (lu in landedBeams) if (landedBeams[lu]) landedN++;
+  if (nCarry >= 3 || (nCarry >= 2 && landedN >= 1)) {
+    var fx, fz;
+    for (fx = 0; fx < w; fx++) {
+      for (fz = 0; fz < d; fz++) held[fx + '_' + fz] = 1;
+    }
   }
   return {
     held: held, solid: solid, landedBeams: landedBeams, metalCells: metalCells,
@@ -15606,7 +16017,7 @@ SA.Lang.add({
    problem is that one, irreducible cause". */
 SA.Levels = [
   { id: 'min_kosher', title: 'The Minimum Kosher Sukkah', site: 'meadow', footprint: { w: 7, d: 7 }, lockFootprint: true,
-    hint: 'The dashed square is the seven-by-seven minimum. Two full walls that meet, plus a tefach-wide third wall near the corner, then cover more than half the roof.', goal: { type: 'kosher' }, cardId: 'sk_two_walls' },
+    hint: 'Dashed square = 7×7 minimum. Two walls that meet, a tefach third near the corner, then shade over half the roof.', goal: { type: 'kosher' }, cardId: 'sk_two_walls' },
   { id: 'seven_by_seven', title: 'The 7x7 Spot', site: 'riverbank', footprint: { w: 7, d: 7 }, lockFootprint: false,
     hint: 'The dashed square is the floor minimum. Shrink the pad below seven by seven tefachim and it stops being a sukkah - keep at least that mark.', goal: { type: 'kosher' }, cardId: 'sk_floor' },
   { id: 'slats_and_lavud', title: 'Slats and Lavud', site: 'pine_forest', footprint: { w: 10, d: 10 }, formWhitelist: ['post'],
@@ -15886,7 +16297,9 @@ SA.Scene.render = function (ctx, state, result) {
      uses SA.BG.yShift in paintShowcase. */
   SA.BG.render(ctx, view, state.siteId || 'meadow', SA.Scramble.nightness());
   SA.Iso.setViewport(view.w, view.h);
-  SA.Camera.insideFocusY = state.roofHeight;
+  /* Cap look-up focus so a 40-tefach workshop roof does not yank the camera
+     past the schach; ordinary booth heights still use the live roof line. */
+  SA.Camera.insideFocusY = Math.min(state.roofHeight, 18);
   SA.Pick.reset();
 
   var w = state.footprint.w, d = state.footprint.d;
@@ -15952,25 +16365,10 @@ SA.Scene.render = function (ctx, state, result) {
     }
   }
 
-  /* Step-inside used to hide every wall, on the theory that the schach should
-     be unobstructed. What that actually produced was a view of the background
-     with a roof floating in it - the zoo fence ran straight through the animals
-     at eye level and there was nothing to say you were inside anything.
-     Sitting in a sukkah means being ENCLOSED, so the two far walls stay up and
-     only the two the camera is standing behind are dropped. */
+  /* Keep every wall while inside. Hiding the nearest "door" wall used to open
+     onto the meadow with a floating roof - the look-up camera already clears
+     the schach without punching a hole in the booth. */
   var insideHidden = null;
-  if (SA.Camera.inside) {
-    var sideDepths = [];
-    for (var sd = 0; sd < SA.WALL_SIDES.length; sd++) {
-      var sdSide = SA.WALL_SIDES[sd];
-      var sdC = saWallCellWorld(sdSide, SA.State.wallLength(state, sdSide) / 2, state.footprint);
-      sideDepths.push({ side: sdSide, depth: SA.Iso.depthKey(sdC.x, 0, sdC.z, cx, cz) });
-    }
-    sideDepths.sort(function (a, b) { return b.depth - a.depth; });
-    insideHidden = {};
-    insideHidden[sideDepths[0].side] = 1;
-    insideHidden[sideDepths[1].side] = 1;
-  }
 
   /* walls */
   {
@@ -16113,10 +16511,15 @@ SA.Scene.render = function (ctx, state, result) {
       if (!bEntry) return;
       /* A pole that is not carried from support to support is not up there.
          Drawing it anyway was the "resting on thin air" look on a two-wall
-         build, where mid-room sticks only clipped one side wall. */
-      var landed = result && result.measurements && result.measurements.frameSupport &&
-        result.measurements.frameSupport.landedBeams;
-      if (landed && !landed[bm.uid]) return;
+         build, where mid-room sticks only clipped one side wall. Prefer the
+         evaluate cache; fall back to a live carry check so a just-dropped
+         stick is not invisible for a frame. */
+      var fsDraw = result && result.measurements && result.measurements.frameSupport;
+      var landed = fsDraw && fsDraw.landedBeams;
+      if (landed && !landed[bm.uid]) {
+        var solidDraw = (fsDraw && fsDraw.solid) || SA.Halacha.frameSupport(state).solid;
+        if (!SA.Halacha.beamFullyCarried(solidDraw, bm.x, bm.z, bm.cw, bm.cd)) return;
+      }
       var by = state.roofHeight - 0.42;
       var over = 0.3;
       var bq = [
@@ -16232,19 +16635,9 @@ SA.Scene.render = function (ctx, state, result) {
          instead of teleporting a sticker. */
       var tie5 = dec5.hang ? SA.Iso.project(dec5.x + 0.5, state.roofHeight, dec5.z + 0.5, cx, cz) : null;
       jobs.push({ depth: depth5, draw: function () {
-        /* No white disc behind it. The backing plate was added to make a bare
-           glyph visible, and it turned every ornament into a map pin stuck to
-           the air. A hanging thing needs a string and a shadow, not a badge. */
-        if (tie5) {
-          ctx.save();
-          ctx.strokeStyle = 'rgba(40,32,20,0.55)';
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.moveTo(tie5.sx, tie5.sy);
-          ctx.lineTo(pt5.sx, pt5.sy - half * 0.5);
-          ctx.stroke();
-          ctx.restore();
-        }
+        /* Twine from the roof plane down to the ornament - thick enough to
+           read on a phone, drawn inside the booth at this cell. */
+        if (tie5) SA.Scene.drawHangString(ctx, tie5, pt5, half);
         SA.FX.withPop(ctx, iconQuad, dec5.placedAt, function () {
           /* A soft dark pool under the object instead of a canvas shadowBlur:
              blur is re-rasterised per decoration per frame, and a squashed
@@ -16313,6 +16706,28 @@ SA.Scene.render = function (ctx, state, result) {
   if (SA.Pile.dragging) SA.Scene.drawSnapPreview(ctx, state, cx, cz);
 };
 
+/* Twine from schach / roof plane down to a hanging ornament. Two strokes so
+   it reads as string on a phone, not a 1px hairline. */
+SA.Scene.drawHangString = function (ctx, tie, pt, half) {
+  if (!tie || !pt) return;
+  var yEnd = pt.sy - (half || 16) * 0.42;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(62, 46, 26, 0.95)';
+  ctx.lineWidth = 3.8;
+  ctx.beginPath();
+  ctx.moveTo(tie.sx, tie.sy);
+  ctx.lineTo(pt.sx, yEnd);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(196, 164, 104, 0.62)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(tie.sx + 0.9, tie.sy);
+  ctx.lineTo(pt.sx + 0.9, yEnd);
+  ctx.stroke();
+  ctx.restore();
+};
+
 /* Exactly the cells the held piece would fill, so a drop is never a
    surprise: gold when it will land, red when it will be refused (a pasul
    trap piece), amber-hatched when it would replace something already
@@ -16354,7 +16769,13 @@ SA.Scene.drawSnapPreview = function (ctx, state, cx, cz) {
       }
     }
   } else if (pv.kind === 'decor') {
-    var pt = SA.Iso.project(pv.x + 0.5, 0.6, pv.z + 0.5, cx, cz);
+    var hangPv = !!pv.hang;
+    var yPv = hangPv ? Math.max(0.3, state.roofHeight - 2) : 0.6;
+    var pt = SA.Iso.project(pv.x + 0.5, yPv, pv.z + 0.5, cx, cz);
+    if (hangPv) {
+      var tiePv = SA.Iso.project(pv.x + 0.5, state.roofHeight, pv.z + 0.5, cx, cz);
+      SA.Scene.drawHangString(ctx, tiePv, pt, 16);
+    }
     ctx.beginPath();
     ctx.arc(pt.sx, pt.sy, 15 + pulse * 4, 0, 7);
     ctx.fillStyle = fill; ctx.fill();
@@ -16656,12 +17077,25 @@ SA.Game.goTitle = function () {
   SA.Game.modalCard = null;
   SA.Pile.dragging = null;
   SA.Pile.armed = null;
+  if (SA.Audio && SA.Audio.startMenuMusic) SA.Audio.startMenuMusic();
 };
 
 /* The ladder scrolls now, so it opens at the top rather than wherever the cards
    browser was left. */
-SA.Game.goLevels = function () { SA.Game.screen = 'levels'; SA.Game.modal = null; SA.Game.modalCard = null; SA.Game.modalScroll = 0; };
-SA.Game.goCards = function () { SA.Game.screen = 'cards'; SA.Game.modal = null; SA.Game.modalCard = null; SA.Game.modalScroll = 0; };
+SA.Game.goLevels = function () {
+  SA.Game.screen = 'levels';
+  SA.Game.modal = null;
+  SA.Game.modalCard = null;
+  SA.Game.modalScroll = 0;
+  if (SA.Audio && SA.Audio.stopMenuMusic) SA.Audio.stopMenuMusic();
+};
+SA.Game.goCards = function () {
+  SA.Game.screen = 'cards';
+  SA.Game.modal = null;
+  SA.Game.modalCard = null;
+  SA.Game.modalScroll = 0;
+  if (SA.Audio && SA.Audio.stopMenuMusic) SA.Audio.stopMenuMusic();
+};
 
 /* Straight into the run the player is actually up to, so the front page
    button is "play", not "browse a menu". */
@@ -16672,6 +17106,7 @@ SA.Game.nextScrambleId = function () {
 
 SA.Game.startScramble = function (levelId, opts) {
   if (!(opts && opts.force) && !SA.Progress.isLevelUnlocked(levelId)) return false;
+  if (SA.Audio && SA.Audio.stopMenuMusic) SA.Audio.stopMenuMusic();
   SA.Scramble.start(levelId);
   if (!SA.Progress.seenBuildTip) SA.Game.modal = 'first_run_tip';
   return true;
@@ -16699,6 +17134,7 @@ SA.Game.startFreeBuild = function (fresh) {
   }
   SA.Game.state = loaded || SA.State.create(side, side, roofH, 'meadow');
   SA.Game.screen = 'build';
+  if (SA.Audio && SA.Audio.stopMenuMusic) SA.Audio.stopMenuMusic();
   SA.Game.modal = SA.Progress.seenBuildTip ? null : 'first_run_tip';
   SA.Game.modalCard = null;
   SA.Game.selectedPanel = null;
@@ -16741,6 +17177,12 @@ SA.UI.footprintDraggable = function () {
 /* ---------------------------------------------- 17a. LAYOUT HELPERS */
 SA.UI.btn = function (ctx, x, y, w, h, label, kind, payload, active) {
   SA.Draw.button(ctx, x, y, w, h, label, active);
+  SA.Pick.addRect(kind || 'ui_noop', payload, x, y, w, h);
+};
+
+/* Title menu only — festive gold chrome. Same pick kinds as btn. */
+SA.UI.btnTitle = function (ctx, x, y, w, h, label, kind, payload, active) {
+  SA.Draw.buttonTitle(ctx, x, y, w, h, label, active);
   SA.Pick.addRect(kind || 'ui_noop', payload, x, y, w, h);
 };
 
@@ -17048,14 +17490,32 @@ SA.UI.paintShowcase = function (ctx, w, h) {
    is as tall as the screen allows. */
 SA.UI.titleMenuLayout = function (w, h, safe) {
   var bw = Math.min(320, w - 48), bx = (w - bw) / 2;
-  var extras = (SA.Host.inApp() ? 1 : 0) + (SA.Lang.locked() ? 0 : 1);
-  /* START + level line + Pick a Scramble + (optional Free Build) + Cards + extras. */
-  var stack = 62 + 18 + 48 + 6 + 42 + extras * 44;
-  if (SA.Game.FREE_BUILD_ENABLED) stack += 48 + 6;
-  var by = h - safe.b - 24 - stack;
-  /* Never climb into the upper half - keep a real picture band for the booth. */
-  by = Math.max(by, h * 0.58);
-  return { bx: bx, bw: bw, by: by, stack: stack };
+  var inApp = !!SA.Host.inApp();
+  /* Short phones + in-app MORE GAMES: shrink the stack so the bottom row
+     never clips under the home indicator / WebView safe area. */
+  var short = h < 700 || (h < 780 && inApp);
+  var startH = short ? 52 : 62;
+  var pickH = short ? 42 : 48;
+  var cardsH = short ? 38 : 42;
+  var extraH = short ? 36 : 40;
+  var langH = short ? 34 : 38;
+  /* Must match renderTitleChrome row advances exactly (incl. Settings row). */
+  var stack = startH + 28 + pickH + 6 + cardsH + 6 + langH;
+  if (SA.Game.FREE_BUILD_ENABLED) stack += pickH + 6;
+  if (inApp) stack += extraH + 4;
+  var padBot = Math.max(10, (safe && safe.b) || 0) + (short ? 10 : 16);
+  var maxBy = h - padBot - stack;
+  var preferBy = h * 0.58;
+  var titleClear = h * 0.20;
+  /* Prefer the lower band for the booth picture, but never push the menu
+     past the bottom - that was cutting off Settings on short phones. */
+  var by = Math.min(preferBy, maxBy);
+  by = Math.max(Math.min(titleClear, maxBy), by);
+  if (by + stack > h - padBot) by = maxBy;
+  return {
+    bx: bx, bw: bw, by: by, stack: stack, short: short,
+    startH: startH, pickH: pickH, cardsH: cardsH, extraH: extraH, langH: langH
+  };
 };
 
 /* Everything above the frozen picture: the glow, the drifting dust, the type
@@ -17080,32 +17540,34 @@ SA.UI.renderTitleChrome = function (ctx, w, h, safe) {
      wordmark and the buttons, not floating over the mid-sky. */
   var menu = SA.UI.titleMenuLayout(w, h, safe);
   var bw = menu.bw, bx = menu.bx, by = menu.by;
+  var startH = menu.startH, pickH = menu.pickH, cardsH = menu.cardsH;
+  var extraH = menu.extraH, langH = menu.langH;
   /* Primary action is the game itself - one tap from the title into the run
      the player is up to, no menu in between. */
-  SA.UI.btn(ctx, bx, by, bw, 62, 'START SCRAMBLE', 'title_scramble', {}, true);
+  SA.UI.btnTitle(ctx, bx, by, bw, startH, 'START SCRAMBLE', 'title_scramble', {}, true);
   var done = 0;
   for (var i = 0; i < SA.Levels.length; i++) if (SA.Progress.completed[SA.Levels[i].id]) done++;
   SA.Draw.text(ctx, SA.Lang.fmt('Level {n} of {total}', { n: Math.min(SA.Levels.length, done + 1), total: SA.Levels.length }),
-    w / 2, by + 78, { size: 12, color: 'rgba(240,217,138,0.9)' });
+    w / 2, by + startH + 14, { size: menu.short ? 11 : 12, color: 'rgba(240,217,138,0.9)' });
 
-  var row = by + 92;
-  SA.UI.btn(ctx, bx, row, bw, 48, 'Pick a Scramble', 'title_levels', {});
-  row += 54;
+  var row = by + startH + 28;
+  SA.UI.btnTitle(ctx, bx, row, bw, pickH, 'Pick a Scramble', 'title_levels', {});
+  row += pickH + 6;
   if (SA.Game.FREE_BUILD_ENABLED) {
-    SA.UI.btn(ctx, bx, row, bw, 48, 'Build Your Own Sukkah', 'title_free', {});
-    row += 54;
+    SA.UI.btnTitle(ctx, bx, row, bw, pickH, 'Build Your Own Sukkah', 'title_free', {});
+    row += pickH + 6;
   }
-  SA.UI.btn(ctx, bx, row, bw, 42, 'Halacha Cards', 'title_cards', {});
-  row += 48;
+  SA.UI.btnTitle(ctx, bx, row, bw, cardsH, 'Halacha Cards', 'title_cards', {});
+  row += cardsH + 6;
   if (SA.Host.inApp()) {
-    SA.UI.btn(ctx, bx, row, bw, 40, 'MORE GAMES', 'title_more_games', {});
-    row += 44;
+    SA.UI.btnTitle(ctx, bx, row, bw, extraH, 'MORE GAMES', 'title_more_games', {});
+    row += extraH + 4;
   }
   if (!SA.Lang.locked()) {
-    SA.UI.btn(ctx, bx, row, bw * 0.48, 38, SA.Lang.isHe() ? 'English' : 'עברית', 'title_lang', {});
-    SA.UI.btn(ctx, bx + bw * 0.52, row, bw * 0.48, 38, 'Settings', 'title_settings', {});
+    SA.UI.btnTitle(ctx, bx, row, bw * 0.48, langH, SA.Lang.isHe() ? 'English' : 'עברית', 'title_lang', {});
+    SA.UI.btnTitle(ctx, bx + bw * 0.52, row, bw * 0.48, langH, 'Settings', 'title_settings', {});
   } else {
-    SA.UI.btn(ctx, bx, row, bw, 38, 'Settings', 'title_settings', {});
+    SA.UI.btnTitle(ctx, bx, row, bw, langH, 'Settings', 'title_settings', {});
   }
   if (SA.Game.modal === 'settings') SA.UI.renderSettings(ctx);
 };
@@ -17429,12 +17891,16 @@ SA.UI.renderBuild = function (ctx, result) {
      transitions into 'kosher' (not on every frame it stays kosher). The reverse
      transition gets a quieter, downward version - losing kosher by dropping a
      tarp over your own schach should be heard, not just seen. */
-  if (result.status === 'kosher' && SA.Game._prevStatus !== 'kosher') {
-    SA.FX.burst(w / 2, safe.t + 28);
-    SA.Audio.play('kosher');
-    SA.Audio.buzz(18);
-  } else if (result.status !== 'kosher' && SA.Game._prevStatus === 'kosher') {
-    SA.Audio.play('unkosher');
+  /* Skip the flip burst during Go Inside / orbit - it re-fires on the first
+     frame after the win modal closes and covers the booth. */
+  if (!SA.Game.winTour) {
+    if (result.status === 'kosher' && SA.Game._prevStatus !== 'kosher') {
+      SA.FX.burst(w / 2, safe.t + 28);
+      SA.Audio.play('kosher');
+      SA.Audio.buzz(18);
+    } else if (result.status !== 'kosher' && SA.Game._prevStatus === 'kosher') {
+      SA.Audio.play('unkosher');
+    }
   }
   SA.Game._prevStatus = result.status;
   var pulse = result.status === 'kosher' ? (0.5 + 0.5 * Math.sin(SA.FX.now() / 260)) : 0;
@@ -17492,7 +17958,8 @@ SA.UI.renderBuild = function (ctx, result) {
   var trayTop = h - safe.b - SA.UI.TRAY_H;
   if (!SA.Game.winTour && SA.Game.selectedPanel) SA.UI.renderPanelInspector(ctx, trayTop);
   if (!SA.Game.winTour && SA.Game.selectedDecor) SA.UI.renderDecorInspector(ctx, trayTop);
-  SA.UI.renderToasts(ctx, SA.Game.winTour ? (h - safe.b - 64) : (trayTop - 8));
+  /* Win-tour is for looking at the booth - no toast pile over the schach. */
+  if (!SA.Game.winTour) SA.UI.renderToasts(ctx, trayTop - 8);
   if (SA.Pile.dragging) SA.UI.renderDragGhost(ctx);
   if (SA.Game.winTour) SA.UI.renderWinTourChrome(ctx);
   if (SA.Game.modal) SA.UI.renderBuildModal(ctx, result);
@@ -17597,7 +18064,7 @@ SA.UI.toolStripButtons = function () {
     ['zoomIn', 'sb_zoom_in', undefined],
     ['zoomOut', 'sb_zoom_out', undefined],
     ['fit', 'sb_fit', SA.Camera.autoFit],
-    [SA.Camera.inside ? 'eyeOff' : 'eye', 'sb_inside', SA.Camera.inside],
+    [SA.Camera.inside ? 'eyeOff' : 'eye', 'sb_inside', SA.Camera.inside, false],
     ['layers', 'sb_overlay', SA.Game.state.overlayOn],
     ['ruler', 'sb_size', undefined],
     [SA.Audio.enabled ? 'sound' : 'soundOff', 'sb_sound', SA.Audio.enabled]
@@ -18348,14 +18815,15 @@ SA.UI.renderWinModal = function (ctx) {
   }
   var isLast = run.index === SA.Levels.length - 1;
   var gap = 6, rowW = pw - 32, bw = (rowW - gap * 2) / 3, tourY = py + ph - 106;
-  SA.UI.btn(ctx, px + 16, tourY, bw, 38, 'Go Inside', 'winc_inside', {});
-  SA.UI.btn(ctx, px + 16 + bw + gap, tourY, bw, 38, 'Look Around', 'winc_orbit', {});
-  SA.UI.btn(ctx, px + 16 + (bw + gap) * 2, tourY, bw, 38, 'Share', 'winc_share', {});
-  SA.UI.btn(ctx, px + pw / 2 - 130, py + ph - 54, 120, 40, 'Read the Card', 'winc_card', {});
+  /* Same festive chrome as the title menu - not plain gray slabs. */
+  SA.UI.btnTitle(ctx, px + 16, tourY, bw, 38, 'Go Inside', 'winc_inside', {});
+  SA.UI.btnTitle(ctx, px + 16 + bw + gap, tourY, bw, 38, 'Look Around', 'winc_orbit', {});
+  SA.UI.btnTitle(ctx, px + 16 + (bw + gap) * 2, tourY, bw, 38, 'Share', 'winc_share', {});
+  SA.UI.btnTitle(ctx, px + pw / 2 - 130, py + ph - 54, 120, 40, 'Read the Card', 'winc_card', {});
   var nextLabel = isLast
     ? (SA.Game.FREE_BUILD_ENABLED ? 'Keep Building' : 'MENU')
     : 'Next Scramble';
-  SA.UI.btn(ctx, px + pw / 2 + 10, py + ph - 54, 120, 40, nextLabel, 'winc_next', {});
+  SA.UI.btnTitle(ctx, px + pw / 2 + 10, py + ph - 54, 120, 40, nextLabel, 'winc_next', {}, true);
 };
 
 /* After a win, step out of the results sheet to enjoy the booth - inside for
@@ -18363,22 +18831,29 @@ SA.UI.renderWinModal = function (ctx) {
 SA.UI.startWinTour = function (mode) {
   SA.Game.winTour = mode === 'inside' ? 'inside' : 'orbit';
   SA.Game.modal = null;
+  /* Clear the teaching toast pile + confetti so they do not cover the booth. */
+  if (SA.Scramble) SA.Scramble.toasts = [];
+  if (SA.FX) { SA.FX.bursts = []; SA.FX.ripples = []; SA.FX.flashes = []; }
+  /* Already kosher when you tap Go Inside - do not re-fire the flip burst. */
+  if (SA.Game.lastResult) SA.Game._prevStatus = SA.Game.lastResult.status;
   if (SA.Game.winTour === 'inside') {
-    SA.Camera.inside = true;
-    SA.Camera.zoom = 1;
-    SA.Camera.pan.x = 0;
-    SA.Camera.pan.y = 0;
-    SA.Scramble.toast(SA.Lang.t('You are inside - look up at the schach. Tap Turn for another wall.'), null, 'info');
+    SA.Camera.snapInside(SA.Game.state);
   } else {
     SA.Camera.inside = false;
+    SA.Camera.insideLookUp = 0;
+    SA.Camera.insideLookTarget = 1;
+    SA.Camera._insideFitAng = null;
     SA.Camera.autoFit = true;
-    SA.Scramble.toast(SA.Lang.t('Tap Turn to see every side.'), null, 'info');
+    SA.Camera.snapFit(SA.Game.state);
   }
 };
 
 SA.UI.endWinTour = function () {
   SA.Game.winTour = null;
   SA.Camera.inside = false;
+  SA.Camera.insideLookUp = 0;
+  SA.Camera.insideLookTarget = 1;
+  SA.Camera._insideFitAng = null;
   SA.Camera.autoFit = true;
   SA.Game.modal = 'scramble_win';
 };
@@ -18392,7 +18867,7 @@ SA.UI.renderWinTourChrome = function (ctx) {
   var bx = (w - bw) / 2;
   var by = h - safe.b - 56;
   SA.Draw.text(ctx, label, w / 2, by - 14, { size: 13, color: 'rgba(255,255,255,0.85)', weight: '700' });
-  SA.UI.btn(ctx, bx, by, bw, 40, 'Back to results', 'winc_tour_done', {});
+  SA.UI.btnTitle(ctx, bx, by, bw, 40, 'Back to results', 'winc_tour_done', {}, true);
 };
 
 SA.UI.renderFailModal = function (ctx) {
@@ -18470,13 +18945,17 @@ SA.UI.onBuildTap = function (hit) {
   if (hit.kind === 'sb_zoom_out') { SA.Camera.zoomBy(1 / 1.18); return; }
   if (hit.kind === 'sb_fit') { SA.Camera.autoFit = true; return; }
   if (hit.kind === 'sb_inside') {
-    SA.Camera.inside = !SA.Camera.inside;
-    /* The look-up view is drawn against the fixed-fraction 2D background
-       (SA.BG.render never scales with camera zoom/pan), so it is tuned for
-       the neutral zoom=1/pan=0 camera - snap back to neutral each time so
-       looking up always lines up with the horizon. */
-    if (SA.Camera.inside) { SA.Camera.zoom = 1; SA.Camera.pan.x = 0; SA.Camera.pan.y = 0; }
-    else SA.Camera.autoFit = true;
+    if (SA.Camera.inside) {
+      SA.Camera.inside = false;
+      SA.Camera.insideLookUp = 0;
+      SA.Camera.insideLookTarget = 1;
+      SA.Camera._insideFitAng = null;
+      SA.Camera.autoFit = true;
+    } else if (st) {
+      if (SA.Scramble) SA.Scramble.toasts = [];
+      if (SA.FX) { SA.FX.bursts = []; SA.FX.ripples = []; SA.FX.flashes = []; }
+      SA.Camera.snapInside(st);
+    }
     return;
   }
   if (hit.kind === 'sb_overlay') { st.overlayOn = !st.overlayOn; return; }
@@ -19064,6 +19543,12 @@ SA.Progress.unlocked = {
   animals: SA.Progress.STARTER_ANIMALS.slice(),
   schach: (SA.Progress.STARTER_SCHACH || []).slice()
 };
+/* Cheap folding furniture is on the shelf from the first tap. Designer
+   teak / velvet / marble stay tier-2 rolls; luxury (piano, throne) stays
+   a late category unlock. */
+if (SA.Progress.unlocked.decorCats.indexOf('furniture') < 0) {
+  SA.Progress.unlocked.decorCats.push('furniture');
+}
 SA.Progress.completed = {};
 /* Per-level record: { score, mehadrin, etrogim, secondsLeft }. Score is the
    ladder number you chase on a replay; etrogim are only a quick fruit grade
@@ -19202,6 +19687,9 @@ SA.Progress.load = function () {
       if (SA.Progress.unlocked[key].indexOf(starters[key][i]) < 0) SA.Progress.unlocked[key].push(starters[key][i]);
     }
   }
+  if (SA.Progress.unlocked.decorCats.indexOf('furniture') < 0) {
+    SA.Progress.unlocked.decorCats.push('furniture');
+  }
   /* Camel/cow/ox/horse left the playable set - keep only animals that are
      still in SA.Mat.ANIMALS (elephant). Zoo scenery ids are not shelf stock. */
   if (SA.Mat && SA.Mat.ANIMALS) {
@@ -19277,38 +19765,68 @@ SA.Share.summaryText = function (/* state, result */) {
 
 SA.Share.render = function (state, result) {
   var W = 800, H = 1000, bandH = 170;
-  /* Exact view: snapshot the live camera (angle, zoom, pan, inside) at the
-     current viewport size, then cover-fit that frame onto the postcard.
-     Do not reset to a hero outside shot - players share what they were looking at. */
-  var vw = Math.max(1, SA.View.w), vh = Math.max(1, SA.View.h);
+  var destH = H - bandH;
+  /* Postcard-sized snap with a booth-centered camera. Cover-fitting the live
+     phone viewport kept HUD pan (tray / strip) and shoved the sukkah left. */
   var snap = document.createElement('canvas');
-  snap.width = vw;
-  snap.height = vh;
+  snap.width = W;
+  snap.height = destH;
   var sctx = snap.getContext('2d', { alpha: false });
 
   var savedCanvas = SA.View.canvas, savedCtx = SA.View.ctx;
+  var savedW = SA.View.w, savedH = SA.View.h;
   var savedOverlay = state.overlayOn;
+  var savedCam = {
+    zoom: SA.Camera.zoom, px: SA.Camera.pan.x, py: SA.Camera.pan.y,
+    angle: SA.Camera.angle, target: SA.Camera.targetAngle,
+    inside: SA.Camera.inside, fit: SA.Camera.autoFit
+  };
+  var savedPlayBand = SA.Camera.playBand;
+  var savedStrip = SA.UI.STRIP_W;
+
   state.overlayOn = false;
   SA.View.canvas = snap;
   SA.View.ctx = sctx;
-  SA.Iso.setViewport(vw, vh);
+  SA.View.w = W;
+  SA.View.h = destH;
+  SA.UI.STRIP_W = 0;
+  SA.Camera.playBand = function () {
+    return {
+      top: destH * 0.08, bot: destH * 0.92,
+      left: W * 0.06, right: W * 0.94,
+      midX: W / 2, midY: destH * 0.50
+    };
+  };
+  SA.Camera.autoFit = true;
+  SA.Camera.inside = false;
+  SA.Camera.angle = SA.Camera.targetAngle = 28;
+  SA.Iso.setViewport(W, destH);
+  SA.Camera.snapFit(state);
   SA.Scene.render(sctx, state, result);
+
+  SA.Camera.playBand = savedPlayBand;
+  SA.UI.STRIP_W = savedStrip;
+  SA.Camera.zoom = savedCam.zoom;
+  SA.Camera.pan.x = savedCam.px;
+  SA.Camera.pan.y = savedCam.py;
+  SA.Camera.angle = savedCam.angle;
+  SA.Camera.targetAngle = savedCam.target;
+  SA.Camera.inside = savedCam.inside;
+  SA.Camera.autoFit = savedCam.fit;
   SA.View.canvas = savedCanvas;
   SA.View.ctx = savedCtx;
+  SA.View.w = savedW;
+  SA.View.h = savedH;
   state.overlayOn = savedOverlay;
-  SA.Iso.setViewport(vw, vh);
+  SA.Iso.setViewport(savedW, savedH);
 
   var off = document.createElement('canvas');
   off.width = W;
   off.height = H;
   var octx = off.getContext('2d', { alpha: false });
-  var destH = H - bandH;
-  var scale = Math.max(W / vw, destH / vh);
-  var dw = vw * scale, dh = vh * scale;
-  var dx = (W - dw) / 2, dy = (destH - dh) / 2;
   octx.fillStyle = '#7a9a72';
   octx.fillRect(0, 0, W, destH);
-  octx.drawImage(snap, dx, dy, dw, dh);
+  octx.drawImage(snap, 0, 0, W, destH);
   SA.Share.drawStamp(octx, W, H, state, result);
   return off.toDataURL('image/png');
 };
@@ -19418,7 +19936,8 @@ SA.Loop.render = function () {
        problem the player just solved can be called out the frame it clears. */
     SA.Scramble.observe(result);
     SA.UI.maybePromptTzurat(result);
-    if (!SA.Game.modal) SA.Scramble.checkGoal(result);
+    /* Do not re-fire the win sheet while the player is touring inside / orbiting. */
+    if (!SA.Game.modal && !SA.Game.winTour) SA.Scramble.checkGoal(result);
   } else if (SA.Game.screen === 'levels') {
     SA.UI.renderLevels(ctx);
   } else if (SA.Game.screen === 'cards') {
@@ -19427,10 +19946,13 @@ SA.Loop.render = function () {
     SA.UI.renderTitle(ctx);
   }
   /* Screen-space juice overlays (tap ripples, the Kosher-flip confetti
-     burst) draw last, on top of every screen/modal alike - see p22. */
-  SA.FX.renderBursts(ctx);
-  SA.FX.renderRipples(ctx);
-  SA.FX.renderFlashes(ctx);
+     burst) draw last, on top of every screen/modal alike - see p22.
+     Hide confetti during Go Inside / orbit so the booth stays clean. */
+  if (!SA.Game.winTour) {
+    SA.FX.renderBursts(ctx);
+    SA.FX.renderRipples(ctx);
+    SA.FX.renderFlashes(ctx);
+  }
 };
 
 SA.start = function () {
@@ -19440,6 +19962,7 @@ SA.start = function () {
   SA.Audio.load();
   SA.Input.bind();
   SA.Game.screen = 'title';
+  if (SA.Audio.startMenuMusic) SA.Audio.startMenuMusic();
   SA.Loop.start();
 };
 
@@ -19451,8 +19974,14 @@ window.addEventListener('pagehide', function () { SA.Save.flush(); });
    see. The Scramble clock is frozen with it, so nobody loses a level to a
    phone call. */
 window.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'hidden') { SA.Save.flush(); SA.Loop.pause(); }
-  else SA.Loop.start();
+  if (document.visibilityState === 'hidden') {
+    SA.Save.flush();
+    SA.Loop.pause();
+    if (SA.Audio && SA.Audio._menuHalt) SA.Audio._menuHalt();
+  } else {
+    SA.Loop.start();
+    if (SA.Audio && SA.Game && SA.Game.screen === 'title') SA.Audio.startMenuMusic();
+  }
 });
 </script>
 <script>
@@ -19481,7 +20010,12 @@ SA.Audio = {
   _noise: null,
   _last: {},          // name -> last play time, for the repeat throttle
   _voices: 0,
-  STORE_KEY: 'sukkah_sound_v1'
+  STORE_KEY: 'sukkah_sound_v1',
+  _menuWant: false,     // title screen asked for BGM (may wait for unlock)
+  _menuPlaying: false,
+  _menuGain: null,
+  _menuNodes: [],
+  _menuTimer: null
 };
 
 SA.Audio.MAX_VOICES = 10;
@@ -19498,7 +20032,13 @@ SA.Audio.setEnabled = function (on) {
   try { localStorage.setItem(SA.Audio.STORE_KEY, on ? '1' : '0'); } catch (e) {}
   /* Turning it back on is itself worth a sound - otherwise the button gives no
      evidence that it did anything. */
-  if (on) { SA.Audio.wake(); SA.Audio.play('tap'); }
+  if (on) {
+    SA.Audio.wake();
+    SA.Audio.play('tap');
+    if (SA.Audio._menuWant) SA.Audio.startMenuMusic();
+  } else {
+    SA.Audio._menuHalt();
+  }
 };
 
 /* Called from the first pointerdown (p18). Safe to call on every gesture: it
@@ -19518,6 +20058,7 @@ SA.Audio.wake = function () {
       SA.Audio.master = master;
     }
     if (SA.Audio.ctx.state === 'suspended') SA.Audio.ctx.resume();
+    if (SA.Audio._menuWant && SA.Audio.enabled) SA.Audio._menuKick();
   } catch (e) { SA.Audio.ctx = null; }
 };
 
@@ -19723,6 +20264,140 @@ SA.Audio.forPiece = function (piece, entry) {
 SA.Audio.buzz = function (ms) {
   if (!SA.Audio.enabled) return;
   try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {}
+};
+
+/* ---------------------------------------------- 22b. TITLE MENU BGM */
+/* Short looping klezmer-ish / Sukkot-festive line on a Freygish (Ahava Rabbah)
+   scale. Own gain bus, not the SFX voice pool, so a place-knock still cuts
+   through. Never creates an AudioContext - that stays in wake() on a gesture. */
+SA.Audio.MENU_LOOP_SEC = 12;
+SA.Audio.MENU_STEP = 0.25;
+
+/* D Freygish: D Eb F# G A Bb C# — 48 eighths = 12s. */
+SA.Audio.MENU_TUNE = [
+  587.33, 587.33, 554.37, 587.33,  622.25, 587.33, 554.37, 440.00,
+  466.16, 440.00, 392.00, 369.99,  440.00, 392.00, 369.99, 293.66,
+  369.99, 392.00, 440.00, 466.16,  554.37, 587.33, 622.25, 587.33,
+  440.00, 466.16, 440.00, 369.99,  392.00, 369.99, 311.13, 293.66,
+  587.33, 440.00, 587.33, 739.99,  783.99, 739.99, 622.25, 587.33,
+  554.37, 440.00, 466.16, 440.00,  369.99, 392.00, 440.00, 293.66
+];
+SA.Audio.MENU_BASS = [146.83, 110.00, 146.83, 110.00, 98.00, 146.83];
+
+SA.Audio.startMenuMusic = function () {
+  SA.Audio._menuWant = true;
+  if (!SA.Audio.enabled) return;
+  SA.Audio._menuKick();
+};
+
+SA.Audio.stopMenuMusic = function () {
+  SA.Audio._menuWant = false;
+  SA.Audio._menuHalt();
+};
+
+SA.Audio._menuHalt = function () {
+  if (SA.Audio._menuTimer) {
+    clearTimeout(SA.Audio._menuTimer);
+    SA.Audio._menuTimer = null;
+  }
+  SA.Audio._menuPlaying = false;
+  var nodes = SA.Audio._menuNodes || [];
+  for (var i = 0; i < nodes.length; i++) {
+    try { if (nodes[i].stop) nodes[i].stop(); } catch (e) {}
+    try { nodes[i].disconnect(); } catch (e) {}
+  }
+  SA.Audio._menuNodes = [];
+  SA.Audio._menuGain = null;
+  SA.Audio._menuBass = null;
+};
+
+SA.Audio._menuKick = function () {
+  if (!SA.Audio.enabled || !SA.Audio._menuWant) return;
+  if (SA.Audio._menuPlaying) return;
+  var ctx = SA.Audio.ctx;
+  if (!ctx || !SA.Audio.master) return;
+  if (ctx.state === 'suspended') {
+    try {
+      var p = ctx.resume();
+      if (p && typeof p.then === 'function') {
+        p.then(function () {
+          if (SA.Audio._menuWant && SA.Audio.enabled && !SA.Audio._menuPlaying) SA.Audio._menuKick();
+        });
+      }
+    } catch (e) {}
+    return;
+  }
+  try {
+    var bus = ctx.createGain();
+    bus.gain.value = 0.16;
+    bus.connect(SA.Audio.master);
+    var drone = ctx.createOscillator();
+    var droneG = ctx.createGain();
+    drone.type = 'sine';
+    drone.frequency.value = 146.83;
+    droneG.gain.value = 0.18;
+    drone.connect(droneG); droneG.connect(bus);
+    drone.start();
+    var bass = ctx.createOscillator();
+    var bassG = ctx.createGain();
+    bass.type = 'triangle';
+    bass.frequency.value = 146.83;
+    bassG.gain.value = 0.26;
+    bass.connect(bassG); bassG.connect(bus);
+    bass.start();
+    SA.Audio._menuGain = bus;
+    SA.Audio._menuBass = bass;
+    SA.Audio._menuNodes = [bus, drone, droneG, bass, bassG];
+    SA.Audio._menuPlaying = true;
+    SA.Audio._menuSchedule(ctx.currentTime + 0.05);
+  } catch (e) {
+    SA.Audio._menuHalt();
+  }
+};
+
+SA.Audio._menuNote = function (freq, t0, dur, peak, type) {
+  var ctx = SA.Audio.ctx;
+  if (!ctx || !SA.Audio._menuGain || !freq) return;
+  try {
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = type || 'triangle';
+    osc.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.014);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * 0.42), t0 + dur * 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(SA.Audio._menuGain);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.03);
+  } catch (e) {}
+};
+
+SA.Audio._menuSchedule = function (t0) {
+  var ctx = SA.Audio.ctx;
+  if (!ctx || !SA.Audio._menuPlaying || !SA.Audio._menuGain) return;
+  var step = SA.Audio.MENU_STEP;
+  var tune = SA.Audio.MENU_TUNE;
+  var i;
+  for (i = 0; i < tune.length; i++) {
+    var t = t0 + i * step;
+    var dur = step * 0.88;
+    SA.Audio._menuNote(tune[i], t, dur, 0.44, 'triangle');
+    if (i % 8 === 0) SA.Audio._menuNote(tune[i] * 0.5, t, step * 1.6, 0.12, 'sine');
+  }
+  var bass = SA.Audio._menuBass;
+  var bassNotes = SA.Audio.MENU_BASS;
+  if (bass && bass.frequency) {
+    for (i = 0; i < bassNotes.length; i++) {
+      try { bass.frequency.setValueAtTime(bassNotes[i], t0 + i * 2); } catch (e) {}
+    }
+  }
+  var loop = SA.Audio.MENU_LOOP_SEC;
+  var waitMs = Math.max(180, (t0 + loop - 0.06 - ctx.currentTime) * 1000);
+  SA.Audio._menuTimer = setTimeout(function () {
+    if (!SA.Audio._menuPlaying) return;
+    SA.Audio._menuSchedule(t0 + loop);
+  }, waitMs);
 };
 </script>
 <script>
@@ -20227,6 +20902,7 @@ SA.Pile.canRotate = function (piece) {
   if (piece.animal) return false;
   /* Framed soft sheets / lavud rope walls are not lintels - turning a 7×46
      canvas into a 46×7 ribbon is nonsense. */
+  if (piece.fullSide) return false;
   var rotEntry = SA.Pile.entryOf(piece);
   if (rotEntry && (rotEntry.swaysInWind || rotEntry.lavudRopes || rotEntry.fullSide)) return false;
   if (piece.kind === 'wall') return SA.Pile.baseSpan(piece) !== SA.Pile.baseHeight(piece);
@@ -20356,27 +21032,59 @@ SA.Pile.minWallSpan = function (entry) {
   }
   return entry.widthTefachim || (entry.form ? entry.form.w : 1) || 1;
 };
+
+/* Lavud posts / posts-only heaps stay one tefach. Everything else is a
+   full-side board (span, not cw). */
+SA.Pile.isPostWall = function (entry, opts) {
+  if (opts && opts.postsOnly) return true;
+  if (!entry || entry.matKind === 'animal') return false;
+  return !!(entry.form && entry.form.id === 'post');
+};
+
+/* Longest footprint side — stamp this on span so a board covers N/S or E/W.
+   previewFor / place then clamp to SA.State.wallLength for the drop side. */
+SA.Pile.sideSpanForState = function (state) {
+  var st = state || (SA.Game && SA.Game.state);
+  var fp = st && st.footprint;
+  if (!fp) return SA.Rule.WALL_MIN_FULL_LEN;
+  return Math.max(fp.w | 0, fp.d | 0) || SA.Rule.WALL_MIN_FULL_LEN;
+};
+
 SA.Pile.clampWallSpan = function (piece, entry) {
   if (!piece || piece.kind !== 'wall') return piece;
   entry = entry || SA.Pile.entryOf(piece);
-  if (!entry || entry.fullSide) return piece;
+  if (piece.fullSide || (entry && entry.fullSide)) return piece;
+  if (SA.Pile.isPostWall(entry)) {
+    piece.span = 1;
+    return piece;
+  }
   var min = SA.Pile.minWallSpan(entry);
   if (piece.span == null || piece.span < min) piece.span = min;
   return piece;
 };
 
 SA.Pile.makeWallPiece = function (entry, opts) {
+  opts = opts || {};
+  var animal = entry.matKind === 'animal';
+  var isPost = !animal && SA.Pile.isPostWall(entry, opts);
   var piece = {
     uid: 'pp' + (SA.Pile.seq++), kind: 'wall', matId: entry.id,
-    span: SA.Pile.minWallSpan(entry),
-    tier: entry.tier == null ? (entry.matKind === 'animal' ? 2 : 0) : entry.tier,
-    animal: entry.matKind === 'animal',
-    fullSide: !!entry.fullSide
+    span: isPost ? 1 : SA.Pile.minWallSpan(entry),
+    tier: entry.tier == null ? (animal ? 2 : 0) : entry.tier,
+    animal: animal,
+    fullSide: !animal && !isPost
   };
   /* Metal posts may reach the roof (schach rests on them). Lavud ROPE spacing
      is drawn only in the bottom ten tefachim - see saScLavudRopes. */
-  if (opts && opts.h) piece.h = opts.h;
-  if (entry.matKind === 'animal' && !piece.h) piece.h = entry.standHeight || entry.form.h;
+  if (opts.h) piece.h = opts.h;
+  if (animal && !piece.h) piece.h = entry.standHeight || (entry.form && entry.form.h);
+  if (isPost) {
+    piece.span = 1;
+    piece.fullSide = false;
+  } else if (piece.fullSide) {
+    piece.span = opts.span || SA.Pile.sideSpanForState(opts.state);
+    if (!piece.h) piece.h = SA.Pile.wallCutHeight(opts.state || (SA.Game && SA.Game.state));
+  }
   return SA.Pile.clampWallSpan(piece, entry);
 };
 
@@ -20407,12 +21115,10 @@ SA.Pile.makeDecorPiece = function (entry) {
 };
 
 /* ---------------------------------------------- 23b. THE ROLL */
-/* wallNeed / schachNeed are derived from the actual footprint, so the heap
-   scales with the level instead of being a hand-tuned list per level:
-   two full sides + a third-wall tefach is (w + d + 1) tefachim of standing
-   wall, and tzilata merubah (OC 631:1) needs strictly more than half the
-   roof cells - both are rolled with slack so a couple of clumsy drops do
-   not strand the player. */
+/* wallNeed counts SIDES (full-side boards), not tefachim of scraps. A kosher
+   booth needs ~3 walls plus an optional 4th. Schach still scales with the
+   roof (tzilata merubah, OC 631:1). Slack is a couple of extra boards, not
+   a yard of 7–12 tefach leftovers. */
 SA.Pile.roll = function (cfg, state, seed) {
   var rnd = saMulberry32(seed == null ? Math.floor(Math.random() * 1000000000) : seed);
   var pools = SA.Pile.pools();
@@ -20441,74 +21147,56 @@ SA.Pile.roll = function (cfg, state, seed) {
   /* Backyard (~12 ft) pad: a tight kit of full-size pieces. The old formula
      treated every tefach as its own stick and rolled ~200 boards. */
   var backyard = longSide >= 16 || !!cfg.fullSideWalls;
-  /* Two full sides + a tefach third, then a few spare panels (old Scramble
-     feel) — not bare-minimum, not a yard of 1-tefach sticks. */
-  var wallNeed = Math.ceil((state.footprint.w + state.footprint.d + 1) * (cfg.wallSlack || 1.45));
+  var cutH = SA.Pile.wallCutHeight(state);
+  var sideSpan = SA.Pile.sideSpanForState(state);
   var wallHave = 0, guard = 0;
   /* Lavud / posts-only: enough one-tefach posts to line two sides under three
      tefachim apart - never inflate them into 12-wide planks. */
   var postsOnly = !!(cfg.formWhitelist && cfg.formWhitelist.indexOf('post') >= 0);
-  if (postsOnly && backyard) {
+  var wallNeed;
+  if (postsOnly) {
     wallNeed = Math.ceil((state.footprint.w + state.footprint.d) / 2) + 10;
+  } else {
+    /* ~3 full sides (kosher booth) plus an optional 4th. Count boards. */
+    wallNeed = Math.max(3, Math.min(4, Math.ceil(3 * (cfg.wallSlack || 1.2))));
   }
-  if (backyard && !postsOnly) {
-    /* Full length, full depth, then a one-tefach third wall (OC 630:2). The
-       tefach slot must be a post/slat - never a framed canvas shrunk to 1. */
-    var kitSpans = [state.footprint.w, state.footprint.d, 1];
-    for (var fs = 0; fs < kitSpans.length; fs++) {
-      var wtFs = saPileTier(rnd, weights, wallPool);
-      var wEntryFs = saPilePick(rnd, wallPool[wtFs]);
-      if (!wEntryFs) break;
-      if (kitSpans[fs] <= 1) {
-        var narrow = null, nt, ni, nc;
-        for (nt = 0; nt < 3 && !narrow; nt++) {
-          for (ni = 0; ni < wallPool[nt].length; ni++) {
-            nc = wallPool[nt][ni];
-            if (nc.swaysInWind || nc.lavudRopes || nc.fullSide) continue;
-            if ((nc.widthTefachim || 99) <= 2 || (nc.form && (nc.form.id === 'post' || nc.form.id === 'slat'))) {
-              narrow = nc; break;
-            }
-          }
-        }
-        if (narrow) wEntryFs = narrow;
-      }
-      var wpFs = SA.Pile.makeWallPiece(wEntryFs, { h: SA.Pile.wallCutHeight(state) });
-      if (kitSpans[fs] <= 1 && !wEntryFs.swaysInWind && !wEntryFs.lavudRopes) wpFs.span = 1;
-      else wpFs.span = Math.max(kitSpans[fs], SA.Pile.minWallSpan(wEntryFs));
-      SA.Pile.clampWallSpan(wpFs, wEntryFs);
-      out.push(wpFs);
-      wallHave += wpFs.span;
-    }
-  }
-  while (wallHave < wallNeed && guard++ < (backyard ? (postsOnly ? 80 : 20) : 400)) {
+  while (wallHave < wallNeed && guard++ < (postsOnly ? 80 : 16)) {
     var wt = saPileTier(rnd, weights, wallPool);
-    var wEntry = saPilePick(rnd, wallPool[wt]);
+    var pickList = wallPool[wt] || [];
+    if (!postsOnly && pickList.length) {
+      var noPost = [];
+      for (var np = 0; np < pickList.length; np++) {
+        if (pickList[np].form && pickList[np].form.id === 'post') continue;
+        noPost.push(pickList[np]);
+      }
+      if (noPost.length) pickList = noPost;
+    }
+    var wEntry = saPilePick(rnd, pickList);
     if (!wEntry) break;
-    var wp = SA.Pile.makeWallPiece(wEntry, { h: SA.Pile.wallCutHeight(state) });
-    if (postsOnly || (wEntry.form && wEntry.form.id === 'post')) {
+    var wp = SA.Pile.makeWallPiece(wEntry, {
+      h: cutH, span: sideSpan, state: state, postsOnly: postsOnly
+    });
+    if (postsOnly || SA.Pile.isPostWall(wEntry)) {
       wp.span = 1;
-    } else if (backyard) {
-      /* Spare panels stay useful widths — never refill with 1-tefach sticks. */
-      wp.span = Math.max(wp.span, Math.min(shortSide, Math.max(6, Math.ceil(shortSide / 4))));
+      wp.fullSide = false;
     }
     SA.Pile.clampWallSpan(wp, wEntry);
-    if (postsOnly || (wEntry.form && wEntry.form.id === 'post')) wp.span = 1;
     out.push(wp);
-    wallHave += wp.span;
+    wallHave += postsOnly ? wp.span : 1;
   }
 
-  /* Frame: a few full-length wooden beams with spare (challenging, not bare).
-     Never scale as runs×area — that was ~900 tefachim of toothpicks. */
+  /* Frame: a few full-length wooden beams (count boards, not tefachim).
+     With full-side walls, 2–3 spans cover the pad for schach. */
   var beamNeed = backyard
-    ? Math.ceil(shortSide * (cfg.beamSlack || 1.55) * 2.4)
-    : Math.ceil((Math.ceil(longSide / 3) + 1) * shortSide * (cfg.beamSlack || 1.3));
+    ? Math.max(2, Math.min(4, Math.round(2.5 * (cfg.beamSlack || 1))))
+    : Math.max(2, Math.min(5, Math.ceil(longSide / 10) + 1));
   /* Only WOOD counts toward that need. Schach may not be laid straight onto
      metal (p12, MB 629:22): the steel pipe is there to be used as a frame with
      wooden battens on top of it, so a heap whose reach is made up of pipes is a
      heap that cannot be finished properly. Metal rides along as a bonus piece. */
   var beamHave = 0;
   guard = 0;
-  while (beamHave < beamNeed && guard++ < (backyard ? 24 : 400)) {
+  while (beamHave < beamNeed && guard++ < (backyard ? 12 : 40)) {
     var bt = saPileTier(rnd, weights, pools.beam);
     /* Fill the wooden need first so metal pipes do not pad the tray. */
     var beamChoices = pools.beam[bt];
@@ -20522,9 +21210,9 @@ SA.Pile.roll = function (cfg, state, seed) {
     var bEntry = saPilePick(rnd, beamChoices);
     if (!bEntry) break;
     var bp = SA.Pile.makeBeamPiece(bEntry);
-    if (backyard) bp.span = Math.max(bp.span, shortSide);
+    if (backyard) bp.span = Math.max(bp.span, sideSpan);
     out.push(bp);
-    if (!bEntry.mekabelTumah) beamHave += bp.span;
+    if (!bEntry.mekabelTumah) beamHave += 1;
   }
 
   var roofCells = state.footprint.w * state.footprint.d;
@@ -20550,10 +21238,10 @@ SA.Pile.roll = function (cfg, state, seed) {
     if (!sEntry) break;
     var sp = SA.Pile.makeSchachPiece(sEntry);
     if (backyard) {
-      var qw = Math.max(sp.cw, Math.ceil(state.footprint.w / 3));
-      var qd = Math.max(sp.cd, Math.ceil(state.footprint.d / 3));
-      sp.cw = Math.min(state.footprint.w, qw);
-      sp.cd = Math.min(state.footprint.d, qd);
+      /* Heap cards are the whole pad. Drop layout still decides the
+         landed rect - a ready frame fills w×d; a corner booth still shrinks. */
+      sp.cw = state.footprint.w;
+      sp.cd = state.footprint.d;
     }
     out.push(sp);
     schachHave += sp.cw * sp.cd;
@@ -20613,13 +21301,13 @@ SA.Pile.roll = function (cfg, state, seed) {
     var lavudList = SA.Mat.LAVUD_WALLS || [];
     for (var lv = 0; lv < lavudList.length; lv++) {
       /* Tall metal posts (roof height); ropes stay in the bottom 10 tef. */
-      out.push(SA.Pile.makeWallPiece(lavudList[lv], { h: SA.Pile.wallCutHeight(state) }));
+      out.push(SA.Pile.makeWallPiece(lavudList[lv], { h: cutH, span: sideSpan, state: state }));
     }
     /* Extra mid-size so a backyard still has enough run to close a side. */
     var lavudMid = SA.Mat.byId['wall_junk_lavud_rope_frame_mid_natural'];
     if (lavudMid) {
-      out.push(SA.Pile.makeWallPiece(lavudMid, { h: SA.Pile.wallCutHeight(state) }));
-      out.push(SA.Pile.makeWallPiece(lavudMid, { h: SA.Pile.wallCutHeight(state) }));
+      out.push(SA.Pile.makeWallPiece(lavudMid, { h: cutH, span: sideSpan, state: state }));
+      out.push(SA.Pile.makeWallPiece(lavudMid, { h: cutH, span: sideSpan, state: state }));
     }
   }
 
@@ -20763,22 +21451,11 @@ SA.Pile.floorCellInsideWall = function (state, payload) {
 };
 
 SA.Pile.coerceDecorHit = function (piece, hit, state) {
-  if (!piece || !hit || piece.kind !== 'decor') return hit;
-  var entry = SA.Pile.entryOf(piece);
-  if (!entry || entry.hang) return hit;
-  if (hit.kind === 'floor_cell') return hit;
-  if (hit.kind === 'schach_cell' && hit.payload) {
-    return { kind: 'floor_cell', payload: { x: hit.payload.x, z: hit.payload.z }, quad: hit.quad };
-  }
-  if (hit.kind === 'wall_cell' && hit.payload) {
-    var xz = SA.Pile.floorCellInsideWall(state, hit.payload);
-    if (xz) return { kind: 'floor_cell', payload: xz, quad: hit.quad };
-  }
-  return hit;
+  return SA.Act.coerceDecorHit(piece, hit, state);
 };
 
-/* Finger → the cell this piece is looking for. Floor furniture also accepts
-   roof / wall under the finger (see coerceDecorHit). */
+/* Finger → the cell this piece is looking for. Decor uses the tap cell
+   (floor or roof plane), never a booth-centre snap. */
 SA.Pile.hitForPiece = function (x, y, piece, state) {
   if (!piece) return null;
   var want = SA.Pile.wantsKind(piece);
@@ -20788,12 +21465,16 @@ SA.Pile.hitForPiece = function (x, y, piece, state) {
     if (asWall) return asWall;
   }
   var hit = SA.Pick.hitTestKind(x, y, want, want === 'floor_cell' ? 14 : 6);
-  if (hit) return hit;
+  if (hit) {
+    return piece.kind === 'decor' ? SA.Pile.coerceDecorHit(piece, hit, state) : hit;
+  }
   var entry = SA.Pile.entryOf(piece);
-  if (piece.kind === 'decor' && entry && !entry.hang) {
-    var roof = SA.Pick.hitTestKind(x, y, 'schach_cell', 18);
+  if (piece.kind === 'decor' && entry) {
+    var roof = SA.Pick.hitTestKind(x, y, 'schach_cell', 10);
     if (roof) return SA.Pile.coerceDecorHit(piece, roof, state);
-    var wall = SA.Pick.hitTestKind(x, y, 'wall_cell', 18);
+    var floor = SA.Pick.hitTestKind(x, y, 'floor_cell', 10);
+    if (floor) return SA.Pile.coerceDecorHit(piece, floor, state);
+    var wall = SA.Pick.hitTestKind(x, y, 'wall_cell', 10);
     if (wall) return SA.Pile.coerceDecorHit(piece, wall, state);
   }
   return null;
@@ -20807,6 +21488,12 @@ SA.Pile.previewFor = function (piece, hit, state) {
   if (!piece || !hit) return null;
   var entry = SA.Pile.entryOf(piece);
   if (!entry) return null;
+  if (piece.kind === 'decor') {
+    hit = SA.Pile.coerceDecorHit(piece, hit, state);
+    if (!hit || !hit.payload) return null;
+    var dcell = SA.Act.clampDecorCell(state, hit.payload.x, hit.payload.z);
+    return { kind: 'decor', x: dcell.x, z: dcell.z, ok: true, hang: !!entry.hang };
+  }
   var wallTwin = (piece.kind === 'schach' && hit.kind === 'wall_cell') ? SA.Pile.alsoWallEntry(piece) : null;
   var beamTwin = (piece.kind === 'schach' && hit.kind === 'schach_cell') ? SA.Pile.alsoBeamEntry(piece) : null;
   if (hit.kind !== SA.Pile.wantsKind(piece) && !wallTwin) return null;
@@ -20874,7 +21561,7 @@ SA.Pile.previewFor = function (piece, hit, state) {
       settleRoof: blayout.settleRoof, flipRot: !!blayout.flipRot
     };
   }
-  return { kind: 'decor', x: hit.payload.x, z: hit.payload.z, ok: true };
+  return null;
 };
 
 /* Places through the SAME SA.Act entry points the sandbox uses (p11), by
@@ -20947,7 +21634,8 @@ SA.Pile.place = function (piece, preview, state) {
     if (SA.Scramble.active()) SA.Scramble.teachFrame(beamEntry);
   } else {
     SA.Tool.category = 'decor';
-    SA.State.placeDecor(state, entry, preview.x, preview.z, { wallSide: SA.Tool.wallSide });
+    var dcell = SA.Act.clampDecorCell(state, preview.x, preview.z);
+    SA.State.placeDecor(state, entry, dcell.x, dcell.z, {});
     SA.Progress.onAction('place_decor', piece.matId);
   }
   /* Heap pieces are spent; Free Build shelf cards are not. */
@@ -20989,6 +21677,7 @@ SA.Pile.buildShelf = function (tab) {
        Animals are not lumber. An elephant is the height an elephant is, which is
        exactly why it is a teaching piece (OC 630:11). */
     var wantH = SA.Pile.shelfWallHeight();
+    var shelfSpan = SA.Pile.sideSpanForState(SA.Game && SA.Game.state);
     for (i = 0; i < SA.Mat.ANIMALS.length; i++) {
       if (SA.Progress.unlocked.animals.indexOf(SA.Mat.ANIMALS[i].id) < 0) continue;
       out.push(SA.Pile.makeWallPiece(SA.Mat.ANIMALS[i]));
@@ -21003,8 +21692,7 @@ SA.Pile.buildShelf = function (tab) {
       var key = m.family.id + '|' + m.form.id;
       if (seen[key]) continue;
       seen[key] = true;
-      var natural = m.heightTefachim || (m.form ? m.form.h : SA.Rule.WALL_MIN_HEIGHT);
-      out.push(SA.Pile.makeWallPiece(m, wantH > natural ? { h: wantH } : null));
+      out.push(SA.Pile.makeWallPiece(m, { h: wantH, span: shelfSpan }));
     }
   } else if (tab === 'beam') {
     /* The frame is never locked. Something has to hold the schach up before any
@@ -21268,7 +21956,9 @@ SA.Pile.label = function (piece) {
    schach pieces their patch. Without it, a 1-tefach plank and a 6-tefach
    sheet are the same little rectangle and the heap reads as noise. */
 SA.Pile.sizeBadge = function (piece) {
-  if (piece.kind === 'wall' && piece.fullSide && !piece.animal) return SA.Lang.t('Full side');
+  if (piece.kind === 'wall' && piece.fullSide && !piece.animal) {
+    return SA.Pile.spanOf(piece) + '\u00d7' + SA.Pile.heightOf(piece);
+  }
   if (piece.kind === 'wall') return SA.Pile.spanOf(piece) + '\u00d7' + SA.Pile.heightOf(piece);
   if (piece.kind === 'schach' && (piece.asBeam || SA.Pile.alsoBeamEntry(piece))) {
     return '\u2194' + (piece.rot ? 'D' : 'W');
@@ -21726,6 +22416,7 @@ SA.Scramble.start = function (levelId) {
   SA.Game.level = level;
   SA.Game.mode = 'scramble';
   SA.Game.levelDone = false;
+  SA.Game.winTour = null;
   SA.Game.modal = null;
   SA.Game.modalCard = null;
   SA.Game.selectedPanel = null;
@@ -22096,6 +22787,8 @@ SA.Lang.add({
     'הגג מעל הקירות, ולכן הסכך ייתלה באוויר. הנמיכו אותו, או העמידו חלקים גבוהים יותר.',
   'That patch is over open air. Drop it on a wall-top or on a pole.':
     'הטלאי הזה מעל אוויר פתוח. הניחו אותו על ראש קיר או על מוט.',
+  'Only the wall-tops hold that mat. Lay poles across first for a bigger patch.':
+    'רק ראשי הקירות מחזיקים את המחצלת. הניחו מוטות לרוחב קודם כדי לקבל טלאי גדול יותר.',
   'That patch is over open air. Drop it on the walls or on a pole - schach only covers what the frame can hold.':
     'הטלאי הזה מעל אוויר פתוח. הניחו אותו על הקירות או על מוט - סכך מכסה רק מה שהשלד יכול להחזיק.',
   'The pasul strip at the wall is back under four amos - dofen akumah (OC 632:1).':
@@ -22129,7 +22822,17 @@ SA.Lang.add({
   'Mekabel tumah means it can become ritually impure. A mat made for sitting or sleeping is a vessel for that use, so it cannot be schach - only a mat made for roofing counts (OC 629:1,6).':
     'מקבל טומאה פירושו שיכול להיות טמא. מחצלת שנעשתה לישיבה או לשכיבה היא כלי לאותו שימוש, ולכן אינה יכולה להיות סכך - רק מחצלת שנעשתה לסיכוך כשרה (או"ח תרכט:א,ו).',
   'Boards four tefachim wide or more read as a house ceiling - gezeiras tikrah (OC 629:18).':
-    'לוחות ברוחב ארבעה טפחים ומעלה נחשבים כתקרת בית - גזירת תקרה (או"ח תרכט:יח).'
+    'לוחות ברוחב ארבעה טפחים ומעלה נחשבים כתקרת בית - גזירת תקרה (או"ח תרכט:יח).',
+  'Plastic Folding Table': 'שולחן מתקפל מפלסטיק',
+  'Metal Folding Chair': 'כיסא מתכת מתקפל',
+  'Crate Table': 'שולחן מארגז',
+  'Picnic Bench': 'ספסל פיקניק',
+  'Wood Picnic Table': 'שולחן פיקניק מעץ',
+  'Canvas Director Chair': 'כיסא במאי',
+  'Small Bistro Set': 'סט ביסטרו קטן',
+  'Designer Teak Table': 'שולחן טיק מעצבים',
+  'Velvet Dining Chairs': 'כיסאות אוכל מקטיפה',
+  'Marble Side Table': 'שולחן צד משיש'
 });
 </script>
 </body>
