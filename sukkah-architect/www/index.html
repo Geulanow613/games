@@ -525,10 +525,33 @@ SA.Camera = {
       SA.Camera.clampPlayBand(SA.Game.state);
     }
   },
-  /* Wall side currently facing the viewer (nearest / front). Turns with angle. */
-  facingWallSide: function () {
-    var a = ((Math.round(SA.Camera.angle / 90) % 4) + 4) % 4;
-    return ['S', 'E', 'N', 'W'][a];
+  /* Wall actually nearest the viewer (highest iso depth), not the 90° bucket.
+     Default camera is ~35°: rounding that to 0 faded South while East was
+     the wall in your face, so Look Inside matched Look Around. Prefer a
+     side that still has panels so a 3-wall booth hides a real wall. */
+  facingWallSide: function (state) {
+    state = state || (SA.Game && SA.Game.state);
+    var fw = (state && state.footprint && state.footprint.w) || 8;
+    var fd = (state && state.footprint && state.footprint.d) || 8;
+    var cx = fw / 2, cz = fd / 2;
+    var pts = { N: [cx, 0], S: [cx, fd], E: [fw, cz], W: [0, cz] };
+    var sides = SA.WALL_SIDES || ['N', 'E', 'S', 'W'];
+    var preferBuilt = false, built = {}, i, s;
+    if (state && state.walls) {
+      for (i = 0; i < sides.length; i++) {
+        s = sides[i];
+        built[s] = !!(state.walls[s] && state.walls[s].panels && state.walls[s].panels.length);
+        if (built[s]) preferBuilt = true;
+      }
+    }
+    var best = 'S', bestD = -Infinity;
+    for (i = 0; i < sides.length; i++) {
+      s = sides[i];
+      if (preferBuilt && !built[s]) continue;
+      var d = SA.Iso.depthKey(pts[s][0], 0, pts[s][1], cx, cz);
+      if (d > bestD) { bestD = d; best = s; }
+    }
+    return best;
   },
   /* Clear rectangle between the HUD / clock and the size-guide + tray. */
   playBand: function () {
@@ -838,17 +861,15 @@ SA.Camera = {
     SA.Camera.pan.x = SA.Camera.fitPanTarget.x;
     SA.Camera.pan.y = SA.Camera.fitPanTarget.y;
   },
-  /* Look Inside: keep the outside plant-on-ground camera; the facing wall
-     becomes see-through in p16 so decorations read. Turning the view swaps
-     which wall is clear. */
+  /* Look Inside: same orbit as Look Around, but p16 hides the facing wall.
+     Do not snap to 0/90 — that was a tiny turn at the default 35° and made
+     the two modes look identical. */
   snapInside: function (state) {
     if (!state) return;
     SA.Camera.inside = true;
     SA.Camera.insideLookUp = 0;
     SA.Camera.insideLookTarget = 0;
     SA.Camera.autoFit = true;
-    var face = Math.round(SA.Camera.targetAngle / 90) * 90;
-    SA.Camera.angle = SA.Camera.targetAngle = face;
     SA.Camera.computeFit(state);
     SA.Camera.zoom = SA.Camera.fitZoomTarget;
     SA.Camera.pan.x = SA.Camera.fitPanTarget.x;
@@ -888,6 +909,21 @@ SA.Iso = {
     var yFocus = lookUp * SA.Camera.insideFocusY * 0.58;
     var sy = (r.x + r.z) * SA.Iso.tileH * scale * tiltNow - (y - yFocus) * SA.Iso.tileH * 1.7 * scale;
     return { sx: SA.Iso.originX + sx, sy: SA.Iso.originY + sy };
+  },
+  /* Screen → world XZ at a known height (floor or roof). Decorations use this
+     so a finger over the booth lands on that cell, not on the wall quad that
+     happens to cover the same pixels. */
+  unproject: function (sx, sy, y, cx, cz) {
+    var tiltNow = SA.Camera.tilt;
+    var scale = SA.Camera.zoom || 1;
+    var tw = SA.Iso.tileW * scale, th = SA.Iso.tileH * scale;
+    var u = (sx - SA.Iso.originX) / Math.max(0.001, tw);
+    var v = (sy - SA.Iso.originY + (y || 0) * th * 1.7) / Math.max(0.001, th * tiltNow);
+    var rx = (u + v) / 2, rz = (v - u) / 2;
+    var rad = SA.Camera.angle * Math.PI / 180;
+    var cos = Math.cos(rad), sin = Math.sin(rad);
+    var dx = rx - cx, dz = rz - cz;
+    return { x: cx + dx * cos + dz * sin, z: cz - dx * sin + dz * cos };
   },
   /* Screen pixels for one world-tefach of UP. Same on every wall face - use
      this for animal scale, never the foreshortened wall-edge length. */
@@ -14700,6 +14736,31 @@ SA.Act.coerceDecorHit = function (piece, hit, state) {
   };
 };
 
+/* Finger over the booth → the cell under that pixel on the floor or roof
+   plane. Wall quads cover the interior on screen, so pick-based decor
+   drops used to glue fruit to a random edge. */
+SA.Act.decorCellFromPointer = function (state, sx, sy, hang) {
+  if (!state || !state.footprint || !SA.Iso.unproject) return null;
+  var fw = state.footprint.w, fd = state.footprint.d;
+  var cx = fw / 2, cz = fd / 2;
+  var y = hang ? (state.roofHeight || 10) : 0;
+  var p = SA.Iso.unproject(sx, sy, y, cx, cz);
+  if (!isFinite(p.x) || !isFinite(p.z)) return null;
+  if (p.x < -0.75 || p.x > fw + 0.75 || p.z < -0.75 || p.z > fd + 0.75) return null;
+  return SA.Act.clampDecorCell(state, Math.floor(p.x), Math.floor(p.z));
+};
+
+SA.Act.decorHitFromPointer = function (piece, state, sx, sy) {
+  if (!piece || piece.kind !== 'decor' || !state) return null;
+  var entry = SA.Pile.entryOf ? SA.Pile.entryOf(piece) : null;
+  var cell = SA.Act.decorCellFromPointer(state, sx, sy, !!(entry && entry.hang));
+  if (!cell) return null;
+  return {
+    kind: entry && entry.hang ? 'schach_cell' : 'floor_cell',
+    payload: { x: cell.x, z: cell.z }
+  };
+};
+
 SA.Act.placeDecor = function (st, x, z) {
   var mat = SA.Tool.currentMaterial();
   if (!mat) return;
@@ -16711,8 +16772,8 @@ SA.Levels.checkGoal = function (level, result, state) {
    decoration) gets a depth key from SA.Iso.depthKey and is drawn back to
    front. SA.Pick.list is rebuilt here every frame with the exact quad each
    drawable used, so tap hit-testing (p18) is always pixel-exact, even
-   mid-rotation. Step-inside mode (p03 SA.Camera.inside) hides the walls so
-   the player can look straight up at the schach - never a drawn sun. */
+   mid-rotation. Look Inside (and dragging a decoration) hides the wall
+   facing the viewer so the interior reads - Look Around keeps every wall. */
 SA.Scene = {};
 
 function saQuadFloor(x, z, cx, cz) {
@@ -16763,6 +16824,30 @@ function saWallSortDepth(side, col, w, row, footprint, cx, cz) {
   var a = saWallDepthAnchor(side, col, w, footprint);
   return SA.Iso.depthKey(a.x, 0, a.z, cx, cz) + 1.25 + row * 0.02;
 }
+
+/* Look Around (orbit tour, default build): all walls stay up.
+   Look Inside, or a decoration in the air: drop the wall in your face. */
+SA.Scene.cutawaySide = function (state) {
+  if (SA.Game && SA.Game.winTour === 'orbit') return null;
+  var drag = SA.Pile && SA.Pile.dragging;
+  var decorDrag = drag && drag.piece && drag.piece.kind === 'decor';
+  if (!SA.Camera.inside && !decorDrag && !(SA.Game && SA.Game.winTour === 'inside')) return null;
+  return SA.Camera.facingWallSide(state);
+};
+
+/* Hang fruit a little inside the pad so an edge cell is not glued to the
+   wall skin. Floor pieces sit on the packed earth at the cell centre. */
+SA.Scene.decorAnchor = function (dec, state) {
+  var fw = state.footprint.w, fd = state.footprint.d;
+  var x = dec.x + 0.5, z = dec.z + 0.5;
+  var pad = dec.hang ? 0.32 : 0.18;
+  if (x < pad) x = pad;
+  if (x > fw - pad) x = fw - pad;
+  if (z < pad) z = pad;
+  if (z > fd - pad) z = fd - pad;
+  var y = dec.hang ? Math.max(0.35, state.roofHeight - (dec.clearance != null ? dec.clearance : 2)) : 0.55;
+  return { x: x, y: y, z: z };
+};
 
 SA.Scene.render = function (ctx, state, result) {
   var view = SA.View;
@@ -16840,11 +16925,9 @@ SA.Scene.render = function (ctx, state, result) {
     }
   }
 
-  /* Look Inside: the wall facing the viewer goes see-through so the booth
-     interior (decorations, table, hanging fruit) is visible. Turning the
-     camera swaps which side is clear. Keep drawing it faintly so the booth
-     still reads as enclosed. */
-  var clearSide = SA.Camera.inside ? SA.Camera.facingWallSide() : null;
+  /* Look Inside / decor drag: omit the facing wall entirely. A faint ghost
+     still covered the booth, so Look Inside matched Look Around. */
+  var clearSide = SA.Scene.cutawaySide(state);
 
   /* walls */
   {
@@ -16891,21 +16974,20 @@ SA.Scene.render = function (ctx, state, result) {
              under the panel. Depth alone could not win on the far/left
              sides at ~35° — those are the angles that looked "floating". */
           var depth2 = saWallSortDepth(side2, p2.col, p2.w, p2.row, state.footprint, cx, cz);
+          if (!fade) {
           jobs.push({ layer: 1, depth: depth2, draw: function () {
-            ctx.save();
-            if (fade) ctx.globalAlpha = 0.08;
             SA.FX.withPop(ctx, wq, p2.placedAt, function () {
               if (entry2.matKind === 'animal') SA.Draw.animalPanel(ctx, wq, entry2, p2, null, shade, afit);
               else SA.Draw.wallPanel(ctx, wq, entry2,
                 SA.Mat.shadeColor(SA.Mat.finishColor(entry2), shade), drawH, p2.w,
                 { tied: !!p2.tied });
             });
-            ctx.restore();
             SA.Pick.add('wall_cell', { side: side2, col: p2.col, uid: p2.uid }, wq);
           } });
+          }
           /* Untied sheet / lavud / animal: big labeled Tie control on the wall
              itself (plus the HUD banner in p17). */
-          if (SA.State.needsTie(entry2) && !p2.tied) {
+          if (!fade && SA.State.needsTie(entry2) && !p2.tied) {
             aboveRoofJobs.push(function () {
               var tq = saQuadWall(side2, p2.col, p2.w, p2.row, Math.min(p2.h, SA.Rule.WALL_MIN_HEIGHT), state.footprint, cx, cz);
               var bc = { sx: (tq[3].sx + tq[2].sx) / 2, sy: (tq[3].sy + tq[2].sy) / 2 };
@@ -16916,6 +16998,7 @@ SA.Scene.render = function (ctx, state, result) {
       }
       /* thin empty-cell pick targets, so a bare wall column can still be tapped to place */
       var length = SA.State.wallLength(state, side);
+      if (clearSide === side) length = 0;
       for (var c = 0; c < length; c++) {
         if (wall.occ[c + '_0']) continue;
         (function (side3, col3) {
@@ -17090,15 +17173,16 @@ SA.Scene.render = function (ctx, state, result) {
     var dEntry = SA.Mat.DECOR_BY_ID[dec.matId];
     if (!dEntry) continue;
     (function (dec5, dEntry5) {
-      var y5 = dec5.hang ? Math.max(0.3, state.roofHeight - dec5.clearance) : 0.6;
-      var pt5 = SA.Iso.project(dec5.x + 0.5, y5, dec5.z + 0.5, cx, cz);
+      var anc = SA.Scene.decorAnchor(dec5, state);
+      var y5 = anc.y;
+      var pt5 = SA.Iso.project(anc.x, y5, anc.z, cx, cz);
       /* depthKey subtracts y, so a bench at y=0.6 sorts BEHIND the floor tile
          at y=0 and the packed earth paints over the furniture. Floor pieces
          pin just in front of their cell; hanging fruit keeps height sorting
          so it still sits under the schach plane. */
       var depth5 = dec5.hang
-        ? SA.Iso.depthKey(dec5.x + 0.5, y5, dec5.z + 0.5, cx, cz)
-        : SA.Iso.depthKey(dec5.x + 0.5, 0, dec5.z + 0.5, cx, cz) + 0.85;
+        ? SA.Iso.depthKey(anc.x, y5, anc.z, cx, cz)
+        : SA.Iso.depthKey(anc.x, 0, anc.z, cx, cz) + 0.85;
       /* half=16 (was 11) + a soft white backing disc: the old bare ~14px
          glyph read as "nothing happened" against a busy scene - a kid
          placing a table or a garland needs to SEE it land. Pop-in scale
@@ -17111,7 +17195,7 @@ SA.Scene.render = function (ctx, state, result) {
       /* Where the string is tied: the roof plane directly above, so raising or
          lowering the clearance visibly lets the fruit down on a longer string
          instead of teleporting a sticker. */
-      var tie5 = dec5.hang ? SA.Iso.project(dec5.x + 0.5, state.roofHeight, dec5.z + 0.5, cx, cz) : null;
+      var tie5 = dec5.hang ? SA.Iso.project(anc.x, state.roofHeight, anc.z, cx, cz) : null;
       jobs.push({ depth: depth5, draw: function () {
         /* Twine from the roof plane down to the ornament - thick enough to
            read on a phone, drawn inside the booth at this cell. */
@@ -17248,10 +17332,10 @@ SA.Scene.drawSnapPreview = function (ctx, state, cx, cz) {
     }
   } else if (pv.kind === 'decor') {
     var hangPv = !!pv.hang;
-    var yPv = hangPv ? Math.max(0.3, state.roofHeight - 2) : 0.6;
-    var pt = SA.Iso.project(pv.x + 0.5, yPv, pv.z + 0.5, cx, cz);
+    var ancPv = SA.Scene.decorAnchor({ x: pv.x, z: pv.z, hang: hangPv, clearance: 2 }, state);
+    var pt = SA.Iso.project(ancPv.x, ancPv.y, ancPv.z, cx, cz);
     if (hangPv) {
-      var tiePv = SA.Iso.project(pv.x + 0.5, state.roofHeight, pv.z + 0.5, cx, cz);
+      var tiePv = SA.Iso.project(ancPv.x, state.roofHeight, ancPv.z, cx, cz);
       SA.Scene.drawHangString(ctx, tiePv, pt, 16);
     }
     ctx.beginPath();
@@ -17546,6 +17630,31 @@ try { SA.Progress.seenBuildTip = !!localStorage.getItem(SA.Progress.TIP_KEY); } 
 SA.Progress.markBuildTipSeen = function () {
   SA.Progress.seenBuildTip = true;
   try { localStorage.setItem(SA.Progress.TIP_KEY, '1'); } catch (e) {}
+};
+
+SA.Progress.ROTATE_TIP_KEY = 'sukkah_architect.seenRotateTip';
+SA.Progress.seenRotateTip = false;
+try { SA.Progress.seenRotateTip = !!localStorage.getItem(SA.Progress.ROTATE_TIP_KEY); } catch (e) {}
+SA.Progress.markRotateTipSeen = function () {
+  SA.Progress.seenRotateTip = true;
+  try { localStorage.setItem(SA.Progress.ROTATE_TIP_KEY, '1'); } catch (e) {}
+};
+
+/* After the first drop: page the tray to a turnable piece and open the tip. */
+SA.Game.maybeShowRotateTip = function () {
+  if (SA.Progress.seenRotateTip) return false;
+  if (SA.Game.mode !== 'scramble' || !SA.Scramble.active()) return false;
+  var list = SA.Pile.pieces || [];
+  var idx = -1;
+  for (var i = 0; i < list.length; i++) {
+    if (SA.Pile.canRotate(list[i])) { idx = i; break; }
+  }
+  if (idx < 0) return false;
+  var vis = SA.Pile.visibleCount();
+  SA.Pile.page = Math.floor(idx / Math.max(1, vis));
+  SA.Pile.clampPage();
+  SA.Game.modal = 'rotate_tip';
+  return true;
 };
 
 SA.Game.goTitle = function () {
@@ -18455,15 +18564,18 @@ SA.UI.renderBuild = function (ctx, result) {
   var trayTop = h - safe.b - SA.UI.TRAY_H;
   if (!SA.Game.winTour && SA.Game.selectedPanel) SA.UI.renderPanelInspector(ctx, trayTop);
   if (!SA.Game.winTour && SA.Game.selectedDecor) SA.UI.renderDecorInspector(ctx, trayTop);
-  /* Look Inside / win-tour: keep the booth clear of teaching toast stacks. */
-  if (!SA.Game.winTour && !SA.Camera.inside) SA.UI.renderToasts(ctx, trayTop - 8);
   /* Goal met: keep the booth open for decorations until they tap Done. */
-  if (!SA.Game.winTour && SA.Scramble.run && SA.Scramble.run.goalMet &&
-      SA.Scramble.run.status === 'building') {
-    SA.UI.renderFinishBar(ctx, trayTop);
-  }
+  var showFinish = !SA.Game.winTour && SA.Scramble.run && SA.Scramble.run.goalMet &&
+    SA.Scramble.run.status === 'building';
+  if (showFinish) SA.UI.renderFinishBar(ctx, trayTop);
   if (SA.Pile.dragging) SA.UI.renderDragGhost(ctx);
   if (SA.Game.winTour) SA.UI.renderWinTourChrome(ctx);
+  /* Toasts last (under the modal only) so Finish / inspector / size-guide
+     copy cannot paint over the hang-fruit teaching line. */
+  var toastBottom = trayTop - 8;
+  if (showFinish) toastBottom = trayTop - 78;
+  if (SA.Game.selectedPanel || SA.Game.selectedDecor) toastBottom = Math.min(toastBottom, trayTop - 72);
+  if (!SA.Game.winTour && !SA.Camera.inside) SA.UI.renderToasts(ctx, toastBottom);
   if (SA.Game.modal) SA.UI.renderBuildModal(ctx, result);
 };
 
@@ -18646,6 +18758,7 @@ SA.UI.TOOL_NAMES = {
 };
 SA.UI.toolName = function (kind) {
   if (kind === 'sb_sound') return SA.Audio.enabled ? 'Sound on' : 'Sound off';
+  if (kind === 'sb_inside') return SA.Camera.inside ? 'Look around' : 'Look inside';
   return SA.UI.TOOL_NAMES[kind] || '';
 };
 
@@ -18655,6 +18768,8 @@ SA.Lang.add({
   'Turn the view': 'סובבו את המבט',
   'Look inside': 'הציצו פנימה',
   'Look Inside': 'הציצו פנימה',
+  'Look around': 'הסתובבו סביב',
+  'Look Around': 'הסתובבו סביב',
   'Zoom in': 'התקרבו',
   'Zoom out': 'התרחקו',
   'Fit on screen': 'התאימו למסך',
@@ -18796,6 +18911,7 @@ SA.UI.renderTray = function (ctx, result) {
   var gap = 6, n = SA.Pile.visibleCount();
   var cardW = (hw - gap * (n - 1)) / n;
   var cardY = trayY + hh + 6, cardH = SA.UI.TRAY_H - hh - 16;
+  SA.UI._rotateTipAnchor = null;
   for (var i = 0; i < list.length; i++) {
     var piece = list[i];
     var cx = hx + i * (cardW + gap);
@@ -18811,7 +18927,10 @@ SA.UI.renderTray = function (ctx, result) {
     SA.Pile.drawCard(ctx, piece, cx, cardY, cardW, cardH, { armed: SA.Pile.armed === piece.uid });
     SA.Pick.addRect('tray_card', { uid: piece.uid }, cx, cardY, cardW, cardH);
     /* after the card, so the topmost-wins hit test gives the chip the press */
-    if (SA.Pile.canRotate(piece)) SA.Pick.addRect('tray_rotate', { uid: piece.uid }, cx + 2, cardY + 2, 28, 26);
+    if (SA.Pile.canRotate(piece)) {
+      SA.Pick.addRect('tray_rotate', { uid: piece.uid }, cx + 2, cardY + 2, 28, 26);
+      if (!SA.UI._rotateTipAnchor) SA.UI._rotateTipAnchor = { x: cx + 15, y: cardY + 12, r: 14 };
+    }
   }
   if (!list.length) {
     SA.Draw.text(ctx, SA.Game.mode === 'scramble' ? 'Nothing left in the pile' : 'Win Scrambles to unlock more pieces',
@@ -19019,6 +19138,7 @@ SA.UI.renderBuildModal = function (ctx, result) {
   else if (m === 'card') SA.UI.renderCardDetail(ctx, SA.Cards.byId[SA.Game.modalCard]);
   else if (m === 'first_run_tip') SA.UI.renderFirstRunTip(ctx);
   else if (m === 'level_brief') SA.UI.renderLevelBrief(ctx);
+  else if (m === 'rotate_tip') SA.UI.renderRotateTip(ctx);
   else if (m === 'site') SA.UI.renderSitePicker(ctx);
   else if (m === 'scramble_win') SA.UI.renderWinModal(ctx);
   else if (m === 'scramble_fail') SA.UI.renderFailModal(ctx);
@@ -19045,6 +19165,8 @@ SA.Lang.add({
   'Back to results': 'חזרה לתוצאות',
   'Inside your sukkah': 'בתוך הסוכה שלכם',
   'Looking around': 'מסתובבים סביב',
+  'Inside — the wall in front is hidden': 'בפנים — הקיר שלפניכם מוסתר',
+  'Looking around — all walls': 'מסתובבים סביב — כל הקירות',
   'You are inside - look up at the schach. Tap Turn for another wall.':
     'אתם בפנים - הביטו למעלה אל הסכך. לחצו על סיבוב לקיר אחר.',
   'Tap Turn to see every side.': 'לחצו על סיבוב כדי לראות כל צד.'
@@ -19067,6 +19189,8 @@ SA.UI.renderConfirm = function (ctx, title, body, yesLabel, yesKind, noLabel, no
 
 SA.Lang.add({
   'Got it': 'הבנתי',
+  'OK': 'אישור',
+  'Click here to rotate and add more!': 'לחצו כאן כדי לסובב ולהוסיף עוד!',
   'How to Build': 'איך בונים',
   'Drag a piece out of the pile onto the sukkah.': 'גררו חלק מהערמה אל הסוכה.',
   'Walls land on a wall, schach lands on the roof, furniture lands on the floor.': 'קירות על הקיר, סכך על הגג, רהיטים על הרצפה.',
@@ -19078,6 +19202,85 @@ SA.Lang.add({
     'סוכה כשרה: שלושה קירות, ואז סכך מלמעלה. הסכך חייב להיות צומח שתלשו, שאינו כלי ואינו מגעיל.',
   "Let's Build": 'הבה נבנה'
 });
+
+/* Spotlight on the tray ↻ chip after the first drop — once ever. */
+SA.UI.renderRotateTip = function (ctx) {
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  var anchor = SA.UI._rotateTipAnchor;
+  if (!anchor) {
+    /* Tray already drew; if nothing turnable is on this page, fall back. */
+    anchor = { x: safe.l + 36, y: h - safe.b - SA.UI.TRAY_H + 52, r: 14 };
+  }
+  /* Dim the whole screen, then cut a hole so the rotate chip stays bright. */
+  ctx.save();
+  ctx.fillStyle = 'rgba(4,5,9,0.78)';
+  ctx.beginPath();
+  ctx.rect(0, 0, w, h);
+  ctx.arc(anchor.x, anchor.y, anchor.r + 18, 0, Math.PI * 2, true);
+  ctx.fill('evenodd');
+  ctx.restore();
+  SA.Pick.addRect('modal_backdrop', {}, 0, 0, w, h);
+
+  var pulse = 0.55 + 0.45 * Math.sin(SA.FX.now() / 220);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(anchor.x, anchor.y, anchor.r + 6 + pulse * 5, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(240,217,138,' + (0.55 + pulse * 0.4).toFixed(2) + ')';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(anchor.x, anchor.y, anchor.r + 2, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(240,217,138,0.95)';
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+  ctx.restore();
+
+  /* Pointer from the bubble down to the chip. */
+  var bubbleW = Math.min(300, w - 36);
+  var bubbleH = 118;
+  var bx = Math.max(12, Math.min(w - bubbleW - 12, anchor.x - bubbleW / 2));
+  var by = Math.max(safe.t + 12, anchor.y - bubbleH - 52);
+  var tipX = Math.max(bx + 24, Math.min(bx + bubbleW - 24, anchor.x));
+  var tipY = by + bubbleH;
+
+  SA.UI.panel(ctx, bx, by, bubbleW, bubbleH);
+  ctx.save();
+  ctx.fillStyle = '#20242f';
+  ctx.beginPath();
+  ctx.moveTo(tipX - 12, tipY - 1);
+  ctx.lineTo(tipX, tipY + 16);
+  ctx.lineTo(tipX + 12, tipY - 1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  /* Gold arrow drawn on top of the triangle, pointing at the chip. */
+  ctx.save();
+  ctx.strokeStyle = 'rgba(240,217,138,0.95)';
+  ctx.fillStyle = 'rgba(240,217,138,0.95)';
+  ctx.lineWidth = 2.4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY - 4);
+  ctx.lineTo(tipX, anchor.y - anchor.r - 10);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(tipX, anchor.y - anchor.r - 6);
+  ctx.lineTo(tipX - 7, anchor.y - anchor.r - 16);
+  ctx.lineTo(tipX + 7, anchor.y - anchor.r - 16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  var lines = SA.UI.wrapText(ctx, SA.Lang.t('Click here to rotate and add more!'), bubbleW - 36, 15);
+  var ty = by + 28;
+  for (var i = 0; i < lines.length; i++) {
+    SA.Draw.text(ctx, lines[i], bx + bubbleW / 2, ty + i * 20, {
+      size: 15, color: '#fff', weight: '700'
+    });
+  }
+  SA.UI.btn(ctx, bx + bubbleW / 2 - 70, by + bubbleH - 46, 140, 36, 'OK', 'rotate_tip_ok', {}, true);
+};
 
 SA.UI.renderLevelBrief = function (ctx) {
   var level = SA.Game.level;
@@ -19429,8 +19632,8 @@ SA.UI.endWinTour = function () {
 SA.UI.renderWinTourChrome = function (ctx) {
   var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
   var label = SA.Game.winTour === 'inside'
-    ? SA.Lang.t('Looking inside — turn to see each wall')
-    : SA.Lang.t('Looking around');
+    ? SA.Lang.t('Inside — the wall in front is hidden')
+    : SA.Lang.t('Looking around — all walls');
   var bw = Math.min(220, w - safe.l - safe.r - 24);
   var bx = (w - bw) / 2;
   var by = h - safe.b - 56;
@@ -19467,7 +19670,8 @@ SA.UI.onBuildTap = function (hit) {
   }
   if (hit.kind === 'modal_backdrop') {
     /* win/fail are decisions, not dismissible chrome */
-    if (SA.Game.modal === 'scramble_win' || SA.Game.modal === 'scramble_fail') return;
+    if (SA.Game.modal === 'scramble_win' || SA.Game.modal === 'scramble_fail' ||
+        SA.Game.modal === 'rotate_tip') return;
     if (SA.Game.modal === 'card' && SA.Game.modalReturn) {
       SA.Game.modal = SA.Game.modalReturn; SA.Game.modalReturn = null;
       SA.Game.modalCard = null; SA.Game.modalScroll = 0;
@@ -19548,6 +19752,11 @@ SA.UI.onBuildTap = function (hit) {
     return;
   }
   if (hit.kind === 'brief_close') { SA.Game.modal = null; return; }
+  if (hit.kind === 'rotate_tip_ok') {
+    SA.Progress.markRotateTipSeen();
+    SA.Game.modal = null;
+    return;
+  }
   if (hit.kind === 'toast_card') {
     SA.Game.modalReturn = null;
     SA.Game.modal = 'card'; SA.Game.modalCard = hit.payload.cardId; SA.Game.modalScroll = 0;
@@ -19699,7 +19908,10 @@ SA.UI.tryArmedDrop = function (hit) {
   if (!SA.Pile.armed) return false;
   var piece = SA.Pile.findTrayPiece(SA.Pile.armed);
   if (!piece) { SA.Pile.armed = null; return false; }
-  var preview = SA.Pile.previewFor(piece, SA.Pile.coerceDecorHit(piece, hit, SA.Game.state), SA.Game.state);
+  var aimed = piece.kind === 'decor'
+    ? SA.Pile.hitForPiece(SA.Input.lastX, SA.Input.lastY, piece, SA.Game.state)
+    : SA.Pile.coerceDecorHit(piece, hit, SA.Game.state);
+  var preview = SA.Pile.previewFor(piece, aimed, SA.Game.state);
   if (!preview) { SA.UI.explainWrongTarget(piece); return true; }
   return SA.UI.commitDrop(piece, preview);
 };
@@ -19763,6 +19975,10 @@ SA.UI.commitDrop = function (piece, preview) {
     SA.Audio.play(SA.Audio.forPiece(piece, SA.Pile.entryOf(piece)));
     SA.Audio.buzz(10);
     if (!piece.infinite) SA.Pile.armed = null;
+    if (SA.Scramble.active() && SA.Scramble.run) {
+      SA.Scramble.run.placed = (SA.Scramble.run.placed || 0) + 1;
+      if (SA.Scramble.run.placed === 1) SA.Game.maybeShowRotateTip();
+    }
   }
   return placed;
 };
@@ -22083,6 +22299,10 @@ SA.Pile.coerceDecorHit = function (piece, hit, state) {
    (floor or roof plane), never a booth-centre snap. */
 SA.Pile.hitForPiece = function (x, y, piece, state) {
   if (!piece) return null;
+  if (piece.kind === 'decor') {
+    var fromPtr = SA.Act.decorHitFromPointer(piece, state, x, y);
+    if (fromPtr) return fromPtr;
+  }
   var want = SA.Pile.wantsKind(piece);
   /* Prefer the wall for dual-use doors - that is the kosher use. */
   if (piece.kind === 'schach' && SA.Pile.alsoWallEntry(piece)) {
