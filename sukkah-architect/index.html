@@ -482,10 +482,9 @@ SA.Lang.add({
 /* ---------------------------------------------- 3. ISOMETRIC PROJECTION */
 /* World space: x = across the footprint (tefachim), z = into the footprint
    (tefachim), y = up (tefachim). Camera orbits in 90-degree steps so every
-   side of the sukkah can be viewed square-on ("view from all 4 sides"),
-   plus a continuous drag-rotate and a step-inside mode that looks up at the
-   schach from the floor. No sun/moon/star draw calls anywhere in this file
-   or any other - see qa.js "no celestial imagery" scan. */
+   side of the sukkah can be viewed square-on ("view from all 4 sides").
+   Look Inside keeps the outside camera and makes the facing wall see-through
+   so decorations show (p16). No sun/moon/star draw calls - see qa.js. */
 SA.Camera = {
   angle: 0,            // degrees, continuous
   targetAngle: 0,
@@ -495,11 +494,11 @@ SA.Camera = {
   zoom: 1, minZoom: 0.14, maxZoom: 3.2, FIT_FILL: 0.90,
   pan: { x: 0, y: 0 },
   tilt: 0.62,           // vertical foreshortening factor (0..1)
-  inside: false,
-  insideLookUp: 0,      // 0..1, how far the step-inside view tips upward
-  insideLookTarget: 1,  // snapInside sets this; update lerps toward it
-  insideFocusY: 8,       // tefachim - set from the live roof height each frame (p16)
-  _insideFitAng: null,   // last angle we framed for - avoid refit every frame
+  inside: false,        // Look Inside: fade the facing wall (not a look-up cam)
+  insideLookUp: 0,      // kept at 0 - old look-up path retired
+  insideLookTarget: 0,
+  insideFocusY: 8,
+  _insideFitAng: null,
   /* Auto-fit: the whole box (floor + roof corners) is kept framed in the
      visible viewport between the top HUD and the bottom dock, so a fresh
      sandbox/level never opens zoomed in past its own walls. Pinch/wheel
@@ -513,25 +512,9 @@ SA.Camera = {
     while (d > 180) d -= 360;
     while (d < -180) d += 360;
     SA.Camera.angle += d * Math.min(1, dt * 6);
-    var targetLook = SA.Camera.inside ? SA.Camera.insideLookTarget : 0;
-    SA.Camera.insideLookUp += (targetLook - SA.Camera.insideLookUp) * Math.min(1, dt * 7);
+    /* Look Inside never tips the camera - keep look-up at 0. */
+    SA.Camera.insideLookUp += (0 - SA.Camera.insideLookUp) * Math.min(1, dt * 10);
     if (!SA.Game || SA.Game.screen !== 'build' || !SA.Game.state) return;
-    /* Inside: refit only after a Turn settles (not every degree mid-spin). */
-    if (SA.Camera.inside) {
-      if (Math.abs(d) < 0.8) {
-        var angKey = Math.round(SA.Camera.targetAngle);
-        if (SA.Camera._insideFitAng !== angKey) {
-          SA.Camera._insideFitAng = angKey;
-          SA.Camera.computeInsideFit(SA.Game.state);
-        }
-      }
-      var lerpIn = Math.min(1, dt * 10);
-      SA.Camera.zoom += (SA.Camera.fitZoomTarget - SA.Camera.zoom) * lerpIn;
-      SA.Camera.pan.x += (SA.Camera.fitPanTarget.x - SA.Camera.pan.x) * lerpIn;
-      SA.Camera.pan.y += (SA.Camera.fitPanTarget.y - SA.Camera.pan.y) * lerpIn;
-      return;
-    }
-    SA.Camera._insideFitAng = null;
     if (SA.Camera.autoFit) {
       SA.Camera.computeFit(SA.Game.state);
       var lerp = Math.min(1, dt * 7);
@@ -541,6 +524,11 @@ SA.Camera = {
     } else {
       SA.Camera.clampPlayBand(SA.Game.state);
     }
+  },
+  /* Wall side currently facing the viewer (nearest / front). Turns with angle. */
+  facingWallSide: function () {
+    var a = ((Math.round(SA.Camera.angle / 90) % 4) + 4) % 4;
+    return ['S', 'E', 'N', 'W'][a];
   },
   /* Clear rectangle between the HUD / clock and the size-guide + tray. */
   playBand: function () {
@@ -843,31 +831,28 @@ SA.Camera = {
     SA.Camera.autoFit = true;
     SA.Camera.inside = false;
     SA.Camera.insideLookUp = 0;
-    SA.Camera.insideLookTarget = 1;
+    SA.Camera.insideLookTarget = 0;
     SA.Camera._insideFitAng = null;
     SA.Camera.computeFit(state);
     SA.Camera.zoom = SA.Camera.fitZoomTarget;
     SA.Camera.pan.x = SA.Camera.fitPanTarget.x;
     SA.Camera.pan.y = SA.Camera.fitPanTarget.y;
   },
-  /* Step inside: square-ish facing, look up at the schach, hard-snap framing. */
+  /* Look Inside: keep the outside plant-on-ground camera; the facing wall
+     becomes see-through in p16 so decorations read. Turning the view swaps
+     which wall is clear. */
   snapInside: function (state) {
     if (!state) return;
     SA.Camera.inside = true;
-    SA.Camera.autoFit = false;
-    var hasSchach = SA.Camera._boothHasSchach(state);
-    /* Classic iso (~35°) from the nearest 90° face - readable walls + ceiling. */
+    SA.Camera.insideLookUp = 0;
+    SA.Camera.insideLookTarget = 0;
+    SA.Camera.autoFit = true;
     var face = Math.round(SA.Camera.targetAngle / 90) * 90;
-    SA.Camera.angle = SA.Camera.targetAngle = face + 32;
-    /* Tip up enough that schach owns the center; walls frame the lower third. */
-    SA.Camera.insideLookTarget = hasSchach ? 0.94 : 0.55;
-    SA.Camera.insideLookUp = SA.Camera.insideLookTarget;
-    SA.Camera._insideFitAng = null;
-    SA.Camera.computeInsideFit(state);
+    SA.Camera.angle = SA.Camera.targetAngle = face;
+    SA.Camera.computeFit(state);
     SA.Camera.zoom = SA.Camera.fitZoomTarget;
     SA.Camera.pan.x = SA.Camera.fitPanTarget.x;
     SA.Camera.pan.y = SA.Camera.fitPanTarget.y;
-    SA.Camera._insideFitAng = Math.round(SA.Camera.targetAngle);
   },
   zoomBy: function (factor) {
     SA.Camera.autoFit = false;
@@ -2209,10 +2194,11 @@ SA.BG.byId = {
   riverbank: {
     en: 'Riverbank', he: 'גדת הנהר', skyTop: '#a9cfe0', skyBottom: '#e7f1e2', hazard: null,
     build: function () {
+      /* Water behind, bank in front - booth plants on grass, not mid-river. */
       return { layers: [
-        SA.BG.mkGround('#7fae63', 0.60),
-        SA.BG.mkWater('#5f9bc9', 0.74),
-        SA.BG.mkTreeLine(3, 0.60, 6, 'round', '#4f7a45')
+        SA.BG.mkWater('#5f9bc9', 0.52),
+        SA.BG.mkGround('#7fae63', 0.74, { seed: 3, edge: 'foam' }),
+        SA.BG.mkTreeLine(3, 0.70, 6, 'round', '#4f7a45')
       ] };
     }
   },
@@ -2351,13 +2337,13 @@ SA.BG.byId = {
     en: 'Waterfall', he: 'מפל מים', skyTop: '#9cc3d1', skyBottom: '#dcece2', hazard: null,
     build: function () {
       return { layers: [
-        SA.BG.mkGround('#688a58', 0.62),
-        SA.BG.mkRidge(14, 0.55, 0.14, '#5a6f63', 7, 0.05),
+        SA.BG.mkWater('#5f9bc9', 0.48),
+        SA.BG.mkRidge(14, 0.52, 0.14, '#5a6f63', 7, 0.05),
         function (ctx, view) {
           ctx.fillStyle = 'rgba(230,244,246,0.85)';
           ctx.fillRect(view.w * 0.44, view.h * 0.30, view.w * 0.06, view.h * 0.32);
         },
-        SA.BG.mkWater('#5f9bc9', 0.80)
+        SA.BG.mkGround('#688a58', 0.72, { seed: 14, edge: 'foam' })
       ] };
     }
   },
@@ -2554,10 +2540,10 @@ SA.BG.byId = {
     en: 'Desert Oasis', he: 'נאת מדבר', skyTop: '#f0dcac', skyBottom: '#f8ecc8', hazard: null,
     build: function () {
       return { layers: [
-        SA.BG.mkGround('#e0c47c', 0.58),
-        SA.BG.mkRidge(38, 0.58, 0.05, '#cfa964', 9, 0.02),
-        SA.BG.mkWater('#3fa8b8', 0.74),
-        SA.BG.mkTreeLine(38, 0.66, 5, 'palm', '#3f7a4a'),
+        SA.BG.mkWater('#3fa8b8', 0.50),
+        SA.BG.mkRidge(38, 0.54, 0.05, '#cfa964', 9, 0.02),
+        SA.BG.mkGround('#e0c47c', 0.72, { seed: 38, edge: 'foam' }),
+        SA.BG.mkTreeLine(38, 0.68, 5, 'palm', '#3f7a4a'),
         SA.BG.mkForegroundPalms(38, '#3f7a4a')
       ] };
     }
@@ -2608,9 +2594,9 @@ SA.BG.byId = {
     en: 'Flamingo Pond', he: 'בריכת הפלמינגו', skyTop: '#cfe2ea', skyBottom: '#f5e6e6', hazard: null,
     build: function () {
       return { layers: [
-        SA.BG.mkGround('#8db06a', 0.56),
-        SA.BG.mkWater('#69b6c4', 0.66),
-        SA.BG.mkFlamingos(43, 0.70)
+        SA.BG.mkWater('#69b6c4', 0.48),
+        SA.BG.mkGround('#8db06a', 0.70, { seed: 43, edge: 'foam' }),
+        SA.BG.mkFlamingos(43, 0.66)
       ] };
     }
   },
@@ -11046,7 +11032,7 @@ SA.Draw.schachTile = function (ctx, quad, entry, seed) {
 };
 </script>
 <script>
-/* ---------------------------------------------- 9. DECORATIONS (~90) */
+/* ---------------------------------------------- 9. DECORATIONS (~135) */
 /* Hard exclusions, enforced here and re-checked by qa.js:
    - no star or sun ornaments, ever (foil stars are the likeliest slip)
    - no non-kosher food props (shellfish, pork, mixing meat/milk as a joke, etc.)
@@ -11094,7 +11080,15 @@ SA.Mat.DECOR_TIER_OVERRIDE = {
   dec_gold_throne: 2, dec_cake_stand: 2, dec_private_chef_cart: 2, dec_espresso_machine: 2,
   dec_billiard_table: 2, dec_grand_piano: 2, dec_ice_swan: 2, dec_champagne_fountain: 2,
   dec_red_carpet: 2, dec_massage_chair: 2, dec_chocolate_fountain: 2, dec_mirrored_ball: 2,
-  dec_silver_samovar: 2, dec_marble_bust: 2
+  dec_silver_samovar: 2, dec_marble_bust: 2,
+  dec_citrus_string: 1, dec_persimmons: 1, dec_olive_branch: 1,
+  dec_gold_foil_garland: 1, dec_orange_slice_string: 0,
+  dec_mason_jar_lights: 2, dec_brass_sconce: 2, dec_led_candle_trio: 1,
+  dec_ushpizin_cards: 2, dec_baruch_haba_plaque: 2, dec_lulav_holder_sign: 1,
+  dec_embroidered_tablecloth: 2, dec_velvet_hanging: 2, dec_israeli_runner: 1,
+  dec_rocking_chair: 2, dec_kids_stool: 0, dec_sefarim_stand: 2, dec_wine_crate: 1,
+  dec_olive_vase: 2, dec_myrtle_bundle: 1, dec_chili_peppers: 0,
+  dec_woven_basket: 0, dec_eucalyptus_bunch: 1
 };
 
 SA.Mat.DECOR = [
@@ -11114,6 +11108,9 @@ SA.Mat.DECOR = [
   saDecor('mini_pineapples', 'Miniature Pineapples', 'אננסים קטנים', 'fruit', true, 2),
   saDecor('hanging_onions', 'Hanging Onions', 'בצלים תלויים', 'fruit', true, 1),
   saDecor('dried_corn', 'Dried Corn', 'תירס מיובש', 'fruit', true, 1),
+  saDecor('citrus_string', 'Citrus String', 'שרשרת הדרים', 'fruit', true, 1),
+  saDecor('persimmons', 'Persimmons', 'אפרסמונים', 'fruit', true, 1),
+  saDecor('olive_branch', 'Hanging Olive Branch', 'ענף זיתים תלוי', 'fruit', true, 2),
 
   saDecor('chain_red', 'Paper Chain (Red)', 'שרשרת ניר (אדום)', 'chain', true, 1),
   saDecor('chain_blue', 'Paper Chain (Blue)', 'שרשרת ניר (כחול)', 'chain', true, 1),
@@ -11127,6 +11124,9 @@ SA.Mat.DECOR = [
   saDecor('tinsel_garland', 'Tinsel Garland', 'שרשרת נצנצים כסופה', 'chain', true, 1),
   saDecor('autumn_leaf_string', 'Autumn Leaf String', 'שרשרת עלי סתיו', 'chain', true, 1),
   saDecor('paper_flower_garland', 'Paper Flower Garland', 'שרשרת פרחי ניר', 'chain', true, 1),
+  saDecor('chain_blue_white', 'Blue-White Paper Chain', 'שרשרת ניר כחול-לבן', 'chain', true, 1),
+  saDecor('gold_foil_garland', 'Gold Foil Garland', 'שרשרת נצנצים זהב', 'chain', true, 1),
+  saDecor('orange_slice_string', 'Dried Orange Slice String', 'שרשרת פרוסות תפוז מיובש', 'chain', true, 1),
 
   saDecor('paper_lantern', 'Paper Lantern', 'פנס ניר', 'light', true, 1),
   saDecor('string_lights', 'String Lights', 'נורות תלויות', 'light', true, 1),
@@ -11138,6 +11138,9 @@ SA.Mat.DECOR = [
   saDecor('oil_lamp', 'Oil Lamp', 'מנורת שמן', 'light', false, 1),
   saDecor('lantern_on_hook', 'Lantern on a Hook', 'פנס על קרס', 'light', true, 1),
   saDecor('candle_sconce', 'Candle Sconce', 'פמוט קיר', 'light', false, 1),
+  saDecor('mason_jar_lights', 'Mason Jar Lights', 'נורות בצנצנות', 'light', true, 1),
+  saDecor('brass_sconce', 'Brass Wall Sconce', 'פמוט קיר מפליז', 'light', false, 1),
+  saDecor('led_candle_trio', 'LED Candle Trio', 'שלוש נרות LED', 'light', false, 1),
 
   saDecor('ushpizin_plaque', 'Ushpizin Plaque', 'לוח אושפיזין', 'sign', false, 1),
   saDecor('leisheiv_banner', "Leisheiv BaSukkah Banner", 'שלט לֵישֵׁב בַּסֻּכָּה', 'sign', false, 3),
@@ -11149,6 +11152,9 @@ SA.Mat.DECOR = [
   saDecor('shalom_sign', 'Shalom Sign', 'שלט שלום', 'sign', false, 1),
   saDecor('chag_sameach_banner', 'Chag Sameach Banner', 'שלט חג שמח', 'sign', false, 3),
   saDecor('tzedakah_box', 'Tzedakah Box', 'קופת צדקה', 'sign', false, 1),
+  saDecor('ushpizin_cards', 'Ushpizin Name Cards', 'כרטיסי אושפיזין', 'sign', false, 1),
+  saDecor('baruch_haba_plaque', 'Baruch Haba Plaque', 'לוח ברוך הבא', 'sign', false, 1),
+  saDecor('lulav_holder_sign', 'Lulav Holder Sign', 'שלט מעמד לולב', 'sign', false, 1),
 
   saDecor('drapes', 'Drapes', 'וילונות', 'textile', true, 5),
   saDecor('curtains', 'Curtains', 'פרוכות', 'textile', true, 4),
@@ -11160,6 +11166,9 @@ SA.Mat.DECOR = [
   saDecor('canopy_trim', 'Canopy Fabric Trim', 'שוליים לסכך', 'textile', true, 5),
   saDecor('table_runner', 'Table Runner', 'ריצוף שולחן', 'textile', false, 1),
   saDecor('floor_mat', 'Floor Mat', 'מחצלת רצפה', 'textile', false, 1),
+  saDecor('embroidered_tablecloth', 'Embroidered Tablecloth', 'מפת שולחן רקומה', 'textile', false, 1),
+  saDecor('velvet_hanging', 'Velvet Wall Hanging', 'וילון קיר מקטיפה', 'textile', false, 1),
+  saDecor('israeli_runner', 'Striped Blue-White Runner', 'ריצוף פסים כחול-לבן', 'textile', false, 1),
 
   saDecor('table', 'Table', 'שולחן', 'furniture', false, 1),
   saDecor('folding_chairs', 'Folding Chairs', 'כיסאות מתקפלים', 'furniture', false, 1),
@@ -11183,6 +11192,10 @@ SA.Mat.DECOR = [
   saDecor('teak_table', 'Designer Teak Table', 'שולחן טיק מעצבים', 'furniture', false, 2),
   saDecor('velvet_chairs', 'Velvet Dining Chairs', 'כיסאות אוכל מקטיפה', 'furniture', false, 2),
   saDecor('marble_side_table', 'Marble Side Table', 'שולחן צד משיש', 'furniture', false, 1),
+  saDecor('rocking_chair', 'Rocking Chair', 'כיסא נדנדה', 'furniture', false, 1),
+  saDecor('kids_stool', "Kids' Stool", 'שרפרף ילדים', 'furniture', false, 1),
+  saDecor('sefarim_stand', 'Sefarim Stand', 'מעמד ספרים', 'furniture', false, 1),
+  saDecor('wine_crate', 'Wine Bottle Crate', 'ארגז בקבוקי יין', 'furniture', false, 1),
 
   saDecor('potted_plant', 'Potted Plant', 'עציץ', 'misc', false, 1),
   saDecor('hanging_ivy_pot', 'Hanging Ivy Pot', 'עציץ קיסוס תלוי', 'misc', true, 1),
@@ -11195,6 +11208,11 @@ SA.Mat.DECOR = [
   saDecor('welcome_mat', 'Welcome Mat', 'שטיחון כניסה', 'misc', false, 1),
   saDecor('gourd_bowl', 'Decorative Gourd Bowl', 'קערת דלועים דקורטיבית', 'misc', false, 1),
   saDecor('roses', 'Vase of Roses', 'אגרטל שושנים', 'misc', false, 1),
+  saDecor('olive_vase', 'Olive Branch Vase', 'אגרטל ענפי זית', 'misc', false, 1),
+  saDecor('myrtle_bundle', 'Myrtle Bundle', 'צרור הדס', 'misc', true, 1),
+  saDecor('chili_peppers', 'Hanging Chili Peppers', 'פלפלים תלויים', 'misc', true, 1),
+  saDecor('woven_basket', 'Woven Basket', 'סל קש', 'misc', false, 1),
+  saDecor('eucalyptus_bunch', 'Eucalyptus Bunch', 'צרור אקליפטוס', 'misc', true, 1),
 
   /* Late-ladder showpieces - unlocked with the luxury category. Over-the-top
      hotel suite energy, drawn as clean showpiece icons (not clip-art jokes). */
@@ -11245,6 +11263,9 @@ SA.Mat.DECOR_ART = {
   dec_mini_pineapples: ['pineapple', '#e0c03a', '#4f7a45'],
   dec_hanging_onions: ['onions', '#d9b98a', '#a8874a'],
   dec_dried_corn: ['corn', '#e0c060', '#a8823a'],
+  dec_citrus_string: ['citrusstring', '#e8a030', '#f0d040'],
+  dec_persimmons: ['persimmons', '#e07028', '#5a9a4a'],
+  dec_olive_branch: ['olivebranch', '#6b8f3a', '#8a7a4a'],
 
   dec_chain_red: ['chain', '#d0452f', '#e07a5a'],
   dec_chain_blue: ['chain', '#2f6fd0', '#5a9ae0'],
@@ -11258,6 +11279,9 @@ SA.Mat.DECOR_ART = {
   dec_tinsel_garland: ['tinsel', '#c9d0d6', '#f0f4f7'],
   dec_autumn_leaf_string: ['autumnleaves', '#c06a2a', '#e0a03a'],
   dec_paper_flower_garland: ['paperflowers', '#e07a9a', '#f0b0c0'],
+  dec_chain_blue_white: ['chain', '#2f6fd0', '#f0f4f7'],
+  dec_gold_foil_garland: ['foil', '#d4af37', '#f0e6b0'],
+  dec_orange_slice_string: ['orangeslices', '#e09030', '#f0c060'],
 
   dec_paper_lantern: ['paperlantern', '#e0603a', '#f0a070'],
   dec_string_lights: ['bulbs', '#f0d98a', '#c9b45a'],
@@ -11269,6 +11293,9 @@ SA.Mat.DECOR_ART = {
   dec_oil_lamp: ['oillamp', '#a8863a', '#f0c060'],
   dec_lantern_on_hook: ['lanternhook', '#6b6b6b', '#f0d98a'],
   dec_candle_sconce: ['sconce', '#9a8a6a', '#f0c060'],
+  dec_mason_jar_lights: ['masonjars', '#b8c8d8', '#f0d98a'],
+  dec_brass_sconce: ['sconce', '#c9a86a', '#f0c060'],
+  dec_led_candle_trio: ['ledcandles', '#f4efd8', '#f0c060'],
 
   dec_ushpizin_plaque: ['plaque', '#c9b07a', '#6b4a2a'],
   dec_leisheiv_banner: ['banner', '#2f6b8a', '#e6e0c8'],
@@ -11280,6 +11307,9 @@ SA.Mat.DECOR_ART = {
   dec_shalom_sign: ['shalomsign', '#4a7a9a', '#e6e6d0'],
   dec_chag_sameach_banner: ['bunting', '#c04a5a', '#f0e0c0'],
   dec_tzedakah_box: ['tzedakah', '#7a6a4a', '#c9a83a'],
+  dec_ushpizin_cards: ['ushpizincards', '#e6dcc8', '#8a6b48'],
+  dec_baruch_haba_plaque: ['signboard', '#8a6b48', '#f0e6c8'],
+  dec_lulav_holder_sign: ['lulavsign', '#7a5a3a', '#4f8a45'],
 
   dec_drapes: ['drape', '#6a5a9c', '#8a7ac0'],
   dec_curtains: ['curtains', '#7a4a5a', '#a86a7a'],
@@ -11291,6 +11321,9 @@ SA.Mat.DECOR_ART = {
   dec_canopy_trim: ['trim', '#c9a85a', '#e6d090'],
   dec_table_runner: ['runner', '#9a7a4a', '#d9c090'],
   dec_floor_mat: ['mat', '#a8925a', '#7a6a3a'],
+  dec_embroidered_tablecloth: ['tablecloth', '#f0e8d8', '#c9a86a'],
+  dec_velvet_hanging: ['tapestry', '#5a1e3a', '#c9a86a'],
+  dec_israeli_runner: ['stripedrunner', '#2f6fd0', '#f0f4f7'],
 
   dec_table: ['table', '#8a6b48', '#6b4f34'],
   dec_folding_chairs: ['chairs', '#7a7a82', '#5a5a62'],
@@ -11314,6 +11347,10 @@ SA.Mat.DECOR_ART = {
   dec_teak_table: ['teaktable', '#6b4a28', '#d4af37'],
   dec_velvet_chairs: ['velvetchairs', '#5a1e3a', '#c9a86a'],
   dec_marble_side_table: ['marbleside', '#e8e4dc', '#8a9098'],
+  dec_rocking_chair: ['rockingchair', '#8a6b48', '#6b5238'],
+  dec_kids_stool: ['stool', '#c9a86a', '#7a5c34'],
+  dec_sefarim_stand: ['shtender', '#6b4f34', '#8a6b48'],
+  dec_wine_crate: ['winecrate', '#a8874a', '#4a2818'],
 
   dec_potted_plant: ['plant', '#4f8a45', '#b06a4a'],
   dec_hanging_ivy_pot: ['ivypot', '#3a6b38', '#a86a4a'],
@@ -11326,6 +11363,11 @@ SA.Mat.DECOR_ART = {
   dec_welcome_mat: ['welcomemat', '#8a6b4a', '#c9a87a'],
   dec_gourd_bowl: ['gourdbowl', '#b07a3a', '#d8a13a'],
   dec_roses: ['roses', '#c02a4a', '#4f7a45'],
+  dec_olive_vase: ['olivevase', '#6b8f3a', '#a8864a'],
+  dec_myrtle_bundle: ['myrtle', '#3a7a44', '#8a7a4a'],
+  dec_chili_peppers: ['chilies', '#c8352f', '#4f8a45'],
+  dec_woven_basket: ['wovenbasket', '#b09248', '#8a7a4a'],
+  dec_eucalyptus_bunch: ['eucalyptus', '#8aa8a0', '#6a8a82'],
 
   dec_jacuzzi: ['jacuzzi', '#4a8ab0', '#d4cfc4'],
   dec_swimming_pool: ['pool', '#2f7ab0', '#c9d6e0'],
@@ -13438,6 +13480,243 @@ SA.Draw.DECOR_SHAPES = {
     ctx.fillStyle = b;
     ctx.beginPath(); ctx.ellipse(0, -7.4, 3.8, 1.5, 0, 0, 7); ctx.fill();
     saDecGloss(ctx, -1.4, -5.6, 1.2, 0.85);
+  },
+
+  /* ---- new sukkah decorations (2026 batch) */
+  citrusstring: function (ctx, a, b) {
+    var i;
+    saDecSag(ctx, -6.2, 4.2, 'rgba(60,44,26,0.7)', 1.1);
+    for (i = 0; i < 5; i++) {
+      var u = 0.1 + i * 0.2, col = i % 2 ? b : a;
+      ctx.save();
+      ctx.translate(saDecSagX(u), saDecSagY(u, -6.2, 4.2) + 3.2);
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.ellipse(0, 0, 3.2, 3.6, 0, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      if (i % 3 === 0) {
+        ctx.fillStyle = SA.Mat.shadeColor(b, 1.2);
+        ctx.beginPath(); ctx.ellipse(0, -2.8, 2.0, 1.4, 0, 0, 7); ctx.fill();
+      }
+      saDecGloss(ctx, -1.2, -1.0, 1.0, 0.6);
+      ctx.restore();
+    }
+  },
+  persimmons: function (ctx, a, b) {
+    var i, ox = [-5.4, 5.4, 0], oy = [2.0, 2.2, 4.0], ok = [0.88, 0.88, 1];
+    ctx.strokeStyle = SA.Mat.shadeColor(b, 0.7); ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (i = 0; i < 3; i++) { ctx.moveTo(ox[i], -11.0); ctx.lineTo(ox[i], oy[i] - 5.6); }
+    ctx.stroke();
+    for (i = 0; i < 3; i++) {
+      var x = ox[i], y = oy[i], k = ok[i];
+      saDecLeaf(ctx, x + 2.4 * k, y - 5.0 * k, 2.8 * k, 1.6 * k, 0.35, b);
+      saDecSphere(ctx, x, y, 4.8 * k, a);
+      ctx.fillStyle = SA.Mat.shadeColor(a, 0.55);
+      ctx.beginPath(); ctx.ellipse(x, y - 4.2 * k, 2.2 * k, 1.0 * k, 0, 0, 7); ctx.fill();
+    }
+  },
+  olivebranch: function (ctx, a, b) {
+    var i, bx = [-6.4, -2.0, 2.4, 6.0, 3.2, -3.6], by = [-6.0, -1.6, 2.0, 5.6, 7.4, 4.8];
+    saDecCord(ctx, 0, -11.4, -8.0, SA.Mat.shadeColor(a, 0.55));
+    ctx.strokeStyle = SA.Mat.shadeColor(a, 0.65); ctx.lineWidth = 2.0;
+    ctx.beginPath(); ctx.moveTo(0, -8.0); ctx.quadraticCurveTo(-6.4, -2.0, -8.6, 4.4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -8.0); ctx.quadraticCurveTo(5.6, 0.4, 7.4, 5.6); ctx.stroke();
+    for (i = 0; i < 6; i++) {
+      saDecBead(ctx, bx[i], by[i], 2.0, i % 2 ? b : SA.Mat.shadeColor(b, 0.82));
+      saDecLeaf(ctx, bx[i] + (i % 2 ? 2.4 : -2.0), by[i] - 1.4, 3.0, 1.4, i % 2 ? 0.4 : -0.4, a);
+    }
+  },
+  orangeslices: function (ctx, a, b) {
+    var i, k, ang;
+    saDecSag(ctx, -5.8, 4.0, 'rgba(80,50,30,0.75)', 1);
+    for (i = 0; i < 5; i++) {
+      var u = 0.1 + i * 0.2, x = saDecSagX(u), y = saDecSagY(u, -5.8, 4.0) + 3.0;
+      ctx.fillStyle = a;
+      ctx.beginPath(); ctx.arc(x, y, 3.4, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      ctx.fillStyle = b;
+      ctx.beginPath(); ctx.arc(x, y, 1.0, 0, 7); ctx.fill();
+      ctx.strokeStyle = SA.Mat.shadeColor(a, 0.72); ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      for (k = 0; k < 6; k++) {
+        ang = k * 1.047;
+        ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(ang) * 2.8, y + Math.sin(ang) * 2.8);
+      }
+      ctx.stroke();
+    }
+  },
+  masonjars: function (ctx, a, b) {
+    var i, jx = [-5.6, 0, 5.6];
+    saDecSag(ctx, -5.4, 3.6, SA_DEC_CORD, 1);
+    for (i = 0; i < 3; i++) {
+      var x = jx[i], y = -2.0 + i * 0.4;
+      ctx.fillStyle = SA.Mat.shadeColor(a, 0.55);
+      ctx.fillRect(x - 2.8, y + 3.6, 5.6, 1.4); saDecInk(ctx); ctx.strokeRect(x - 2.8, y + 3.6, 5.6, 1.4);
+      ctx.fillStyle = 'rgba(200,220,240,0.45)';
+      ctx.fillRect(x - 2.4, y - 2.0, 4.8, 5.6); saDecInk(ctx); ctx.strokeRect(x - 2.4, y - 2.0, 4.8, 5.6);
+      ctx.fillStyle = 'rgba(255,214,130,0.38)';
+      ctx.beginPath(); ctx.arc(x, y + 1.0, 2.2, 0, 7); ctx.fill();
+      saDecFlame(ctx, x, y + 0.4, 0.55, b);
+    }
+  },
+  ledcandles: function (ctx, a, b) {
+    var i, cx = [-5.4, 0, 5.4];
+    for (i = 0; i < 3; i++) {
+      ctx.fillStyle = a;
+      ctx.fillRect(cx[i] - 1.6, 2.0, 3.2, 7.6); saDecInk(ctx); ctx.strokeRect(cx[i] - 1.6, 2.0, 3.2, 7.6);
+      ctx.fillStyle = SA.Mat.shadeColor(a, 1.14);
+      ctx.beginPath(); ctx.ellipse(cx[i], 1.6, 2.0, 1.2, 0, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      saDecFlame(ctx, cx[i], -1.2, 0.7, b);
+      ctx.fillStyle = '#3ae05a';
+      ctx.beginPath(); ctx.arc(cx[i] + 1.0, 4.4, 0.55, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = SA.Mat.shadeColor(b, 0.82);
+    ctx.fillRect(-7.4, 9.6, 14.8, 1.6); saDecInk(ctx); ctx.strokeRect(-7.4, 9.6, 14.8, 1.6);
+  },
+  ushpizincards: function (ctx, a, b) {
+    var i;
+    saDecHangCord(ctx, 7.0, -6.0, -11.0);
+    for (i = 0; i < 3; i++) {
+      ctx.save(); ctx.translate(-5.6 + i * 5.6, -2.0 + i * 0.6); ctx.rotate((i - 1) * 0.12);
+      ctx.fillStyle = i === 1 ? a : SA.Mat.shadeColor(a, 0.88);
+      SA.Draw.roundRect(ctx, -3.6, -4.8, 7.2, 9.6, 0.8);
+      ctx.fill(); saDecInk(ctx); ctx.stroke();
+      ctx.fillStyle = b;
+      saDecScript(ctx, 0, -1.6, 5.4, 2.4, SA.Mat.shadeColor(a, 0.55), i);
+      ctx.restore();
+    }
+  },
+  lulavsign: function (ctx, a, b) {
+    ctx.fillStyle = a;
+    SA.Draw.roundRect(ctx, -8.8, -6.8, 17.6, 14.4, 1.6);
+    ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = b;
+    ctx.fillRect(-7.2, -5.2, 14.4, 3.2); saDecInk(ctx); ctx.strokeRect(-7.2, -5.2, 14.4, 3.2);
+    saDecScript(ctx, 0, -4.0, 10.0, 2.0, SA.Mat.shadeColor(a, 0.6), 0);
+    ctx.strokeStyle = '#4f8a45'; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(-2.4, 6.8); ctx.lineTo(-2.4, -1.6); ctx.stroke();
+    saDecLeaf(ctx, -4.8, 0.4, 3.6, 2.0, -0.8, '#4f8a45');
+    saDecLeaf(ctx, -0.4, 1.6, 3.2, 1.8, 0.6, '#5a9a4a');
+    saDecEtrog(ctx, 3.6, 3.6, 0.42, '#e3c53f');
+  },
+  stripedrunner: function (ctx, a, b) {
+    var i;
+    ctx.fillStyle = b;
+    ctx.beginPath();
+    ctx.moveTo(-10.0, -2.6); ctx.lineTo(-3.4, -6.6); ctx.lineTo(10.0, 1.8); ctx.lineTo(3.4, 5.8);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-10.0, -2.6); ctx.lineTo(-3.4, -6.6); ctx.lineTo(10.0, 1.8); ctx.lineTo(3.4, 5.8);
+    ctx.closePath(); ctx.clip();
+    ctx.fillStyle = a;
+    for (i = -3; i <= 3; i++) { ctx.fillRect(-12 + i * 3.6, -8, 1.8, 16); }
+    ctx.restore();
+    saDecInk(ctx);
+    ctx.beginPath();
+    ctx.moveTo(-10.0, -2.6); ctx.lineTo(-3.4, -6.6); ctx.lineTo(10.0, 1.8); ctx.lineTo(3.4, 5.8);
+    ctx.closePath(); ctx.stroke();
+  },
+  rockingchair: function (ctx, a, b) {
+    ctx.strokeStyle = b; ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(-8.6, 8.8); ctx.quadraticCurveTo(-10.4, 2.0, -6.4, -2.4);
+    ctx.moveTo(8.6, 8.8); ctx.quadraticCurveTo(10.4, 2.0, 6.4, -2.4);
+    ctx.stroke();
+    saDecChair(ctx, 0, 0.6, 1.0, a, b);
+  },
+  stool: function (ctx, a, b) {
+    saDecIsoTop(ctx, 0, -1.6, 8.4, 4.6, a);
+    saDecLeg(ctx, -6.8, -0.8, 1.8, 9.0, b);
+    saDecLeg(ctx, 5.0, -0.8, 1.8, 9.0, b);
+    saDecLeg(ctx, -0.9, 2.4, 1.8, 7.0, SA.Mat.shadeColor(b, 0.9));
+    ctx.fillStyle = SA.Mat.shadeColor(a, 1.12);
+    ctx.beginPath();
+    ctx.moveTo(-8.4, -1.6); ctx.lineTo(0, 2.6); ctx.lineTo(8.4, -1.6); ctx.lineTo(0, 1.0);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+  },
+  winecrate: function (ctx, a, b) {
+    var i;
+    ctx.fillStyle = SA.Mat.shadeColor(b, 0.45);
+    ctx.beginPath();
+    ctx.moveTo(-9.6, -4.4); ctx.lineTo(0, -9.0); ctx.lineTo(9.6, -4.4); ctx.lineTo(0, 0.2);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    for (i = -1; i <= 1; i += 2) {
+      ctx.fillStyle = i < 0 ? a : SA.Mat.shadeColor(a, 0.8);
+      ctx.beginPath();
+      ctx.moveTo(i * 9.6, -4.4); ctx.lineTo(0, 0.2); ctx.lineTo(0, 8.4); ctx.lineTo(i * 9.6, 3.8);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    }
+    for (i = -1; i <= 1; i++) {
+      ctx.fillStyle = SA.Mat.shadeColor(b, i === 0 ? 1 : 0.85);
+      ctx.beginPath();
+      ctx.moveTo(i * 3.6 - 1.2, -6.0); ctx.lineTo(i * 3.6 + 1.2, -6.0);
+      ctx.lineTo(i * 3.6 + 0.8, 1.6); ctx.lineTo(i * 3.6 - 0.8, 1.6);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      ctx.fillStyle = SA.Mat.shadeColor(b, 0.62);
+      ctx.beginPath(); ctx.ellipse(i * 3.6, -6.4, 1.3, 0.7, 0, 0, 7); ctx.fill();
+    }
+  },
+  olivevase: function (ctx, a, b) {
+    ctx.fillStyle = b;
+    ctx.beginPath();
+    ctx.moveTo(-4.4, 2.0); ctx.lineTo(4.4, 2.0); ctx.lineTo(3.2, 10.4); ctx.lineTo(-3.2, 10.4);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = SA.Mat.shadeColor(b, 1.18);
+    ctx.fillRect(-5.6, 0.4, 11.2, 2.0); saDecInk(ctx); ctx.strokeRect(-5.6, 0.4, 11.2, 2.0);
+    ctx.strokeStyle = SA.Mat.shadeColor(a, 0.65); ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-4.0, -4.0, -5.6, -8.8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(3.6, -3.2, 4.8, -7.4); ctx.stroke();
+    saDecBead(ctx, -5.0, -7.0, 1.8, SA.Mat.shadeColor(a, 0.9));
+    saDecBead(ctx, -2.4, -5.6, 1.6, a);
+    saDecBead(ctx, 4.0, -6.8, 1.7, SA.Mat.shadeColor(a, 1.1));
+    saDecLeaf(ctx, -3.6, -4.8, 3.4, 1.6, 0.35, a);
+    saDecLeaf(ctx, 2.8, -5.4, 3.0, 1.5, -0.28, a);
+  },
+  myrtle: function (ctx, a, b) {
+    var i;
+    saDecCord(ctx, 0, -11.4, -6.0, SA.Mat.shadeColor(b, 0.75));
+    for (i = 0; i < 5; i++) {
+      var t = i / 4, ang = (i - 2) * 0.38;
+      saDecLeaf(ctx, Math.sin(ang) * 4.0, -4.0 + t * 8.0, 3.6, 1.8, ang, i % 2 ? SA.Mat.shadeColor(a, 1.12) : a);
+    }
+    ctx.strokeStyle = SA.Mat.shadeColor(b, 0.85); ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(-4.8, 8.8); ctx.lineTo(4.8, 8.8); ctx.stroke();
+  },
+  chilies: function (ctx, a, b) {
+    var i, ox = [-4.8, 0, 4.8];
+    ctx.strokeStyle = SA.Mat.shadeColor(b, 0.75); ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    for (i = 0; i < 3; i++) { ctx.moveTo(ox[i], -11.0); ctx.lineTo(ox[i], -3.6); }
+    ctx.stroke();
+    for (i = 0; i < 3; i++) {
+      ctx.save(); ctx.translate(ox[i], 1.0); ctx.rotate((i - 1) * 0.18);
+      ctx.fillStyle = i === 1 ? SA.Mat.shadeColor(a, 1.08) : a;
+      ctx.beginPath();
+      ctx.moveTo(0, -5.0);
+      ctx.bezierCurveTo(2.8, -3.0, 3.2, 2.0, 0, 6.4);
+      ctx.bezierCurveTo(-3.2, 2.0, -2.8, -3.0, 0, -5.0);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      saDecLeaf(ctx, 2.0, -4.6, 2.4, 1.4, 0.5, b);
+      ctx.fillStyle = SA.Mat.shadeColor(a, 0.62);
+      ctx.beginPath(); ctx.ellipse(0, 6.8, 1.2, 0.8, 0, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+  },
+  wovenbasket: function (ctx, a, b) {
+    saDecBasket(ctx, a);
+    ctx.strokeStyle = SA.Mat.shadeColor(b, 0.72); ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(-6.4, 1.6); ctx.quadraticCurveTo(0, 4.2, 6.4, 1.6);
+    ctx.stroke();
+  },
+  eucalyptus: function (ctx, a, b) {
+    var i;
+    saDecCord(ctx, 0, -11.4, -5.0, SA_DEC_CORD);
+    ctx.strokeStyle = SA.Mat.shadeColor(b, 0.65); ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(0, -5.0); ctx.lineTo(0, 9.0); ctx.stroke();
+    for (i = -2; i <= 2; i++) {
+      saDecLeaf(ctx, i * 3.2, -2.0 + Math.abs(i) * 2.4, 4.6, 2.0, i * 0.32 + 1.57,
+        i % 2 ? SA.Mat.shadeColor(a, 0.88) : a);
+    }
   }
 };
 
@@ -16346,7 +16625,7 @@ SA.Scene.render = function (ctx, state, result) {
      floats on the background like a sticker; with it the sukkah is standing
      somewhere. Radii come from the projected footprint so it stays correct at
      every camera angle and zoom. */
-  if (!SA.Camera.inside) {
+  {
     var sc = [
       SA.Iso.project(0, 0, 0, cx, cz), SA.Iso.project(w, 0, 0, cx, cz),
       SA.Iso.project(w, 0, d, cx, cz), SA.Iso.project(0, 0, d, cx, cz)
@@ -16398,16 +16677,16 @@ SA.Scene.render = function (ctx, state, result) {
     }
   }
 
-  /* Keep every wall while inside. Hiding the nearest "door" wall used to open
-     onto the meadow with a floating roof - the look-up camera already clears
-     the schach without punching a hole in the booth. */
-  var insideHidden = null;
+  /* Look Inside: the wall facing the viewer goes see-through so the booth
+     interior (decorations, table, hanging fruit) is visible. Turning the
+     camera swaps which side is clear. Keep drawing it faintly so the booth
+     still reads as enclosed. */
+  var clearSide = SA.Camera.inside ? SA.Camera.facingWallSide() : null;
 
   /* walls */
   {
     for (var si = 0; si < SA.WALL_SIDES.length; si++) {
       var side = SA.WALL_SIDES[si];
-      if (insideHidden && insideHidden[side]) continue;
       var wall = state.walls[side];
       for (var pi = 0; pi < wall.panels.length; pi++) {
         var p = wall.panels[pi];
@@ -16424,7 +16703,7 @@ SA.Scene.render = function (ctx, state, result) {
             SA.State.rebuildOcc(wall);
           }
         }
-        (function (side2, p2, entry2) {
+        (function (side2, p2, entry2, fade) {
           /* Cut to the roof line. A twenty-tefach post under an eleven-tefach
              roof is a post you sawed off - the offcut is not drawn sticking up
              through the schach, and the engine measures the same trimmed piece
@@ -16450,12 +16729,15 @@ SA.Scene.render = function (ctx, state, result) {
              sides at ~35° — those are the angles that looked "floating". */
           var depth2 = saWallSortDepth(side2, p2.col, p2.w, p2.row, state.footprint, cx, cz);
           jobs.push({ layer: 1, depth: depth2, draw: function () {
+            ctx.save();
+            if (fade) ctx.globalAlpha = 0.08;
             SA.FX.withPop(ctx, wq, p2.placedAt, function () {
               if (entry2.matKind === 'animal') SA.Draw.animalPanel(ctx, wq, entry2, p2, null, shade, afit);
               else SA.Draw.wallPanel(ctx, wq, entry2,
                 SA.Mat.shadeColor(SA.Mat.finishColor(entry2), shade), drawH, p2.w,
                 { tied: !!p2.tied });
             });
+            ctx.restore();
             SA.Pick.add('wall_cell', { side: side2, col: p2.col, uid: p2.uid }, wq);
           } });
           /* Untied sheet / lavud / animal: big labeled Tie control on the wall
@@ -16467,7 +16749,7 @@ SA.Scene.render = function (ctx, state, result) {
               SA.Scene.drawTieButton(ctx, bc.sx, bc.sy - 22, side2, p2);
             });
           }
-        })(side, p, entry);
+        })(side, p, entry, clearSide === side);
       }
       /* thin empty-cell pick targets, so a bare wall column can still be tapped to place */
       var length = SA.State.wallLength(state, side);
@@ -18001,8 +18283,8 @@ SA.UI.renderBuild = function (ctx, result) {
   var trayTop = h - safe.b - SA.UI.TRAY_H;
   if (!SA.Game.winTour && SA.Game.selectedPanel) SA.UI.renderPanelInspector(ctx, trayTop);
   if (!SA.Game.winTour && SA.Game.selectedDecor) SA.UI.renderDecorInspector(ctx, trayTop);
-  /* Win-tour is for looking at the booth - no toast pile over the schach. */
-  if (!SA.Game.winTour) SA.UI.renderToasts(ctx, trayTop - 8);
+  /* Look Inside / win-tour: keep the booth clear of teaching toast stacks. */
+  if (!SA.Game.winTour && !SA.Camera.inside) SA.UI.renderToasts(ctx, trayTop - 8);
   /* Goal met: keep the booth open for decorations until they tap Done. */
   if (!SA.Game.winTour && SA.Scramble.run && SA.Scramble.run.goalMet &&
       SA.Scramble.run.status === 'building') {
@@ -18018,10 +18300,10 @@ SA.UI.renderFinishBar = function (ctx, trayTop) {
   var bw = Math.min(220, w - safe.l - safe.r - 24);
   var bx = (w - bw) / 2;
   var by = trayTop - 54;
-  SA.Draw.text(ctx, SA.Lang.t('Ready when you are'), w / 2, by - 12, {
+  SA.Draw.text(ctx, SA.Lang.t('Add decorations, then Finish'), w / 2, by - 12, {
     size: 12, color: 'rgba(240,217,138,0.92)', weight: '700'
   });
-  SA.UI.btnTitle(ctx, bx, by, bw, 40, 'Done', 'sb_finish', {}, true);
+  SA.UI.btnTitle(ctx, bx, by, bw, 40, 'Finish', 'sb_finish', {}, true);
 };
 
 /* Motzei Yom Kippur on the left, Sukkot on the right, and a bar that walks
@@ -18189,7 +18471,7 @@ SA.UI.renderToolStrip = function (ctx) {
 };
 
 SA.UI.TOOL_NAMES = {
-  sb_undo: 'Undo', sb_redo: 'Redo', sb_rotate: 'Turn the view', sb_inside: 'Step inside',
+  sb_undo: 'Undo', sb_redo: 'Redo', sb_rotate: 'Turn the view', sb_inside: 'Look inside',
   sb_zoom_in: 'Zoom in', sb_zoom_out: 'Zoom out', sb_fit: 'Fit on screen',
   sb_overlay: 'Measuring overlay', sb_size: 'Sukkah size', sb_sound: 'Sound',
   sb_erase: 'Eraser', sb_share: 'Share a picture', sb_restart: 'Start over'
@@ -18203,7 +18485,8 @@ SA.Lang.add({
   'Undo': 'בטלו',
   'Redo': 'החזירו',
   'Turn the view': 'סובבו את המבט',
-  'Step inside': 'היכנסו פנימה',
+  'Look inside': 'הציצו פנימה',
+  'Look Inside': 'הציצו פנימה',
   'Zoom in': 'התקרבו',
   'Zoom out': 'התרחקו',
   'Fit on screen': 'התאימו למסך',
@@ -18216,7 +18499,9 @@ SA.Lang.add({
   'Sound: On': 'צליל: פועל',
   'Sound: Off': 'צליל: כבוי',
   'Done': 'סיום',
+  'Finish': 'סיום',
   'Ready when you are': 'מוכנים כשאתם מוכנים',
+  'Kosher! Keep decorating, then tap Finish.': 'כשר! אפשר להמשיך לקשט, ואז להקיש על סיום.',
   'Kosher! Keep decorating, then tap Done.': 'כשר! אפשר להמשיך לקשט, ואז להקיש על סיום.',
   'Settings': 'הגדרות',
   'Units': 'יחידות',
@@ -18583,7 +18868,8 @@ SA.Lang.add({
   'A fresh heap and a fresh clock.': 'ערמה חדשה ושעון חדש.',
   'Start Over': 'להתחיל מחדש',
   'Cancel': 'ביטול',
-  'Go Inside': 'היכנסו פנימה',
+  'Go Inside': 'הציצו פנימה',
+  'Look Inside': 'הציצו פנימה',
   'Look Around': 'הסתובבו סביב',
   'Share': 'שתפו',
   'Back to results': 'חזרה לתוצאות',
@@ -18887,7 +19173,7 @@ SA.UI.renderWinModal = function (ctx) {
   var isLast = run.index === SA.Levels.length - 1;
   var gap = 6, rowW = pw - 32, bw = (rowW - gap * 2) / 3, tourY = py + ph - 106;
   /* Same festive chrome as the title menu - not plain gray slabs. */
-  SA.UI.btnTitle(ctx, px + 16, tourY, bw, 38, 'Go Inside', 'winc_inside', {});
+  SA.UI.btnTitle(ctx, px + 16, tourY, bw, 38, 'Look Inside', 'winc_inside', {});
   SA.UI.btnTitle(ctx, px + 16 + bw + gap, tourY, bw, 38, 'Look Around', 'winc_orbit', {});
   SA.UI.btnTitle(ctx, px + 16 + (bw + gap) * 2, tourY, bw, 38, 'Share', 'winc_share', {});
   SA.UI.btnTitle(ctx, px + pw / 2 - 130, py + ph - 54, 120, 40, 'Read the Card', 'winc_card', {});
@@ -18910,29 +19196,26 @@ SA.UI.startWinTour = function (mode) {
   if (SA.Game.winTour === 'inside') {
     SA.Camera.snapInside(SA.Game.state);
   } else {
-    SA.Camera.inside = false;
-    SA.Camera.insideLookUp = 0;
-    SA.Camera.insideLookTarget = 1;
-    SA.Camera._insideFitAng = null;
-    SA.Camera.autoFit = true;
     SA.Camera.snapFit(SA.Game.state);
   }
 };
 
 SA.UI.endWinTour = function () {
   SA.Game.winTour = null;
-  SA.Camera.inside = false;
-  SA.Camera.insideLookUp = 0;
-  SA.Camera.insideLookTarget = 1;
-  SA.Camera._insideFitAng = null;
-  SA.Camera.autoFit = true;
+  if (SA.Game.state) SA.Camera.snapFit(SA.Game.state);
+  else {
+    SA.Camera.inside = false;
+    SA.Camera.insideLookUp = 0;
+    SA.Camera.insideLookTarget = 0;
+    SA.Camera.autoFit = true;
+  }
   SA.Game.modal = 'scramble_win';
 };
 
 SA.UI.renderWinTourChrome = function (ctx) {
   var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
   var label = SA.Game.winTour === 'inside'
-    ? SA.Lang.t('Inside your sukkah')
+    ? SA.Lang.t('Looking inside — turn to see each wall')
     : SA.Lang.t('Looking around');
   var bw = Math.min(220, w - safe.l - safe.r - 24);
   var bx = (w - bw) / 2;
@@ -19017,11 +19300,7 @@ SA.UI.onBuildTap = function (hit) {
   if (hit.kind === 'sb_fit') { SA.Camera.autoFit = true; return; }
   if (hit.kind === 'sb_inside') {
     if (SA.Camera.inside) {
-      SA.Camera.inside = false;
-      SA.Camera.insideLookUp = 0;
-      SA.Camera.insideLookTarget = 1;
-      SA.Camera._insideFitAng = null;
-      SA.Camera.autoFit = true;
+      SA.Camera.snapFit(st || SA.Game.state);
     } else if (st) {
       if (SA.Scramble) SA.Scramble.toasts = [];
       if (SA.FX) { SA.FX.bursts = []; SA.FX.ripples = []; SA.FX.flashes = []; }
@@ -21681,9 +21960,12 @@ SA.Pile.place = function (piece, preview, state) {
         if (SA.Scramble.active()) SA.Scramble.teachTie(entry);
       }
     }
-    /* Elephant (and any shorter wall) pulls the Scramble roof down onto it -
-       there is no height control in Scramble. */
-    if (SA.Scramble.active()) SA.Scramble.fitRoofToWalls(state);
+    if (SA.Scramble.active()) {
+      if (wallEntry.lavudRopes) SA.Scramble.teachLavudWall(wallEntry);
+      SA.Scramble.fitRoofToWalls(state);
+      SA.Scramble.teachGudAsik(state);
+      SA.Scramble.teachLavudPosts(state, preview.side);
+    }
     SA.Progress.onAction('place_wall', piece.matId);
   } else if (preview.kind === 'schach') {
     SA.Tool.category = 'schach';
@@ -22462,7 +22744,7 @@ SA.Scramble.config = function (level, index) {
     seconds: Math.round((100 + index * 6) * mult),
     tierWeights: index < 5 ? [0.85, 0.15, 0] : (index < 10 ? [0.55, 0.35, 0.10] : (index < 15 ? [0.30, 0.45, 0.25] : [0.1, 0.35, 0.55])),
     trapCount: index < 2 ? 0 : Math.min(4, index - 1),
-    decorCount: 2 + Math.min(4, Math.floor(index / 4)),
+    decorCount: 6 + Math.min(10, Math.floor(index / 2)),
     animalChance: Math.min(0.8, 0.25 + index * 0.03),
     allowElephant: index >= 4,
     /* Backyard kit with spare — a few walls, beams, schach patches, decor —
@@ -22650,7 +22932,7 @@ SA.Scramble.checkGoal = function (result) {
   if (run.goalMet) return;
   run.goalMet = true;
   /* Meter already played the kosher chime - just invite them to keep building. */
-  SA.Scramble.toast(SA.Lang.t('Kosher! Keep decorating, then tap Done.'), SA.Game.level.cardId, 'info');
+  SA.Scramble.toast(SA.Lang.t('Kosher! Keep decorating, then tap Finish.'), SA.Game.level.cardId, 'info');
 };
 
 /* Bank the win (Done button, or clock expiry while already goal-met). */
@@ -22775,6 +23057,65 @@ SA.Scramble.teachTie = function (entry) {
   SA.Scramble.toast(SA.Lang.t('Tied it down') + ' - ' + SA.Lang.t(entry.matKind === 'animal'
     ? 'An animal wall must be tied so it cannot walk away (Sukkah 23a).'
     : 'Tied taut on its frame - ordinary wind cannot open a gap in it now (OC 630:10).'), 'sk_ruach');
+};
+
+/* First lavud rope wall: the bottom ten tefachim of taut ropes are a real wall. */
+SA.Scramble.teachLavudWall = function (entry) {
+  var run = SA.Scramble.run;
+  if (!run || !entry || !entry.lavudRopes || run.taughtLavudWall) return;
+  run.taughtLavudWall = true;
+  SA.Scramble.toast(SA.Lang.t(
+    'Lavud: gaps under three tefachim count as solid. These taut ropes from the ground to ten tefachim are a real wall (OC 630:9).'),
+    'sk_lavud', 'good');
+};
+
+/* Posts / pickets spaced under three tefachim - lavud closes the gaps. */
+SA.Scramble.teachLavudPosts = function (state, side) {
+  var run = SA.Scramble.run;
+  if (!run || run.taughtLavudPosts || !state || !side) return;
+  var wall = state.walls[side];
+  if (!wall || wall.panels.length < 2) return;
+  var sorted = wall.panels.slice().sort(function (a, b) { return a.col - b.col; });
+  for (var i = 1; i < sorted.length; i++) {
+    var gap = sorted[i].col - (sorted[i - 1].col + sorted[i - 1].w);
+    if (gap > 0 && gap < SA.Rule.LAVUD) {
+      run.taughtLavudPosts = true;
+      SA.Scramble.toast(SA.Lang.t(
+        'Lavud: that gap is under three tefachim, so the law treats it as solid wall (OC 630:1).'),
+        'sk_lavud', 'good');
+      return;
+    }
+  }
+};
+
+/* Ten-tefach wall (or lavud band) with schach above: gud asik pulls the
+   partition up to the covering (OC 630:9). */
+SA.Scramble.teachGudAsik = function (state) {
+  var run = SA.Scramble.run;
+  if (!run || run.taughtGudAsik || !state) return;
+  var wc = SA.Halacha.wallCarries(state);
+  var side, reach, gap;
+  for (var i = 0; i < SA.WALL_SIDES.length; i++) {
+    side = SA.WALL_SIDES[i];
+    if (!wc.carries[side]) continue;
+    reach = wc.reach[side];
+    gap = state.roofHeight - reach;
+    /* Carrying with a real ten-tefach wall (framed lavud stretches to roof;
+       a short wall that lavud-closes the last couple of tefachim also counts). */
+    if (reach >= SA.Rule.WALL_MIN_HEIGHT) {
+      run.taughtGudAsik = true;
+      if (gap > 0.05) {
+        SA.Scramble.toast(SA.Lang.t(
+          'Gud asik: a real ten-tefach wall is treated as reaching straight up to the schach above it (OC 630:9).'),
+          'sk_gud_asik', 'good');
+      } else {
+        SA.Scramble.toast(SA.Lang.t(
+          'Gud asik: once the wall is ten tefachim, it is pulled up to meet the schach (OC 630:9).'),
+          'sk_gud_asik', 'good');
+      }
+      return;
+    }
+  }
 };
 
 /* The first pole across the walls is the moment to say what it is for: the
@@ -22919,6 +23260,16 @@ SA.Lang.add({
     'הגג ישב על הקירות שיש לכם. נסו שוב להניח.',
   'Ropes tied tightly - lavud gaps stay under three tefachim (OC 630:9-10).':
     'החבלים קשורים היטב - רווחי הלבוד נשארים בפחות משלושה טפחים (או"ח תרל:ט-י).',
+  'Lavud: gaps under three tefachim count as solid. These taut ropes from the ground to ten tefachim are a real wall (OC 630:9).':
+    'לבוד: רווח של פחות משלושה טפחים נחשב מלא. החבלים המתוחים מהקרקע עד עשרה טפחים הם קיר אמיתי (או"ח תרל:ט).',
+  'Lavud: that gap is under three tefachim, so the law treats it as solid wall (OC 630:1).':
+    'לבוד: הרווח הזה פחות משלושה טפחים, ולכן ההלכה מתייחסת אליו כקיר מלא (או"ח תרל:א).',
+  'Gud asik: a real ten-tefach wall is treated as reaching straight up to the schach above it (OC 630:9).':
+    'גוד אסיק: קיר אמיתי של עשרה טפחים נחשב כמגיע ישר עד הסכך שמעליו (או"ח תרל:ט).',
+  'Gud asik: once the wall is ten tefachim, it is pulled up to meet the schach (OC 630:9).':
+    'גוד אסיק: ברגע שהקיר גבוה עשרה טפחים, הוא נמשך למעלה עד הסכך (או"ח תרל:ט).',
+  'Looking inside — turn to see each wall': 'מציצים פנימה — סובבו כדי לראות כל קיר',
+  'Add decorations, then Finish': 'הוסיפו קישוטים, ואז סיום',
   'This never grew from the ground, so it can never be schach (OC 629:1).':
     'זה לא צמח מן הארץ, ולכן לעולם אינו יכול להיות סכך (או"ח תרכט:א).',
   'These are still attached and growing. Schach has to be cut first (OC 629:8).':
