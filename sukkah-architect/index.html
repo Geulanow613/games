@@ -57,9 +57,14 @@ SA.Shiur = {
   CHAZON_ISH: { id: 'chazonish', tefachCm: 9.6, label: 'Chazon Ish' },
   current: 'naeh',
   units: 'imperial', /* 'imperial' | 'metric' */
-  /* Default backyard booth the workshop opens to. 7×7 tefachim is only the
-     teaching minimum drawn inside this; the buildable pad is a real sukkah. */
+  /* Default backyard FLOOR the workshop / Scramble pad opens to (~12×12 ft).
+     7×7 tefachim is only the teaching minimum drawn inside. Wall HEIGHT is
+     separate — a 12-ft-tall cube buried every phone frame (see DEFAULT_WALL_H). */
   DEFAULT_BOOTH_FEET: 12,
+  /* Scramble wall / roof line: just over the ten-tefach minimum. Tall enough
+     to stand in, short enough that a 12-ft pad still fits between the HUD and
+     the tray without looking like a skyscraper in the sky. */
+  DEFAULT_WALL_H_TEFACHIM: 14,
   entry: function () {
     return SA.Shiur.current === 'chazonish' ? SA.Shiur.CHAZON_ISH : SA.Shiur.NAEH;
   },
@@ -553,20 +558,21 @@ SA.Camera = {
     }
     return best;
   },
-  /* Clear rectangle between the HUD / clock and the size-guide + tray. */
+  /* Clear rectangle between the HUD / clock and the size-guide + tray.
+     Leave room for the size-guide line (~18px above the tray) so the pad
+     never sits under "Your Stuff". */
   playBand: function () {
     var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
     var tour = SA.Game && SA.Game.winTour;
     var inside = SA.Camera.inside;
+    var tray = (SA.UI.TRAY_H || 108) + 28;
     /* Win-tour / step-inside: no clock band, no tray - use the full stage. */
     var top = tour || inside
       ? (safe.t + 56 + 12)
       : ((SA.UI.topReserve ? SA.UI.topReserve() : safe.t + 56) + 44);
     var bot = tour
       ? (h - safe.b - 72)
-      : (inside
-        ? (h - safe.b - (SA.UI.TRAY_H || 108) - 22)
-        : (h - safe.b - (SA.UI.TRAY_H || 108) - 22));
+      : (h - safe.b - tray);
     var left = safe.l + 12;
     var right = w - safe.r - (SA.UI.STRIP_W || 0) - 10;
     return {
@@ -754,15 +760,25 @@ SA.Camera = {
     var originYShore = h * 0.42 + shorePanY;
     var roofSy = minY * z + originYShore;
     var nearSy = maxY * z + originYShore;
-    /* If a huge animal still clips, ease off the shore a little - last resort. */
-    if (roofSy < topReserve - 2) {
-      shorePanY += (topReserve - roofSy);
-      originYShore = h * 0.42 + shorePanY;
-      nearSy = maxY * z + originYShore;
+    /* Pull the booth into the clear band. Prefer zooming out over a tiny
+       pan nudge — a 4% pan left the pad under the tray on phones. */
+    var guardFit = 0;
+    while (guardFit++ < 18) {
+      roofSy = minY * z + (h * 0.42 + shorePanY);
+      nearSy = maxY * z + (h * 0.42 + shorePanY);
+      if (roofSy >= topReserve - 2 && nearSy <= botLimit + 2) break;
+      if (z <= SA.Camera.minZoom + 0.001) {
+        if (roofSy < topReserve - 2) shorePanY += (topReserve - roofSy);
+        if (nearSy > botLimit + 2) shorePanY -= (nearSy - botLimit);
+        break;
+      }
+      z = Math.max(SA.Camera.minZoom, z * 0.88);
+      shorePanY = shoreY - h * 0.42 - floorFarY * z;
     }
-    if (nearSy > botLimit + 2) {
-      shorePanY -= Math.min(nearSy - botLimit, h * 0.04);
-    }
+    roofSy = minY * z + (h * 0.42 + shorePanY);
+    nearSy = maxY * z + (h * 0.42 + shorePanY);
+    if (roofSy < topReserve - 2) shorePanY += (topReserve - roofSy);
+    if (nearSy > botLimit + 2) shorePanY -= (nearSy - botLimit);
 
     SA.Camera.fitZoomTarget = z;
     SA.Camera.fitPanTarget.x = cx0 - ((minX + maxX) / 2) * z - w / 2;
@@ -17089,21 +17105,19 @@ SA.Scene.render = function (ctx, state, result) {
         SA.Iso.project(bm.x + bm.cw + over, by, bm.z + bm.cd + over, cx, cz),
         SA.Iso.project(bm.x - over, by, bm.z + bm.cd + over, cx, cz)
       ];
-      /* Sorted to the FRONT-MOST cell it runs through, and half a unit ahead of
-         the covering at that cell, so the whole member is painted before any
-         schach above it. Its own centre was the wrong key twice over: one long
-         quad keyed at its middle interleaves with per-cell schach groups (near
-         armfuls drew under it, far ones over it), and depthKey subtracts y, so
-         a beam sitting BELOW the roof plane scored higher than the covering and
-         came out painted on top of it - a steel pipe lying over the fronds it is
-         supposed to be holding up. */
-      var bdepth = Infinity;
+      /* Sort to the NEAREST cell the pole runs through, then a hair in front of
+         that cell's schach. Math.min (far cell) was burying the whole stick
+         under nearer covering — players only saw the tip poking out the back.
+         A single long quad cannot sit under every schach cell at once; putting
+         the frame just on top of the covering keeps the pole readable across
+         the roof (the gameplay need) without the vanishing-midspan look. */
+      var bdepth = -Infinity;
       for (var dbx = bm.x; dbx < bm.x + bm.cw; dbx++) {
         for (var dbz = bm.z; dbz < bm.z + bm.cd; dbz++) {
-          bdepth = Math.min(bdepth, SA.Iso.depthKey(dbx + 0.5, state.roofHeight, dbz + 0.5, cx, cz));
+          bdepth = Math.max(bdepth, SA.Iso.depthKey(dbx + 0.5, state.roofHeight, dbz + 0.5, cx, cz));
         }
       }
-      jobs.push({ depth: bdepth - 0.5, draw: function () {
+      jobs.push({ depth: bdepth + 0.35, draw: function () {
         SA.FX.withPop(ctx, bq, bm.placedAt, function () {
           SA.Draw.beamSpan(ctx, bq, bEntry, bm.seed);
         });
@@ -17653,8 +17667,42 @@ SA.Game.maybeShowRotateTip = function () {
   var vis = SA.Pile.visibleCount();
   SA.Pile.page = Math.floor(idx / Math.max(1, vis));
   SA.Pile.clampPage();
+  SA.Game.rotateTipUid = list[idx].uid;
   SA.Game.modal = 'rotate_tip';
   return true;
+};
+
+/* Screen position of the tray ↻ chip for a piece (same math as renderTray). */
+SA.UI.trayRotateChipForUid = function (uid) {
+  if (uid == null) return null;
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  var trayY = h - safe.b - SA.UI.TRAY_H;
+  var hx = safe.l + 10, hw = w - safe.l - safe.r - 20, hh = 28;
+  var list = SA.Pile.trayPieces();
+  var gap = 6, n = SA.Pile.visibleCount();
+  var cardW = (hw - gap * (n - 1)) / n;
+  var cardY = trayY + hh + 6;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].uid !== uid) continue;
+    if (!SA.Pile.canRotate(list[i])) return null;
+    var cx = hx + i * (cardW + gap);
+    return { x: cx + 16, y: cardY + 15, r: 16, cx: cx, cardY: cardY, cardW: cardW };
+  }
+  return null;
+};
+
+SA.UI.ensureRotateTipPage = function () {
+  var uid = SA.Game.rotateTipUid;
+  if (uid == null) return;
+  var list = SA.Pile.pieces || [];
+  var vis = SA.Pile.visibleCount();
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].uid === uid) {
+      SA.Pile.page = Math.floor(i / Math.max(1, vis));
+      SA.Pile.clampPage();
+      return;
+    }
+  }
 };
 
 SA.Game.goTitle = function () {
@@ -18911,6 +18959,7 @@ SA.UI.renderTray = function (ctx, result) {
   var gap = 6, n = SA.Pile.visibleCount();
   var cardW = (hw - gap * (n - 1)) / n;
   var cardY = trayY + hh + 6, cardH = SA.UI.TRAY_H - hh - 16;
+  if (SA.Game.modal === 'rotate_tip') SA.UI.ensureRotateTipPage();
   SA.UI._rotateTipAnchor = null;
   for (var i = 0; i < list.length; i++) {
     var piece = list[i];
@@ -18929,7 +18978,12 @@ SA.UI.renderTray = function (ctx, result) {
     /* after the card, so the topmost-wins hit test gives the chip the press */
     if (SA.Pile.canRotate(piece)) {
       SA.Pick.addRect('tray_rotate', { uid: piece.uid }, cx + 2, cardY + 2, 28, 26);
-      if (!SA.UI._rotateTipAnchor) SA.UI._rotateTipAnchor = { x: cx + 15, y: cardY + 12, r: 14 };
+      var tipHit = { x: cx + 16, y: cardY + 15, r: 16 };
+      if (SA.Game.rotateTipUid != null && piece.uid === SA.Game.rotateTipUid) {
+        SA.UI._rotateTipAnchor = tipHit;
+      } else if (!SA.UI._rotateTipAnchor) {
+        SA.UI._rotateTipAnchor = tipHit;
+      }
     }
   }
   if (!list.length) {
@@ -19203,43 +19257,51 @@ SA.Lang.add({
   "Let's Build": 'הבה נבנה'
 });
 
-/* Spotlight on the tray ↻ chip after the first drop — once ever. */
+/* Spotlight on the tray ↻ chip after the first drop — once ever.
+   Bubble sits just above the tray and the arrow lands on the chip. */
 SA.UI.renderRotateTip = function (ctx) {
   var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
-  var anchor = SA.UI._rotateTipAnchor;
+  SA.UI.ensureRotateTipPage();
+  var anchor = SA.UI._rotateTipAnchor || SA.UI.trayRotateChipForUid(SA.Game.rotateTipUid);
   if (!anchor) {
-    /* Tray already drew; if nothing turnable is on this page, fall back. */
-    anchor = { x: safe.l + 36, y: h - safe.b - SA.UI.TRAY_H + 52, r: 14 };
+    anchor = { x: safe.l + 40, y: h - safe.b - SA.UI.TRAY_H + 58, r: 16 };
   }
-  /* Dim the whole screen, then cut a hole so the rotate chip stays bright. */
+  var trayY = h - safe.b - SA.UI.TRAY_H;
+
+  /* Dim everything except a hole over the ↻ chip. */
   ctx.save();
-  ctx.fillStyle = 'rgba(4,5,9,0.78)';
+  ctx.fillStyle = 'rgba(4,5,9,0.82)';
   ctx.beginPath();
   ctx.rect(0, 0, w, h);
-  ctx.arc(anchor.x, anchor.y, anchor.r + 18, 0, Math.PI * 2, true);
+  ctx.arc(anchor.x, anchor.y, anchor.r + 22, 0, Math.PI * 2, true);
   ctx.fill('evenodd');
   ctx.restore();
   SA.Pick.addRect('modal_backdrop', {}, 0, 0, w, h);
 
+  /* Paint the chip again on top of the dim so it cannot vanish under chrome. */
   var pulse = 0.55 + 0.45 * Math.sin(SA.FX.now() / 220);
   ctx.save();
   ctx.beginPath();
-  ctx.arc(anchor.x, anchor.y, anchor.r + 6 + pulse * 5, 0, Math.PI * 2);
+  ctx.arc(anchor.x, anchor.y, anchor.r + 8 + pulse * 6, 0, Math.PI * 2);
   ctx.strokeStyle = 'rgba(240,217,138,' + (0.55 + pulse * 0.4).toFixed(2) + ')';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3.2;
   ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(anchor.x, anchor.y, anchor.r + 2, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(240,217,138,0.95)';
-  ctx.lineWidth = 2.2;
+  SA.Draw.roundRect(ctx, anchor.x - 15, anchor.y - 13, 30, 26, 8);
+  ctx.fillStyle = 'rgba(240,217,138,0.98)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(60,44,22,0.7)';
+  ctx.lineWidth = 1.4;
   ctx.stroke();
+  SA.Draw.text(ctx, '\u21bb', anchor.x, anchor.y + 1, {
+    size: 16, color: '#2a1c0c', weight: '800'
+  });
   ctx.restore();
 
-  /* Pointer from the bubble down to the chip. */
+  /* Bubble parked just above the tray — never mid-stage. */
   var bubbleW = Math.min(300, w - 36);
-  var bubbleH = 118;
+  var bubbleH = 112;
   var bx = Math.max(12, Math.min(w - bubbleW - 12, anchor.x - bubbleW / 2));
-  var by = Math.max(safe.t + 12, anchor.y - bubbleH - 52);
+  var by = Math.max(safe.t + 12, trayY - bubbleH - 28);
   var tipX = Math.max(bx + 24, Math.min(bx + bubbleW - 24, anchor.x));
   var tipY = by + bubbleH;
 
@@ -19248,38 +19310,39 @@ SA.UI.renderRotateTip = function (ctx) {
   ctx.fillStyle = '#20242f';
   ctx.beginPath();
   ctx.moveTo(tipX - 12, tipY - 1);
-  ctx.lineTo(tipX, tipY + 16);
+  ctx.lineTo(tipX, tipY + 14);
   ctx.lineTo(tipX + 12, tipY - 1);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
 
-  /* Gold arrow drawn on top of the triangle, pointing at the chip. */
+  /* Gold shaft + arrowhead from the bubble into the chip. */
+  var aimY = anchor.y - anchor.r - 8;
   ctx.save();
-  ctx.strokeStyle = 'rgba(240,217,138,0.95)';
-  ctx.fillStyle = 'rgba(240,217,138,0.95)';
-  ctx.lineWidth = 2.4;
+  ctx.strokeStyle = 'rgba(240,217,138,0.98)';
+  ctx.fillStyle = 'rgba(240,217,138,0.98)';
+  ctx.lineWidth = 3;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(tipX, tipY - 4);
-  ctx.lineTo(tipX, anchor.y - anchor.r - 10);
+  ctx.moveTo(tipX, tipY + 12);
+  ctx.lineTo(tipX, aimY);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(tipX, anchor.y - anchor.r - 6);
-  ctx.lineTo(tipX - 7, anchor.y - anchor.r - 16);
-  ctx.lineTo(tipX + 7, anchor.y - anchor.r - 16);
+  ctx.moveTo(tipX, aimY + 2);
+  ctx.lineTo(tipX - 8, aimY - 12);
+  ctx.lineTo(tipX + 8, aimY - 12);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
 
   var lines = SA.UI.wrapText(ctx, SA.Lang.t('Click here to rotate and add more!'), bubbleW - 36, 15);
-  var ty = by + 28;
+  var ty = by + 26;
   for (var i = 0; i < lines.length; i++) {
     SA.Draw.text(ctx, lines[i], bx + bubbleW / 2, ty + i * 20, {
       size: 15, color: '#fff', weight: '700'
     });
   }
-  SA.UI.btn(ctx, bx + bubbleW / 2 - 70, by + bubbleH - 46, 140, 36, 'OK', 'rotate_tip_ok', {}, true);
+  SA.UI.btn(ctx, bx + bubbleW / 2 - 70, by + bubbleH - 44, 140, 34, 'OK', 'rotate_tip_ok', {}, true);
 };
 
 SA.UI.renderLevelBrief = function (ctx) {
@@ -19754,6 +19817,7 @@ SA.UI.onBuildTap = function (hit) {
   if (hit.kind === 'brief_close') { SA.Game.modal = null; return; }
   if (hit.kind === 'rotate_tip_ok') {
     SA.Progress.markRotateTipSeen();
+    SA.Game.rotateTipUid = null;
     SA.Game.modal = null;
     return;
   }
@@ -19975,6 +20039,9 @@ SA.UI.commitDrop = function (piece, preview) {
     SA.Audio.play(SA.Audio.forPiece(piece, SA.Pile.entryOf(piece)));
     SA.Audio.buzz(10);
     if (!piece.infinite) SA.Pile.armed = null;
+    /* Keep the booth planted in the clear band after a tall wall lands —
+       do not wait for the player to discover pinch-zoom. */
+    if (SA.Camera.autoFit && SA.Game.state) SA.Camera.snapFit(SA.Game.state);
     if (SA.Scramble.active() && SA.Scramble.run) {
       SA.Scramble.run.placed = (SA.Scramble.run.placed || 0) + 1;
       if (SA.Scramble.run.placed === 1) SA.Game.maybeShowRotateTip();
@@ -23240,8 +23307,9 @@ SA.Scramble.config = function (level, index) {
     wallSlack: 1.45,
     beamSlack: 1.55,
     schachSlack: 1.25,
-    /* Backyard height (~12 ft). Too Short / Sky-High override below. */
-    startRoof: SA.Shiur.tefachimFromFeet(SA.Shiur.DEFAULT_BOOTH_FEET),
+    /* Readable wall height (~14 tefachim). Floor stays the 12 ft pad.
+       Too Short / Sky-High override startRoof below. */
+    startRoof: SA.Shiur.DEFAULT_WALL_H_TEFACHIM || 14,
     startFootprint: fp,
     familyWhitelist: level.familyWhitelist || null,
     formWhitelist: level.formWhitelist || null,
@@ -23252,7 +23320,7 @@ SA.Scramble.config = function (level, index) {
   if (ov) for (var k in ov) cfg[k] = ov[k];
   /* A level that names its own roof height is TEACHING that height. */
   cfg.roofPinned = !!(ov && ov.startRoof != null);
-  if (!cfg.roofPinned) cfg.startRoof = SA.Shiur.tefachimFromFeet(SA.Shiur.DEFAULT_BOOTH_FEET);
+  if (!cfg.roofPinned) cfg.startRoof = SA.Shiur.DEFAULT_WALL_H_TEFACHIM || 14;
   if (level.grantElephant) { cfg.animalChance = 1; cfg.allowElephant = true; }
   /* Never honour a tiny startFootprint override - every run is the 12 ft pad. */
   cfg.startFootprint = SA.Scramble.boothFootprint();
