@@ -372,12 +372,12 @@ SA.Lang.add({
   'Untie': 'שחררו',
   'Tied': 'קשור',
   'Untied': 'לא קשור',
-  'Tap the glowing Tie on that wall — it does not count until you do':
-    'הקישו על «קשרו» הזוהר על הקיר — בלי זה הוא לא נחשב',
-  'Tap Tie Tightly on that rope wall — it does not count until you do':
-    'הקישו על «קשרו היטב» על קיר החבלים — בלי זה הוא לא נחשב',
-  'Tap Tie on the animal — or it can walk away':
-    'הקישו על «קשרו» על בעל החיים — אחרת הוא יכול ללכת',
+  'Tap Tie on that wall — it does not count yet':
+    'הקישו על «קשרו» על הקיר — בלי זה הוא לא נחשב',
+  'Tap Tie Tightly on that rope wall':
+    'הקישו על «קשרו היטב» על קיר החבלים',
+  'Tap Tie on the animal — or it walks away':
+    'הקישו על «קשרו» על בעל החיים — אחרת הוא ילך',
   'Footprint': 'שטח הסוכה',
   'Width': 'רוחב',
   'Depth': 'עומק',
@@ -15612,10 +15612,10 @@ SA.Levels = [
   { id: 'slats_and_lavud', title: 'Slats and Lavud', site: 'pine_forest', footprint: { w: 10, d: 10 }, formWhitelist: ['post'],
     hint: 'Only posts here. Space them under three tefachim apart and lavud will treat the gaps as solid wall.', goal: { type: 'kosher' }, cardId: 'sk_lavud' },
   { id: 'windy_canvas', title: 'The Windy Canvas Wall', site: 'beach', footprint: { w: 8, d: 8 }, familyWhitelist: ['canvas'],
-    hint: 'Canvas comes w/frame, but it still needs Tie so ordinary wind cannot open a gap. Tap the sheet and press Tie (OC 630:10).',
+    hint: 'Canvas is on a frame — tap Tie so ordinary wind cannot open a gap.',
     goal: { type: 'kosher', requireTied: true }, cardId: 'sk_ruach' },
   { id: 'the_elephant', title: 'The Elephant', site: 'zoo_yard', footprint: { w: 9, d: 9 }, grantElephant: true,
-    hint: 'Drag the elephant onto a side and it comes with its rope - a live wall has to be tied or it could walk off. Build the rest of the sukkah around it.', goal: { type: 'kosher' }, cardId: 'sk_elephant' },
+    hint: 'Put the elephant on a side — it comes tied. Build the rest of the sukkah around it.', goal: { type: 'kosher' }, cardId: 'sk_elephant' },
   { id: 'under_the_tree', title: 'Under the Tree', site: 'orchard', footprint: { w: 10, d: 10 }, lockFootprint: true,
     hint: 'Build everything else correctly. You will still see one red mark - the canopy itself is the problem, and no amount of schach fixes it.',
     goal: { type: 'onlyIssue', pasulCardId: 'sk_overhead' }, cardId: 'sk_overhead' },
@@ -15637,7 +15637,7 @@ SA.Levels = [
   { id: 'sky_high', title: 'Sky-High', site: 'cliffside', footprint: { w: 8, d: 8 },
     hint: 'Somebody set this roof at 121 tefachim - one tefach over twenty amos, and higher than any wall here could hold up. Bring it down with the size control.', goal: { type: 'kosher' }, cardId: 'sk_height' },
   { id: 'too_short', title: 'Too Short', site: 'snowy_alpine', footprint: { w: 8, d: 8 },
-    hint: 'Walls under ten tefachim are not real walls yet, however solid they look.', goal: { type: 'kosher' }, cardId: 'sk_height' },
+    hint: 'Walls under ten tefachim are not real walls yet. Raise the roof onto them.', goal: { type: 'kosher' }, cardId: 'sk_height' },
   { id: 'walls_before_schach', title: 'Walls Before Schach', site: 'waterfall', footprint: { w: 9, d: 9 },
     hint: 'Walls first, schach last. Lay the roof before the walls are standing and this one does not count, even though the sukkah would still be kosher.',
     goal: { type: 'kosher', requireBuildOrder: true }, cardId: 'sk_build_order' },
@@ -15686,10 +15686,10 @@ SA.Lang.add({
     'רק עמודים כאן. הניחו אותם במרחק של פחות משלושה טפחים, ולבוד יתייחס לרווחים כקיר מלא.',
   'A loose sheet is still standing, but it is not l\'chatchila until you tie it. Tap the sheet and press Tie.':
     'יריעה רפויה עדיין עומדת, אבל לכתחילה צריך לקשור אותה. הקישו על היריעה ולחצו על קשרו.',
-  'Canvas comes w/frame, but it still needs Tie so ordinary wind cannot open a gap. Tap the sheet and press Tie (OC 630:10).':
-    'קנבס מגיע עם מסגרת (w/frame), אך עדיין צריך קשירה כדי שרוח מצויה לא תפתח רווח. הקישו על היריעה ולחצו על קשרו (או"ח תרל:י).',
-  'Drag the elephant onto a side and it comes with its rope - a live wall has to be tied or it could walk off. Build the rest of the sukkah around it.':
-    'גררו את הפיל לאחד הצדדים והוא בא עם החבל שלו - קיר חי חייב להיות קשור, אחרת הוא עלול ללכת. בנו את שאר הסוכה סביבו.',
+  'Canvas is on a frame — tap Tie so ordinary wind cannot open a gap.':
+    'הקנבס על מסגרת — הקישו על קשרו כדי שרוח מצויה לא תפתח רווח.',
+  'Put the elephant on a side — it comes tied. Build the rest of the sukkah around it.':
+    'הניחו את הפיל על צד — הוא מגיע קשור. בנו את שאר הסוכה סביבו.',
   'Build everything else correctly. You will still see one red mark - the canopy itself is the problem, and no amount of schach fixes it.':
     'בנו את כל השאר בצורה נכונה. עדיין תראו סימן אדום אחד - החופה עצמה היא הבעיה, ואף סכך לא יתקן זאת.',
   'A sukkah floor with more sun than shade is not kosher. Cover more than half of it.':
@@ -15708,8 +15708,8 @@ SA.Lang.add({
     'תלו לפחות אשכול פרי אחד מהסכך, ואז הקישו עליו: עליו להישאר בתוך ארבעה טפחים מהגג, אחרת הוא תקרה בפני עצמו.',
   'Somebody set this roof at 121 tefachim - one tefach over twenty amos, and higher than any wall here could hold up. Bring it down with the size control.':
     'מישהו קבע את הגג במאה עשרים ואחד טפחים - טפח אחד מעל עשרים אמה, וגבוה מכל קיר שיכול להחזיק אותו כאן. הנמיכו אותו בעזרת מד הגודל.',
-  'Walls under ten tefachim are not real walls yet, however solid they look.':
-    'קירות מתחת לעשרה טפחים אינם עדיין קירות אמיתיים, כמה שיהיו יראו יציבים.',
+  'Walls under ten tefachim are not real walls yet. Raise the roof onto them.':
+    'קירות מתחת לעשרה טפחים אינם עדיין קירות. הגביהו את הגג עליהם.',
   'Walls first, schach last. Lay the roof before the walls are standing and this one does not count, even though the sukkah would still be kosher.':
     'קירות ראשונים, סכך אחרון. אם תניחו את הגג לפני שהקירות עומדים, השלב הזה לא נחשב - גם אם הסוכה עצמה תהיה כשרה.',
   'The overhang only shades a strip near the building wall - dofen akumah saves it. You just cannot sit under that strip.':
@@ -16373,7 +16373,10 @@ SA.Scene.drawTieButton = function (ctx, x, y, side, panel) {
   ctx.font = '800 13px "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif';
   var tw = ctx.measureText(label).width;
   var bw = Math.max(78, tw + 40), bh = 36;
-  var bx = x - bw / 2, by = y - bh / 2;
+  /* Keep the pill on-screen - a wall on the left edge used to clip "Tie". */
+  var bx = Math.max(8, Math.min((SA.View.w || 390) - bw - 8, x - bw / 2));
+  var by = y - bh / 2;
+  x = bx + bw / 2;
   var bounce = 5 * pulse;
   /* Arrow pointing at the button */
   ctx.fillStyle = 'rgba(240,217,138,' + (0.75 + pulse * 0.25).toFixed(2) + ')';
@@ -17400,11 +17403,12 @@ SA.UI.WALL_SIDE_LABEL = { N: 'North Wall', E: 'East Wall', S: 'South Wall', W: '
 /* Tray height and the right-edge tool strip width are published so
    SA.Camera.computeFit (p03) can keep the whole sukkah inside the space
    that is actually left over. */
-SA.UI.TRAY_H = 132;
+SA.UI.TRAY_H = 148;
 SA.UI.STRIP_W = 46;
 
-SA.UI.CLOCK_BAND_H = 58;
-SA.UI.TIE_BANNER_H = 42;
+/* Room for two hint lines under the phase bar on a phone. */
+SA.UI.CLOCK_BAND_H = 74;
+SA.UI.TIE_BANNER_H = 52;
 SA.UI.needsTieBanner = function () {
   return !!(SA.Game.state && SA.State.untiedSoftWallCount(SA.Game.state) > 0);
 };
@@ -17419,8 +17423,8 @@ SA.UI.renderBuild = function (ctx, result) {
   var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
   SA.UI.btn(ctx, safe.l + 8, safe.t + 8, 64, 40, 'BACK', 'sb_back', {});
 
-  var label = result.status === 'kosher' ? 'KOSHER' : (result.status === 'pasul' ? 'PASUL' : 'NOT KOSHER YET');
-  var pillW = Math.min(190, w - safe.l - safe.r - 150);
+  var label = SA.Lang.t(result.status === 'kosher' ? 'KOSHER' : (result.status === 'pasul' ? 'PASUL' : 'NOT KOSHER YET'));
+  var pillW = Math.min(210, w - safe.l - safe.r - 150);
   /* Kosher-flip celebration: fires exactly once on the frame the status
      transitions into 'kosher' (not on every frame it stays kosher). The reverse
      transition gets a quieter, downward version - losing kosher by dropping a
@@ -17449,7 +17453,10 @@ SA.UI.renderBuild = function (ctx, result) {
      build screen tells the player what to do in advance; they try, the sukkah
      stays red, and they can ask why whenever they want to. */
   var asking = result.status !== 'kosher';
-  SA.Draw.text(ctx, label, w / 2 + (asking ? -8 : 0), safe.t + 29, { size: 14, color: '#111', weight: '800' });
+  var pillFit = SA.Draw.fitLines(ctx, label, pillW - (asking ? 36 : 18), 1, 14, 11);
+  SA.Draw.text(ctx, pillFit.lines[0], w / 2 + (asking ? -8 : 0), safe.t + 29, {
+    size: pillFit.size, color: '#111', weight: '800'
+  });
   if (asking) {
     var qx = w / 2 + pillW / 2 - 20, qy = safe.t + 28;
     ctx.save();
@@ -17532,24 +17539,27 @@ SA.UI.renderClockBand = function (ctx, y) {
   ctx.strokeStyle = 'rgba(255,255,255,0.32)'; ctx.lineWidth = 1;
   SA.Draw.roundRect(ctx, barX, barY, barW, barH, 5); ctx.stroke();
 
-  /* The goal name sits on its own row UNDER the bar, clipped to the space left
-     of the "Sukkot!" end marker - it used to be drawn at the band's bottom edge
-     and collided with the bar. */
-  var goalY = barY + barH + 11;
-  var goalW = bw - 24 - 52;
+  /* Hint under the bar - two lines on a phone so it is not cut mid-sentence.
+     Tap opens the full line + card. */
+  var goalY = barY + barH + 10;
+  var goalW = bw - 24 - 48;
   if (SA.Game.level) {
-    /* The level's own hint, not its title. Every level carries a written goal
-       ("tie the elephant down", "the roof is too high") and none of it was ever
-       on screen - the row showed the name of the level, which tells a player
-       nothing about what to build. Tapping opens the full line as a toast with
-       the halacha card attached. */
     var goalText = SA.Game.level.hint || SA.Game.level.title;
-    var gf = SA.Draw.fitLines(ctx, SA.Lang.t(goalText), goalW - 16, 1, 11, 8.5);
-    SA.Draw.text(ctx, gf.lines[0], bx + 12, goalY, { size: gf.size, color: 'rgba(255,255,255,0.80)', align: 'left' });
-    SA.Draw.text(ctx, '?', bx + 12 + goalW - 8, goalY, { size: 11, color: 'rgba(240,217,138,0.85)', weight: '800', align: 'right' });
-    SA.Pick.addRect('sb_hint', {}, bx + 6, goalY - 10, goalW + 12, 20);
+    var gf = SA.Draw.fitLines(ctx, SA.Lang.t(goalText), goalW - 18, 2, 11, 9);
+    var gLineH = gf.size + 2;
+    for (var gl = 0; gl < gf.lines.length; gl++) {
+      SA.Draw.text(ctx, gf.lines[gl], bx + 12, goalY + gl * gLineH, {
+        size: gf.size, color: 'rgba(255,255,255,0.84)', align: 'left', weight: '600'
+      });
+    }
+    SA.Draw.text(ctx, '?', bx + 12 + goalW - 6, goalY + (gf.lines.length - 1) * gLineH * 0.5, {
+      size: 12, color: 'rgba(240,217,138,0.9)', weight: '800', align: 'right'
+    });
+    SA.Pick.addRect('sb_hint', {}, bx + 6, goalY - 8, goalW + 12, Math.max(22, gf.lines.length * gLineH + 6));
   }
-  SA.Draw.text(ctx, 'Sukkot!', bx + bw - 12, goalY, { size: 10, color: 'rgba(255,255,255,0.5)', align: 'right' });
+  SA.Draw.text(ctx, SA.Lang.t('Sukkot!'), bx + bw - 12, goalY, {
+    size: 10, color: 'rgba(255,255,255,0.5)', align: 'right'
+  });
 };
 
 /* Undo / Redo sit top-left under the HUD (and under the clock in Scramble),
@@ -17725,8 +17735,15 @@ SA.UI.renderSizeGuide = function (ctx) {
   ctx.restore();
   SA.Draw.text(ctx, '7 ' + (SA.Lang.isHe() ? 'טפ׳' : 'tef'), gx + scaleLen + 8, y,
     { size: 10, color: 'rgba(255,255,255,0.88)', align: 'left', shadow: true });
-  SA.Draw.text(ctx, SA.Shiur.formatBooth(st.footprint.w, st.footprint.d, st.roofHeight),
-    w / 2, y, { size: 11, color: 'rgba(255,255,255,0.92)', weight: '600', shadow: true });
+  var booth = SA.Shiur.formatBooth(st.footprint.w, st.footprint.d, st.roofHeight);
+  if (w < 400) {
+    /* Phone: tefachim only - the imperial/metric triple runs into the strip.
+       LRM keeps the digits left-to-right next to Hebrew טפ׳. */
+    var teShort = Math.round(st.footprint.w) + '\u00d7' + Math.round(st.footprint.d) + '\u00d7' +
+      Math.round(st.roofHeight);
+    booth = SA.Lang.isHe() ? ('\u200E' + teShort + ' טפ׳') : (teShort + ' tef');
+  }
+  SA.Draw.text(ctx, booth, w / 2, y, { size: 11, color: 'rgba(255,255,255,0.92)', weight: '600', shadow: true });
 };
 
 /* ---------------------------------------------- 17e2. THE TRAY */
@@ -17785,7 +17802,7 @@ SA.UI.renderTray = function (ctx, result) {
   }
 
   var list = SA.Pile.trayPieces();
-  var gap = 6, n = SA.Pile.VISIBLE;
+  var gap = 6, n = SA.Pile.visibleCount();
   var cardW = (hw - gap * (n - 1)) / n;
   var cardY = trayY + hh + 6, cardH = SA.UI.TRAY_H - hh - 16;
   for (var i = 0; i < list.length; i++) {
@@ -17831,43 +17848,41 @@ SA.UI.renderDragGhost = function (ctx) {
    ties the first untied piece - same as the glowing Tie on the wall. */
 SA.UI.tieBannerCopy = function () {
   var u = SA.State.firstUntiedNeedingTie(SA.Game.state);
-  if (!u || !u.entry) {
-    return 'Tap the glowing Tie on that wall — it does not count until you do';
-  }
-  if (u.entry.lavudRopes) {
-    return 'Tap Tie Tightly on that rope wall — it does not count until you do';
-  }
-  if (u.entry.matKind === 'animal') {
-    return 'Tap Tie on the animal — or it can walk away';
-  }
-  return 'Tap the glowing Tie on that wall — it does not count until you do';
+  if (!u || !u.entry) return 'Tap Tie on that wall — it does not count yet';
+  if (u.entry.lavudRopes) return 'Tap Tie Tightly on that rope wall';
+  if (u.entry.matKind === 'animal') return 'Tap Tie on the animal — or it walks away';
+  return 'Tap Tie on that wall — it does not count yet';
 };
 
 SA.UI.renderTieBanner = function (ctx, y) {
   var w = SA.View.w, safe = SA.View.safe;
   var bx = safe.l + 8, bw = w - safe.l - safe.r - 16, bh = SA.UI.TIE_BANNER_H - 6;
   var pulse = 0.5 + 0.5 * Math.sin(SA.FX.now() / 320);
+  var he = SA.Lang.isHe();
   var text = SA.Lang.t(SA.UI.tieBannerCopy());
   SA.Draw.roundRect(ctx, bx, y, bw, bh, 12);
   ctx.fillStyle = 'rgba(48, 34, 12, ' + (0.88 + pulse * 0.08).toFixed(2) + ')';
   ctx.fill();
   ctx.strokeStyle = 'rgba(240,217,138,' + (0.55 + pulse * 0.4).toFixed(2) + ')';
   ctx.lineWidth = 1.6; ctx.stroke();
-  /* Small Tie chip matching the wall button */
   var chip = SA.Lang.t('Tie');
   ctx.font = '800 11px "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif';
   var cw = Math.max(40, ctx.measureText(chip).width + 16);
-  SA.Draw.roundRect(ctx, bx + 10, y + (bh - 24) / 2, cw, 24, 12);
+  var chipX = he ? (bx + bw - 10 - cw) : (bx + 10);
+  SA.Draw.roundRect(ctx, chipX, y + (bh - 26) / 2, cw, 26, 13);
   ctx.fillStyle = 'rgba(240,217,138,' + (0.88 + pulse * 0.12).toFixed(2) + ')';
   ctx.fill();
-  SA.Draw.text(ctx, chip, bx + 10 + cw / 2, y + bh / 2 + 0.5, {
+  SA.Draw.text(ctx, chip, chipX + cw / 2, y + bh / 2 + 0.5, {
     size: 11, color: '#2a1c0c', weight: '800'
   });
-  var lines = SA.UI.wrapText(ctx, text, bw - cw - 36, 12);
-  var ty = y + bh / 2 - (lines.length - 1) * 7;
-  for (var i = 0; i < lines.length && i < 2; i++) {
-    SA.Draw.text(ctx, lines[i], bx + 18 + cw, ty + i * 14, {
-      size: 12, color: 'rgba(255,255,255,0.95)', align: 'left', weight: '700'
+  var textW = bw - cw - 34;
+  var lines = SA.UI.wrapText(ctx, text, textW, 12);
+  if (lines.length > 2) lines = lines.slice(0, 2);
+  var ty = y + bh / 2 - (lines.length - 1) * 7.5;
+  var textX = he ? (bx + 12) : (bx + 18 + cw);
+  for (var i = 0; i < lines.length; i++) {
+    SA.Draw.text(ctx, lines[i], he ? (bx + bw - 18 - cw) : textX, ty + i * 15, {
+      size: 12, color: 'rgba(255,255,255,0.95)', align: he ? 'right' : 'left', weight: '700'
     });
   }
   SA.Pick.addRect('sb_tie_banner', {}, bx, y, bw, bh);
@@ -20164,6 +20179,10 @@ SA.Pile = {
 
 /* How many cards are on screen at once, in either mode. The rest are a page
    turn away (SA.Pile.visible / shelfVisible). */
+/* Five cards on a tablet; four on a phone so names stay readable. */
+SA.Pile.visibleCount = function () {
+  return (SA.View && SA.View.w < 420) ? 4 : 5;
+};
 SA.Pile.VISIBLE = 5;
 
 /* Tier frame colors: scrap grey, workshop blue, prize gold. */
@@ -20625,11 +20644,12 @@ SA.Pile.roll = function (cfg, state, seed) {
    the player for looking at their own stuff. */
 SA.Pile.visible = function () {
   SA.Pile.clampPage();
-  var start = SA.Pile.page * SA.Pile.VISIBLE;
-  return SA.Pile.pieces.slice(start, start + SA.Pile.VISIBLE);
+  var vis = SA.Pile.visibleCount();
+  var start = SA.Pile.page * vis;
+  return SA.Pile.pieces.slice(start, start + vis);
 };
 SA.Pile.heapPages = function () {
-  return Math.max(1, Math.ceil(SA.Pile.pieces.length / SA.Pile.VISIBLE));
+  return Math.max(1, Math.ceil(SA.Pile.pieces.length / SA.Pile.visibleCount()));
 };
 /* Pieces get spent, so the page the player is standing on can vanish under
    them - land on the last page that still has cards rather than on a blank. */
@@ -20637,7 +20657,7 @@ SA.Pile.clampPage = function () {
   SA.Pile.page = Math.max(0, Math.min(SA.Pile.heapPages() - 1, SA.Pile.page));
 };
 SA.Pile.remaining = function () {
-  return Math.max(0, SA.Pile.pieces.length - SA.Pile.VISIBLE);
+  return Math.max(0, SA.Pile.pieces.length - SA.Pile.visibleCount());
 };
 SA.Pile.byUid = function (uid) {
   for (var i = 0; i < SA.Pile.pieces.length; i++) if (SA.Pile.pieces[i].uid === uid) return SA.Pile.pieces[i];
@@ -21036,12 +21056,13 @@ SA.Pile.refreshShelf = function () {
 };
 
 SA.Pile.shelfPages = function () {
-  return Math.max(1, Math.ceil(SA.Pile.shelf.length / SA.Pile.VISIBLE));
+  return Math.max(1, Math.ceil(SA.Pile.shelf.length / SA.Pile.visibleCount()));
 };
 
 SA.Pile.shelfVisible = function () {
-  var start = SA.Pile.shelfPage * SA.Pile.VISIBLE;
-  return SA.Pile.shelf.slice(start, start + SA.Pile.VISIBLE);
+  var vis = SA.Pile.visibleCount();
+  var start = SA.Pile.shelfPage * vis;
+  return SA.Pile.shelf.slice(start, start + vis);
 };
 
 /* Whatever the current mode is showing in the tray. One accessor so the
@@ -21225,11 +21246,22 @@ SA.Pile.hitPreview = function (x, y, state) {
 };
 
 /* ---------------------------------------------- 23d. PIECE CARDS */
+/* Compact tray name - finish + "w/frame" bloat the phone cards into "...".
+   Full name stays on the inspector bar after you tap a placed panel. */
 SA.Pile.label = function (piece) {
   var entry = SA.Pile.entryOf(piece);
   if (!entry) return '';
-  if (entry.family && entry.form && entry.finish) return SA.Mat.wallName(entry);
-  return SA.Lang.t(entry.en);
+  if (entry.matKind === 'animal' || entry.isJunkFlavor || !entry.family || !entry.form) {
+    return SA.Lang.t(entry.en || entry.name || entry.id);
+  }
+  if (SA.Lang.isHe()) {
+    var dupeHe = entry.family.he.indexOf(entry.form.he) === 0 ||
+      entry.family.he.indexOf(' ' + entry.form.he) >= 0;
+    return (dupeHe ? '' : entry.form.he + ' ') + entry.family.he;
+  }
+  var fam = entry.family.en, fm = entry.form.en;
+  var dupe = fam.length > fm.length && fam.slice(-fm.length).toLowerCase() === fm.toLowerCase();
+  return fam + (dupe ? '' : ' ' + fm);
 };
 
 /* "how big is this thing" at a glance: wall pieces show their tefach width,
@@ -21324,7 +21356,7 @@ SA.Pile.drawArt = function (ctx, piece, x, y, w, h) {
   ctx.restore();
 };
 
-SA.Pile.LABEL_H = 24;
+SA.Pile.LABEL_H = 32;
 
 SA.Pile.drawCard = function (ctx, piece, x, y, w, h, opts) {
   opts = opts || {};
@@ -21389,7 +21421,7 @@ SA.Pile.drawCard = function (ctx, piece, x, y, w, h, opts) {
      and ellipsized if a material is genuinely long ("Whitewashed Corrugated
      Tin Panel") - a card label must never run into the card beside it. */
   var lbl = SA.Pile.label(piece);
-  var fit = SA.Draw.fitLines(ctx, lbl, w - 8, 2, 9.5, 6.5);
+  var fit = SA.Draw.fitLines(ctx, lbl, w - 8, 3, 10, 7);
   var band = y + h - SA.Pile.LABEL_H;
   ctx.save();
   SA.Draw.roundRect(ctx, x + 1.5, band - 1, w - 3, SA.Pile.LABEL_H - 0.5, 8);
