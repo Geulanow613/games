@@ -3234,8 +3234,8 @@ var GAMES = [
   { id:'kitchen', name:'Kitchen Match',  tag:'Make a kosher plate',       icon:'leaf',  color:'#5ee0c0', hidden: true },
   { id:'matzah',  name:'Matzah Havoc',   tag:'Twelve-route dash',         icon:'truck', color:'#ff8a6b' },
   { id:'tzedaka', name:'Tzedaka Blast',  tag:'Into their hands',          icon:'coin',  color:'#c9adff' },
-  /* own engine, same as Camp Kosh above - a builder, not an arcade dash */
-  { id:'sukkah',  name:'Sukkah Scramble', tag:'Grab some stuff. Beat the clock. Build it kosher.', icon:'sukkah', color:'#d1975a', external: true }
+  /* hidden from the menu for now — code kept; may bring it back later */
+  { id:'sukkah',  name:'Sukkah Scramble', tag:'Grab some stuff. Beat the clock. Build it kosher.', icon:'sukkah', color:'#d1975a', external: true, hidden: true }
 ];
 /* what the Play tab grid actually shows */
 var VISIBLE_GAMES = GAMES.filter(function (g) { return !g.hidden; });
@@ -3320,7 +3320,7 @@ var Screens = {
         size: 64, color: C.cream, align: 'center', weight: '900',
         stroke: 'rgba(0,0,0,.6)', strokeW: 8, shadow: 'rgba(120,200,255,.4)', shadowBlur: 24
       });
-      Draw.text(ctx, 'Eight arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
+      Draw.text(ctx, 'Six arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
         size: 22, color: 'rgba(255,255,255,.72)', align: 'center', weight: '600'
       });
 
