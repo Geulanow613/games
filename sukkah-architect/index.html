@@ -16346,8 +16346,8 @@ SA.Levels = [
     hint: 'Dashed square = 7×7 minimum. Two walls that meet, a tefach third near the corner, then shade over half the roof.', goal: { type: 'kosher' }, cardId: 'sk_two_walls' },
   { id: 'seven_by_seven', title: 'The 7x7 Spot', site: 'riverbank', footprint: { w: 7, d: 7 }, lockFootprint: false,
     hint: 'The dashed square is the floor minimum. Shrink the pad below seven by seven tefachim and it stops being a sukkah - keep at least that mark.', goal: { type: 'kosher' }, cardId: 'sk_floor' },
-  { id: 'slats_and_lavud', title: 'Slats and Lavud', site: 'pine_forest', footprint: { w: 10, d: 10 }, formWhitelist: ['post'],
-    hint: 'Only posts here. Space them under three tefachim apart and lavud will treat the gaps as solid wall.', goal: { type: 'kosher' }, cardId: 'sk_lavud' },
+  { id: 'slats_and_lavud', title: 'Slats and Lavud', site: 'pine_forest', footprint: { w: 10, d: 10 },
+    hint: 'Build with the full walls. Space any leftover posts under three tefachim apart — lavud treats those gaps as solid.', goal: { type: 'kosher' }, cardId: 'sk_lavud' },
   { id: 'windy_canvas', title: 'The Windy Canvas Wall', site: 'beach', footprint: { w: 8, d: 8 }, familyWhitelist: ['canvas'],
     hint: 'Canvas is on a frame — tap Tie so ordinary wind cannot open a gap.',
     goal: { type: 'kosher', requireTied: true }, cardId: 'sk_ruach' },
@@ -16423,6 +16423,8 @@ SA.Lang.add({
     'הרצפה הזו קטנה מכדי להיות סוכה בכלל. גררו את השטח עד לפחות שבעה על שבעה טפחים.',
   'Only posts here. Space them under three tefachim apart and lavud will treat the gaps as solid wall.':
     'רק עמודים כאן. הניחו אותם במרחק של פחות משלושה טפחים, ולבוד יתייחס לרווחים כקיר מלא.',
+  'Build with the full walls. Space any leftover posts under three tefachim apart — lavud treats those gaps as solid.':
+    'בנו עם הקירות המלאים. הניחו עמודים עודפים במרחק של פחות משלושה טפחים — לבוד מתייחס לרווחים האלה כמלאים.',
   'A loose sheet is still standing, but it is not l\'chatchila until you tie it. Tap the sheet and press Tie.':
     'יריעה רפויה עדיין עומדת, אבל לכתחילה צריך לקשור אותה. הקישו על היריעה ולחצו על קשרו.',
   'Canvas is on a frame — tap Tie so ordinary wind cannot open a gap.':
@@ -21420,6 +21422,13 @@ SA.Pile.isPostWall = function (entry, opts) {
   return !!(entry.form && entry.form.id === 'post');
 };
 
+/* One-tefach catalog sticks (post / slat). Never the main backyard kit. */
+SA.Pile.isSkinnyWall = function (entry) {
+  if (!entry || entry.matKind === 'animal' || entry.lavudRopes) return false;
+  if (entry.form && (entry.form.id === 'post' || entry.form.id === 'slat')) return true;
+  return !!(entry.form && (entry.form.w || 0) <= 1);
+};
+
 /* Longest footprint side — stamp this on span so a board covers N/S or E/W.
    previewFor / place then clamp to SA.State.wallLength for the drop side. */
 SA.Pile.sideSpanForState = function (state) {
@@ -21509,13 +21518,12 @@ SA.Pile.roll = function (cfg, state, seed) {
      tiered pools instead of the flat catalog keeps the tier weighting
      meaningful inside the restriction. */
   var wallPool = pools.wall;
-  if (cfg.familyWhitelist || cfg.formWhitelist) {
+  if (cfg.familyWhitelist) {
     wallPool = [[], [], []];
     for (var t0 = 0; t0 < 3; t0++) {
       for (var i0 = 0; i0 < pools.wall[t0].length; i0++) {
         var cand = pools.wall[t0][i0];
-        if (cfg.familyWhitelist && cfg.familyWhitelist.indexOf(cand.family.id) < 0) continue;
-        if (cfg.formWhitelist && cfg.formWhitelist.indexOf(cand.form.id) < 0) continue;
+        if (!cand.family || cfg.familyWhitelist.indexOf(cand.family.id) < 0) continue;
         wallPool[t0].push(cand);
       }
     }
@@ -21529,39 +21537,53 @@ SA.Pile.roll = function (cfg, state, seed) {
   var cutH = SA.Pile.wallCutHeight(state);
   var sideSpan = SA.Pile.sideSpanForState(state);
   var wallHave = 0, guard = 0;
-  /* Lavud / posts-only: enough one-tefach posts to line two sides under three
-     tefachim apart - never inflate them into 12-wide planks. */
-  var postsOnly = !!(cfg.formWhitelist && cfg.formWhitelist.indexOf('post') >= 0);
-  var wallNeed;
-  if (postsOnly) {
-    wallNeed = Math.ceil((state.footprint.w + state.footprint.d) / 2) + 10;
-  } else {
-    /* ~3 full sides (kosher booth) plus an optional 4th. Count boards. */
-    wallNeed = Math.max(3, Math.min(4, Math.ceil(3 * (cfg.wallSlack || 1.2))));
-  }
-  while (wallHave < wallNeed && guard++ < (postsOnly ? 80 : 16)) {
+  /* ~3 full sides (kosher booth) plus an optional 4th. Never a crate of
+     one-tefach posts - that used to fill 17 tray pages on the backyard pad. */
+  var wallNeed = Math.max(3, Math.min(4, Math.ceil(3 * (cfg.wallSlack || 1.2))));
+  while (wallHave < wallNeed && guard++ < 16) {
     var wt = saPileTier(rnd, weights, wallPool);
     var pickList = wallPool[wt] || [];
-    if (!postsOnly && pickList.length) {
-      var noPost = [];
-      for (var np = 0; np < pickList.length; np++) {
-        if (pickList[np].form && pickList[np].form.id === 'post') continue;
-        noPost.push(pickList[np]);
-      }
-      if (noPost.length) pickList = noPost;
+    var fullOnly = [];
+    for (var np = 0; np < pickList.length; np++) {
+      if (SA.Pile.isSkinnyWall(pickList[np])) continue;
+      fullOnly.push(pickList[np]);
     }
+    if (fullOnly.length) pickList = fullOnly;
     var wEntry = saPilePick(rnd, pickList);
     if (!wEntry) break;
+    if (SA.Pile.isSkinnyWall(wEntry)) break;
     var wp = SA.Pile.makeWallPiece(wEntry, {
-      h: cutH, span: sideSpan, state: state, postsOnly: postsOnly
+      h: cutH, span: sideSpan, state: state
     });
-    if (postsOnly || SA.Pile.isPostWall(wEntry)) {
-      wp.span = 1;
-      wp.fullSide = false;
-    }
+    wp.span = sideSpan;
+    wp.fullSide = true;
     SA.Pile.clampWallSpan(wp, wEntry);
     out.push(wp);
-    wallHave += postsOnly ? wp.span : 1;
+    wallHave += 1;
+  }
+
+  /* A few leftover posts for the lavud lesson - never enough to line the pad. */
+  var extraPosts = Math.max(0, Math.min(8, cfg.extraPosts || 0));
+  var postPool = [];
+  for (var pt = 0; pt < 3; pt++) {
+    for (var pi = 0; pi < (pools.wall[pt] || []).length; pi++) {
+      if (SA.Pile.isPostWall(pools.wall[pt][pi])) postPool.push(pools.wall[pt][pi]);
+    }
+  }
+  for (var ep = 0; ep < extraPosts && postPool.length; ep++) {
+    var pEntry = saPilePick(rnd, postPool);
+    if (!pEntry) break;
+    var pp = SA.Pile.makeWallPiece(pEntry, { h: cutH, postsOnly: true, state: state });
+    pp.span = 1;
+    pp.fullSide = false;
+    out.push(pp);
+  }
+
+  var forcedWalls = cfg.forcedWalls || [];
+  for (var fw = 0; fw < forcedWalls.length; fw++) {
+    var fwEntry = SA.Mat.byId[forcedWalls[fw]];
+    if (!fwEntry) continue;
+    out.push(SA.Pile.makeWallPiece(fwEntry, { h: cutH, span: sideSpan, state: state }));
   }
 
   /* Frame: a few full-length wooden beams (count boards, not tefachim).
@@ -22710,8 +22732,12 @@ SA.Scramble.fitRoofToWalls = function (st) {
    further in you are. Per-level overrides below are only for the runs whose
    whole lesson needs a specific heap. */
 SA.Scramble.OVERRIDE = {
-  /* Posts only, so the lesson has to be solved with lavud spacing. */
-  slats_and_lavud: { formWhitelist: ['post'], familyWhitelist: null, wallSlack: 2.2 },
+  /* Full-side boards to finish the booth, plus a few posts and a lavud
+     rope wall so the gap-as-solid lesson still has something to place. */
+  slats_and_lavud: {
+    extraPosts: 6,
+    forcedWalls: ['wall_junk_lavud_rope_frame_full_natural']
+  },
   /* Sheets that blow around until they are tied. Windy Canvas does NOT
      auto-tie - that level is "tap Tie yourself". */
   windy_canvas: { familyWhitelist: ['canvas'] },
