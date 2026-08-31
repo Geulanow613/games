@@ -16343,51 +16343,102 @@ SA.Lang.add({
    problem is that one, irreducible cause". */
 SA.Levels = [
   { id: 'min_kosher', title: 'The Minimum Kosher Sukkah', site: 'meadow', footprint: { w: 7, d: 7 }, lockFootprint: true,
-    hint: 'Dashed square = 7×7 minimum. Two walls that meet, a tefach third near the corner, then shade over half the roof.', goal: { type: 'kosher' }, cardId: 'sk_two_walls' },
+    hint: 'Dashed square = 7×7 minimum. Three walls (they need not touch if lavud joins gaps), kosher schach under open sky, more shade than sun.', goal: { type: 'kosher' }, cardId: 'sk_two_walls',
+    brief: { have: 'ordinary full-size walls and schach', teach: 'what a kosher sukkah is — three walls, kosher schach, under open sky',
+      do: 'Put up three walls (they need not touch if lavud joins the gaps), then kosher schach under open sky so more than half the floor is shade.' } },
   { id: 'seven_by_seven', title: 'The 7x7 Spot', site: 'riverbank', footprint: { w: 7, d: 7 }, lockFootprint: false,
-    hint: 'The dashed square is the floor minimum. Shrink the pad below seven by seven tefachim and it stops being a sukkah - keep at least that mark.', goal: { type: 'kosher' }, cardId: 'sk_floor' },
+    hint: 'The dashed square is the floor minimum. Shrink the pad below seven by seven tefachim and it stops being a sukkah - keep at least that mark.', goal: { type: 'kosher' }, cardId: 'sk_floor',
+    brief: { have: 'a dashed 7×7 square on the floor', teach: 'the smallest a sukkah floor can be',
+      do: 'Keep the pad at least as big as that square, then build walls and schach as usual to make the sukkah kosher.' } },
   { id: 'slats_and_lavud', title: 'Slats and Lavud', site: 'pine_forest', footprint: { w: 10, d: 10 },
-    hint: 'Build with the full walls. Space any leftover posts under three tefachim apart — lavud treats those gaps as solid.', goal: { type: 'kosher' }, cardId: 'sk_lavud' },
+    hint: 'Build with the full walls. Space any leftover posts under three tefachim apart — lavud treats those gaps as solid.', goal: { type: 'kosher' }, cardId: 'sk_lavud',
+    brief: { have: 'a few leftover posts and a rope wall', teach: 'lavud — a gap under three tefachim counts as solid wall',
+      do: 'Build with the full-size walls. If you place posts, keep the gaps under three tefachim to make the sukkah kosher.' } },
   { id: 'windy_canvas', title: 'The Windy Canvas Wall', site: 'beach', footprint: { w: 8, d: 8 }, familyWhitelist: ['canvas'],
     hint: 'Canvas is on a frame — tap Tie so ordinary wind cannot open a gap.',
-    goal: { type: 'kosher', requireTied: true }, cardId: 'sk_ruach' },
+    goal: { type: 'kosher', requireTied: true }, cardId: 'sk_ruach',
+    brief: { have: 'canvas sheets on frames', teach: 'ruach metzuya — a fabric wall only counts if ordinary wind cannot open a gap',
+      do: 'Put the sheets up, then tap each one and press Tie to make the sukkah kosher.' } },
   { id: 'the_elephant', title: 'The Elephant', site: 'zoo_yard', footprint: { w: 9, d: 9 }, grantElephant: true,
-    hint: 'Put the elephant on a side — it comes tied. Build the rest of the sukkah around it.', goal: { type: 'kosher' }, cardId: 'sk_elephant' },
+    hint: 'Put the elephant on a side — it comes tied. Build the rest of the sukkah around it.', goal: { type: 'kosher' }, cardId: 'sk_elephant',
+    brief: { have: 'an elephant', teach: 'a live animal as a wall — it must be tied so it cannot walk away',
+      do: 'Drop the elephant on a side (it comes tied), then finish the other walls and the roof to make the sukkah kosher.' } },
   { id: 'under_the_tree', title: 'Under the Tree', site: 'orchard', footprint: { w: 10, d: 10 }, lockFootprint: true,
     hint: 'Build everything else correctly. You will still see one red mark - the canopy itself is the problem, and no amount of schach fixes it.',
-    goal: { type: 'onlyIssue', pasulCardId: 'sk_overhead' }, cardId: 'sk_overhead' },
+    goal: { type: 'onlyIssue', pasulCardId: 'sk_overhead' }, cardId: 'sk_overhead',
+    brief: { have: 'a tree over the pad', teach: 'schach under a tree — covering must open straight to the sky, and a tree that shades more than it lets sun through cannot be fixed',
+      do: 'Build a kosher booth anyway. You cannot fix the tree. That leftover red mark is the lesson.' } },
   { id: 'too_much_sun', title: 'Too Much Sun', site: 'desert_island', footprint: { w: 12, d: 8 },
-    hint: 'A sukkah floor with more sun than shade is not kosher. Cover more than half of it.', goal: { type: 'kosher' }, cardId: 'sk_shade' },
+    hint: 'A sukkah floor with more sun than shade is not kosher. Cover more than half of it.', goal: { type: 'kosher' }, cardId: 'sk_shade',
+    brief: { have: 'thin bamboo poles that do not shade enough by themselves', teach: 'tzilata merubah — more shade than sun on the floor',
+      do: 'Pile on enough covering so more than half the floor is shade to make the sukkah kosher.' } },
   { id: 'rema_thin_schach', title: "The Rema's Thin Schach", site: 'kosel_plaza', footprint: { w: 9, d: 9 },
-    hint: 'Thin schach that lets the sky show through is completely kosher, even l\'chatchila preferred.', goal: { type: 'kosher' }, cardId: 'sk_schach_thickness' },
+    hint: 'Thin schach that lets the sky show through is completely kosher, even l\'chatchila preferred.', goal: { type: 'kosher' }, cardId: 'sk_schach_thickness',
+    brief: { have: 'thin mats that let the sky show through', teach: 'thin schach is still kosher — and preferred',
+      do: 'Use those mats as the roof to make the sukkah kosher. You do not need to pile it thick.' } },
   { id: 'boards_too_wide', title: 'Boards Too Wide', site: 'brownstone_yard', footprint: { w: 9, d: 9 },
-    hint: 'Wide wood boards look like schach but read as a house ceiling. Swap them for something narrower.', goal: { type: 'kosher' }, cardId: 'sk_gezeiras_tikrah' },
+    hint: 'Wide wood boards look like schach but read as a house ceiling. Swap them for something narrower.', goal: { type: 'kosher' }, cardId: 'sk_gezeiras_tikrah',
+    brief: { have: 'wide wood boards that look like schach', teach: 'gezeiras tikrah — boards four tefachim wide read as a house ceiling, so they cannot be the roof',
+      do: 'Do not use those boards as schach. Cover with the narrow plants or mats instead to make the sukkah kosher.' } },
   { id: 'ladder_in_middle', title: 'The Ladder in the Middle', site: 'driveway', footprint: { w: 9, d: 9 },
-    hint: 'An old ladder is a finished tool, not roofing. Lay it across as a slat under kosher schach - wood can hold covering, but it cannot be covering.', goal: { type: 'kosher' }, cardId: 'sk_schach_conditions' },
+    hint: 'An old ladder is a finished tool, not roofing. Lay it across as a slat under kosher schach - wood can hold covering, but it cannot be covering.', goal: { type: 'kosher' }, cardId: 'sk_schach_conditions',
+    brief: { have: 'an old ladder and a door', teach: 'a finished tool cannot be schach — it is a vessel — but wood can hold covering as a slat',
+      do: 'Lay the ladder under kosher schach, or skip it. Roof with real plant covering to make the sukkah kosher.' } },
   { id: 'dofen_akumah_lvl', title: 'Dofen Akumah', site: 'courtyard', footprint: { w: 10, d: 10 },
-    hint: 'A little bit of invalid schach right at the wall does not fail the sukkah - halacha treats the wall as bending to meet it.', goal: { type: 'kosher' }, cardId: 'sk_dofen_akumah' },
+    hint: 'A little bit of invalid schach right at the wall does not fail the sukkah - halacha treats the wall as bending to meet it.', goal: { type: 'kosher' }, cardId: 'sk_dofen_akumah',
+    brief: { have: 'a strip of invalid covering next to a wall', teach: 'dofen akumah — the wall is treated as bending under that strip, so a little pasul schach at the wall does not fail the sukkah',
+      do: 'Build the rest kosher. Do not sit under that strip if it is four tefachim or wider. That makes the sukkah kosher.' } },
   { id: 'metal_poles', title: 'Metal Poles', site: 'lighthouse_point', footprint: { w: 9, d: 9 },
-    hint: 'Metal never grew from the ground, so it can never be schach. It makes a fine wall - roof this one with something that grew.', goal: { type: 'kosher' }, cardId: 'sk_maamid' },
+    hint: 'Metal never grew from the ground, so it can never be schach. It makes a fine wall - roof this one with something that grew.', goal: { type: 'kosher' }, cardId: 'sk_maamid',
+    brief: { have: 'metal poles and sheet metal', teach: 'maamid — metal never grew from the ground, so it can never be schach, only a frame with wood under the covering',
+      do: 'Use metal as a wall or a frame if you want. Put wood on the pipes, then real plant schach on the wood to make the sukkah kosher.' } },
   { id: 'fruit_too_low', title: 'Fruit Hanging Too Low', site: 'vineyard', footprint: { w: 9, d: 9 },
     hint: 'Hang at least one bunch of fruit from the schach, then tap it: it has to stay within four tefachim of the roof, or it is a ceiling of its own.',
-    goal: { type: 'kosher', hangingDecor: 1 }, cardId: 'sk_decor' },
+    goal: { type: 'kosher', hangingDecor: 1 }, cardId: 'sk_decor',
+    brief: { have: 'hanging fruit', teach: 'hanging decorations — they must stay within four tefachim of the schach, or a wide one becomes its own ceiling',
+      do: 'Hang a bunch from the roof, then tap it so it stays high enough to make the sukkah kosher.' } },
   { id: 'sky_high', title: 'Sky-High', site: 'cliffside', footprint: { w: 8, d: 8 },
-    hint: 'Somebody set this roof at 121 tefachim - one tefach over twenty amos, and higher than any wall here could hold up. Bring it down with the size control.', goal: { type: 'kosher' }, cardId: 'sk_height' },
+    hint: 'Somebody set this roof at 121 tefachim - one tefach over twenty amos, and higher than any wall here could hold up. Bring it down with the size control.', goal: { type: 'kosher' }, cardId: 'sk_height',
+    brief: { have: 'a roof already set at 121 tefachim', teach: 'a sukkah may not be taller than twenty amos (120 tefachim)',
+      do: 'Open Size and bring the roof down under 120 tefachim, then build as usual to make the sukkah kosher.' } },
   { id: 'too_short', title: 'Too Short', site: 'snowy_alpine', footprint: { w: 8, d: 8 },
-    hint: 'Walls under ten tefachim are not real walls yet. Raise the roof onto them.', goal: { type: 'kosher' }, cardId: 'sk_height' },
+    hint: 'Walls under ten tefachim are not real walls yet. Raise the roof onto them.', goal: { type: 'kosher' }, cardId: 'sk_height',
+    brief: { have: 'a roof that starts under ten tefachim', teach: 'the inside must be at least ten tefachim tall or the walls do not count',
+      do: 'Open Size and raise the roof onto the walls (at least ten tefachim) to make the sukkah kosher.' } },
   { id: 'walls_before_schach', title: 'Walls Before Schach', site: 'waterfall', footprint: { w: 9, d: 9 },
     hint: 'Walls first, schach last. Lay the roof before the walls are standing and this one does not count, even though the sukkah would still be kosher.',
-    goal: { type: 'kosher', requireBuildOrder: true }, cardId: 'sk_build_order' },
+    goal: { type: 'kosher', requireBuildOrder: true }, cardId: 'sk_build_order',
+    brief: { have: 'the usual walls and schach', teach: 'ta\'aseh v\'lo min he\'asuy — you must make the sukkah, walls first, then lay the covering',
+      do: 'Put the walls up before you lay the roof to make the sukkah kosher.' } },
   { id: 'the_balcony', title: 'The Balcony', site: 'balcony', footprint: { w: 10, d: 10 }, lockFootprint: true,
-    hint: 'The overhang only shades a strip near the building wall - dofen akumah saves it. You just cannot sit under that strip.', goal: { type: 'kosher' }, cardId: 'sk_overhead' },
+    hint: 'The overhang only shades a strip near the building wall - dofen akumah saves it. You just cannot sit under that strip.', goal: { type: 'kosher' }, cardId: 'sk_overhead',
+    brief: { have: 'a balcony overhang shading a strip', teach: 'dofen akumah can save a strip next to the building wall, but you may not sit under that strip',
+      do: 'Build under the open sky. Leave the overhang strip alone to make the sukkah kosher.' } },
   { id: 'sukkah_on_a_boat', title: 'A Sukkah on a Boat', site: 'harbour', footprint: { w: 9, d: 9 },
-    hint: 'Halacha does not care what is underneath a sukkah - build it exactly like any other.', goal: { type: 'kosher' }, cardId: 'sk_fun_facts' },
+    hint: 'Halacha does not care what is underneath a sukkah - build it exactly like any other.', goal: { type: 'kosher' }, cardId: 'sk_fun_facts',
+    brief: { have: 'a boat under your feet', teach: 'halacha does not care what is underneath — a sukkah on a boat is the same as one on land',
+      do: 'Build the same three walls and schach as any other sukkah to make it kosher.' } },
   { id: 'parutz_merubeh_lvl', title: 'Parutz Merubeh', site: 'sheep_meadow', footprint: { w: 10, d: 10 }, familyWhitelist: ['picket_fence', 'chain_link', 'snow_fence'],
     hint: 'A wall full of gaps is still kosher, even with more open space than standing wall. Use the fences - the holes are the lesson.',
-    goal: { type: 'kosher' }, cardId: 'sk_parutz_merubeh' },
+    goal: { type: 'kosher' }, cardId: 'sk_parutz_merubeh',
+    brief: { have: 'fences full of holes', teach: 'parutz merubeh — a wall can have more open than standing and still count',
+      do: 'Use the fences as your walls, then put schach on top to make the sukkah kosher.' } },
   { id: 'graded_free_build', title: 'The Graded Free Build', site: 'tropical_lagoon', footprint: { w: 12, d: 12 },
-    hint: 'Use the nicest pieces of the ladder - full-side walls and one mehadrin roof. Build a sukkah you would actually want to sit in.', goal: { type: 'kosher' }, cardId: 'sk_fun_facts' }
+    hint: 'Use the nicest pieces of the ladder - full-side walls and one mehadrin roof. Build a sukkah you would actually want to sit in.', goal: { type: 'kosher' }, cardId: 'sk_fun_facts',
+    brief: { have: 'the nicest walls and schach from the ladder', teach: 'a kosher sukkah you would actually sit in',
+      do: 'Put up full walls and a real roof to make the sukkah kosher. Make it nice.' } }
 ];
+
+SA.Levels.briefOf = function (level) {
+  if (!level || !level.brief) return null;
+  return {
+    have: SA.Lang.fmt('This level you have {have} to teach about {teach}.', {
+      have: SA.Lang.t(level.brief.have),
+      teach: SA.Lang.t(level.brief.teach)
+    }),
+    do: SA.Lang.t(level.brief.do)
+  };
+};
 SA.Levels.byId = {};
 for (var saLvlI = 0; saLvlI < SA.Levels.length; saLvlI++) SA.Levels.byId[SA.Levels[saLvlI].id] = SA.Levels[saLvlI];
 SA.Lang.add({
@@ -16411,8 +16462,8 @@ SA.Lang.add({
   'A Sukkah on a Boat': 'סוכה על סירה',
   'Parutz Merubeh': 'פרוץ מרובה',
   'The Graded Free Build': 'הבנייה החופשית המסכמת',
-  'Dashed square = 7×7 minimum. Two walls that meet, a tefach third near the corner, then shade over half the roof.':
-    'הריבוע המקווקו הוא מינימום שבעה על שבעה. שני קירות הנפגשים, קיר שלישי בטפח ליד הפינה, ואז צל על יותר מחצי הגג.',
+  'Dashed square = 7×7 minimum. Three walls (they need not touch if lavud joins gaps), kosher schach under open sky, more shade than sun.':
+    'הריבוע המקווקו הוא מינימום שבעה על שבעה. שלושה קירות (לא חייבים לגעת אם לבוד מחבר רווחים), סכך כשר תחת שמיים פתוחים, יותר צל משמש.',
   'The dashed square is the seven-by-seven minimum. Two full walls that meet, plus a tefach-wide third wall near the corner, then cover more than half the roof.':
     'הריבוע המקווקו הוא מינימום שבעה על שבעה. שני קירות מלאים הנפגשים, ועוד קיר שלישי ברוחב טפח קרוב לפינה, ואחר כך כסו יותר מחצי מהגג.',
   'The dashed square is the floor minimum. Shrink the pad below seven by seven tefachim and it stops being a sukkah - keep at least that mark.':
@@ -16460,7 +16511,101 @@ SA.Lang.add({
   'A wall full of gaps is still kosher, even with more open space than standing wall. Use the fences - the holes are the lesson.':
     'קיר מלא רווחים עדיין כשר, אפילו עם יותר שטח פתוח מעומד. השתמשו בגדרות - החורים הם השיעור.',
   'Use the nicest pieces of the ladder - full-side walls and one mehadrin roof. Build a sukkah you would actually want to sit in.':
-    'השתמשו בחלקים היפים ביותר מהסולם - קירות לצד שלם וגג מהודר אחד. בנו סוכה שבאמת תרצו לשבת בה.'
+    'השתמשו בחלקים היפים ביותר מהסולם - קירות לצד שלם וגג מהודר אחד. בנו סוכה שבאמת תרצו לשבת בה.',
+  'This level you have {have} to teach about {teach}.': 'בשלב הזה יש לכם {have} כדי ללמד על {teach}.',
+  'ordinary full-size walls and schach': 'קירות רגילים בגודל מלא וסכך',
+  'what a kosher sukkah is — three walls, kosher schach, under open sky':
+    'מהי סוכה כשרה — שלושה קירות, סכך כשר, תחת שמיים פתוחים',
+  'Put up three walls (they need not touch if lavud joins the gaps), then kosher schach under open sky so more than half the floor is shade.':
+    'העמידו שלושה קירות (הם לא חייבים לגעת אם לבוד מחבר את הרווחים), ואז סכך כשר תחת שמיים פתוחים כדי שיותר מחצי הרצפה תהיה בצל.',
+  'a dashed 7×7 square on the floor': 'ריבוע מקווקו של שבעה על שבעה על הרצפה',
+  'the smallest a sukkah floor can be': 'הגודל הקטן ביותר של רצפת סוכה',
+  'Keep the pad at least as big as that square, then build walls and schach as usual to make the sukkah kosher.':
+    'השאירו את השטח לפחות בגודל הריבוע הזה, ואז בנו קירות וסכך כרגיל כדי שהסוכה תהיה כשרה.',
+  'a few leftover posts and a rope wall': 'כמה עמודים עודפים וקיר חבלים',
+  'lavud — a gap under three tefachim counts as solid wall': 'לבוד — רווח של פחות משלושה טפחים נחשב קיר מלא',
+  'Build with the full-size walls. If you place posts, keep the gaps under three tefachim to make the sukkah kosher.':
+    'בנו עם הקירות המלאים. אם מניחים עמודים, השאירו רווחים של פחות משלושה טפחים כדי שהסוכה תהיה כשרה.',
+  'canvas sheets on frames': 'יריעות בד על מסגרות',
+  'ruach metzuya — a fabric wall only counts if ordinary wind cannot open a gap':
+    'רוח מצויה — קיר בד נחשב רק אם רוח רגילה אינה יכולה לפתוח רווח',
+  'Put the sheets up, then tap each one and press Tie to make the sukkah kosher.':
+    'העמידו את היריעות, ואז הקישו על כל אחת ולחצו על קשרו כדי שהסוכה תהיה כשרה.',
+  'an elephant': 'פיל',
+  'a live animal as a wall — it must be tied so it cannot walk away': 'חיה חיה כקיר — חייבים לקשור אותה כדי שלא תלך',
+  'Drop the elephant on a side (it comes tied), then finish the other walls and the roof to make the sukkah kosher.':
+    'הניחו את הפיל על צד (הוא מגיע קשור), ואז השלימו את שאר הקירות ואת הגג כדי שהסוכה תהיה כשרה.',
+  'a tree over the pad': 'עץ מעל השטח',
+  'schach under a tree — covering must open straight to the sky, and a tree that shades more than it lets sun through cannot be fixed':
+    'סכך תחת עץ — הסיכוך חייב להיפתח ישר לשמיים, ועץ שמצל יותר משהוא נותן לשמש לעבור אי אפשר לתקן',
+  'Build a kosher booth anyway. You cannot fix the tree. That leftover red mark is the lesson.':
+    'בנו בכל זאת סוכה כשרה. אי אפשר לתקן את העץ. הסימן האדום שנשאר הוא השיעור.',
+  'thin bamboo poles that do not shade enough by themselves': 'מוטות במבוק דקים שלא מצלים מספיק לבדם',
+  'tzilata merubah — more shade than sun on the floor': 'צילתה מרובה — יותר צל משמש על הרצפה',
+  'Pile on enough covering so more than half the floor is shade to make the sukkah kosher.':
+    'ערמו מספיק סיכוך כדי שיותר מחצי הרצפה תהיה בצל, וכך הסוכה תהיה כשרה.',
+  'thin mats that let the sky show through': 'מחצלות דקות שמראות את השמיים',
+  'thin schach is still kosher — and preferred': 'סכך דק עדיין כשר — ואף מועדף',
+  'Use those mats as the roof to make the sukkah kosher. You do not need to pile it thick.':
+    'השתמשו במחצלות האלה כגג כדי שהסוכה תהיה כשרה. אין צורך לערום אותן בעובי.',
+  'wide wood boards that look like schach': 'לוחות עץ רחבים שנראים כסכך',
+  'gezeiras tikrah — boards four tefachim wide read as a house ceiling, so they cannot be the roof':
+    'גזירת תקרה — לוחות ברוחב ארבעה טפחים נקראים כתקרת בית, ולכן אינם יכולים להיות הגג',
+  'Do not use those boards as schach. Cover with the narrow plants or mats instead to make the sukkah kosher.':
+    'אל תשתמשו בלוחות האלה כסכך. כסו בצמחים או במחצלות צרים כדי שהסוכה תהיה כשרה.',
+  'an old ladder and a door': 'סולם ישן ודלת',
+  'a finished tool cannot be schach — it is a vessel — but wood can hold covering as a slat':
+    'כלי מוגמר אינו יכול להיות סכך — הוא כלי — אבל עץ יכול להחזיק סיכוך כשריג',
+  'Lay the ladder under kosher schach, or skip it. Roof with real plant covering to make the sukkah kosher.':
+    'הניחו את הסולם תחת סכך כשר, או דלגו עליו. סככו בצומח אמיתי כדי שהסוכה תהיה כשרה.',
+  'a strip of invalid covering next to a wall': 'רצועת סיכוך פסול ליד קיר',
+  'dofen akumah — the wall is treated as bending under that strip, so a little pasul schach at the wall does not fail the sukkah':
+    'דופן עקומה — הקיר נחשב כאילו התעקם תחת הרצועה, ולכן מעט סכך פסול ליד הקיר אינו פוסל את הסוכה',
+  'Build the rest kosher. Do not sit under that strip if it is four tefachim or wider. That makes the sukkah kosher.':
+    'בנו את השאר בכשרות. אל תשבו תחת הרצועה אם היא ברוחב ארבעה טפחים או יותר. כך הסוכה כשרה.',
+  'metal poles and sheet metal': 'מוטות מתכת ולוח מתכת',
+  'maamid — metal never grew from the ground, so it can never be schach, only a frame with wood under the covering':
+    'מעמיד — מתכת לא צמחה מן הארץ, ולכן לעולם אינה סכך, רק מסגרת עם עץ תחת הסיכוך',
+  'Use metal as a wall or a frame if you want. Put wood on the pipes, then real plant schach on the wood to make the sukkah kosher.':
+    'אפשר להשתמש במתכת כקיר או כמסגרת. הניחו עץ על הצינורות, ואז סכך צומח על העץ כדי שהסוכה תהיה כשרה.',
+  'hanging fruit': 'פירות תלויים',
+  'hanging decorations — they must stay within four tefachim of the schach, or a wide one becomes its own ceiling':
+    'קישוטים תלויים — הם חייבים להישאר בתוך ארבעה טפחים מהסכך, אחרת קישוט רחב הופך לתקרה בפני עצמו',
+  'Hang a bunch from the roof, then tap it so it stays high enough to make the sukkah kosher.':
+    'תלו אשכול מהגג, ואז הקישו עליו כדי שישאר גבוה מספיק שהסוכה תהיה כשרה.',
+  'a roof already set at 121 tefachim': 'גג שכבר עומד על מאה עשרים ואחד טפחים',
+  'a sukkah may not be taller than twenty amos (120 tefachim)': 'סוכה אינה יכולה להיות גבוהה מעשרים אמה (מאה עשרים טפחים)',
+  'Open Size and bring the roof down under 120 tefachim, then build as usual to make the sukkah kosher.':
+    'פתחו את הגודל והנמיכו את הגג מתחת למאה עשרים טפחים, ואז בנו כרגיל כדי שהסוכה תהיה כשרה.',
+  'a roof that starts under ten tefachim': 'גג שמתחיל מתחת לעשרה טפחים',
+  'the inside must be at least ten tefachim tall or the walls do not count':
+    'הפנים חייבים להיות לפחות עשרה טפחים, אחרת הקירות אינם נחשבים',
+  'Open Size and raise the roof onto the walls (at least ten tefachim) to make the sukkah kosher.':
+    'פתחו את הגודל והגביהו את הגג על הקירות (לפחות עשרה טפחים) כדי שהסוכה תהיה כשרה.',
+  'the usual walls and schach': 'הקירות והסכך הרגילים',
+  'ta\'aseh v\'lo min he\'asuy — you must make the sukkah, walls first, then lay the covering':
+    'תעשה ולא מן העשוי — צריך לעשות את הסוכה, קירות קודם ואחר כך את הסיכוך',
+  'Put the walls up before you lay the roof to make the sukkah kosher.':
+    'העמידו את הקירות לפני שמניחים את הגג כדי שהסוכה תהיה כשרה.',
+  'a balcony overhang shading a strip': 'גגון מרפסת שמצל על רצועה',
+  'dofen akumah can save a strip next to the building wall, but you may not sit under that strip':
+    'דופן עקומה יכולה להציל רצועה ליד קיר הבניין, אבל אסור לשבת תחת אותה רצועה',
+  'Build under the open sky. Leave the overhang strip alone to make the sukkah kosher.':
+    'בנו תחת השמיים הפתוחים. השאירו את רצועת הגגון לנפשה כדי שהסוכה תהיה כשרה.',
+  'a boat under your feet': 'סירה מתחת לרגליים',
+  'halacha does not care what is underneath — a sukkah on a boat is the same as one on land':
+    'להלכה לא משנה מה יש מתחת — סוכה על סירה היא כמו סוכה ביבשה',
+  'Build the same three walls and schach as any other sukkah to make it kosher.':
+    'בנו אותם שלושה קירות וסכך כמו בכל סוכה אחרת כדי שתהיה כשרה.',
+  'fences full of holes': 'גדרות מלאות חורים',
+  'parutz merubeh — a wall can have more open than standing and still count':
+    'פרוץ מרובה — קיר יכול להיות יותר פתוח מעומד ועדיין להיחשב',
+  'Use the fences as your walls, then put schach on top to make the sukkah kosher.':
+    'השתמשו בגדרות כקירות, ואז הניחו סכך מלמעלה כדי שהסוכה תהיה כשרה.',
+  'the nicest walls and schach from the ladder': 'הקירות והסכך היפים ביותר מהסולם',
+  'a kosher sukkah you would actually sit in': 'סוכה כשרה שבאמת יושבים בה',
+  'Put up full walls and a real roof to make the sukkah kosher. Make it nice.':
+    'העמידו קירות מלאים וגג אמיתי כדי שהסוכה תהיה כשרה. תעשו אותה יפה.'
 });
 
 /* ---------------------------------------------- 15a. UNLOCK POOLS */
@@ -17445,6 +17590,15 @@ SA.Game.startScramble = function (levelId, opts) {
   return true;
 };
 
+SA.Game.openLevelBrief = function () {
+  if (SA.Game.mode === 'scramble' && SA.Game.level && SA.Levels.briefOf(SA.Game.level)) {
+    SA.Game.modal = 'level_brief';
+    return true;
+  }
+  SA.Game.modal = null;
+  return false;
+};
+
 /* Workshop body stays intact for tests / a future re-enable. Player menus and
    the last-level win path respect FREE_BUILD_ENABLED and never call this. */
 SA.Game.startFreeBuild = function (fresh) {
@@ -18211,8 +18365,8 @@ SA.UI.WALL_SIDE_LABEL = { N: 'North Wall', E: 'East Wall', S: 'South Wall', W: '
 SA.UI.TRAY_H = 148;
 SA.UI.STRIP_W = 46;
 
-/* Room for two hint lines under the phase bar on a phone. */
-SA.UI.CLOCK_BAND_H = 74;
+/* Clock + one-line title. The lesson lives on the start sheet, not here. */
+SA.UI.CLOCK_BAND_H = 56;
 SA.UI.TIE_BANNER_H = 52;
 SA.UI.needsTieBanner = function () {
   return !!(SA.Game.state && SA.State.untiedSoftWallCount(SA.Game.state) > 0);
@@ -18365,23 +18519,19 @@ SA.UI.renderClockBand = function (ctx, y) {
   ctx.strokeStyle = 'rgba(255,255,255,0.32)'; ctx.lineWidth = 1;
   SA.Draw.roundRect(ctx, barX, barY, barW, barH, 5); ctx.stroke();
 
-  /* Hint under the bar - two lines on a phone so it is not cut mid-sentence.
-     Tap opens the full line + card. */
+  /* One title line. Tap ? reopens the start-of-level lesson. */
   var goalY = barY + barH + 10;
   var goalW = bw - 24 - 48;
   if (SA.Game.level) {
-    var goalText = SA.Game.level.hint || SA.Game.level.title;
-    var gf = SA.Draw.fitLines(ctx, SA.Lang.t(goalText), goalW - 18, 2, 11, 9);
-    var gLineH = gf.size + 2;
-    for (var gl = 0; gl < gf.lines.length; gl++) {
-      SA.Draw.text(ctx, gf.lines[gl], bx + 12, goalY + gl * gLineH, {
-        size: gf.size, color: 'rgba(255,255,255,0.84)', align: 'left', weight: '600'
-      });
-    }
-    SA.Draw.text(ctx, '?', bx + 12 + goalW - 6, goalY + (gf.lines.length - 1) * gLineH * 0.5, {
+    var goalText = SA.Game.level.title;
+    var gf = SA.Draw.fitLines(ctx, SA.Lang.t(goalText), goalW - 18, 1, 11, 9);
+    SA.Draw.text(ctx, gf.lines[0], bx + 12, goalY, {
+      size: gf.size, color: 'rgba(255,255,255,0.84)', align: 'left', weight: '600'
+    });
+    SA.Draw.text(ctx, '?', bx + 12 + goalW - 6, goalY, {
       size: 12, color: 'rgba(240,217,138,0.9)', weight: '800', align: 'right'
     });
-    SA.Pick.addRect('sb_hint', {}, bx + 6, goalY - 8, goalW + 12, Math.max(22, gf.lines.length * gLineH + 6));
+    SA.Pick.addRect('sb_hint', {}, bx + 6, goalY - 8, goalW + 12, 22);
   }
   SA.Draw.text(ctx, SA.Lang.t('Sukkot!'), bx + bw - 12, goalY, {
     size: 10, color: 'rgba(255,255,255,0.5)', align: 'right'
@@ -18743,6 +18893,7 @@ SA.UI.renderToasts = function (ctx, bottomY) {
     var appear = Math.min(1, age / 0.08);
     var alpha = age > 0.82 ? Math.max(0, (1 - age) / 0.18) : appear;
     var lines = SA.UI.wrapText(ctx, SA.Lang.t(toast.text), maxW - 30, 12);
+    if (lines.length > 2) lines = lines.slice(0, 2);
     var bh = 14 + lines.length * 16;
     var bx = (w - maxW) / 2;
     y -= bh + 6;
@@ -18867,6 +19018,7 @@ SA.UI.renderBuildModal = function (ctx, result) {
   else if (m === 'issues') SA.UI.renderIssuesModal(ctx, result);
   else if (m === 'card') SA.UI.renderCardDetail(ctx, SA.Cards.byId[SA.Game.modalCard]);
   else if (m === 'first_run_tip') SA.UI.renderFirstRunTip(ctx);
+  else if (m === 'level_brief') SA.UI.renderLevelBrief(ctx);
   else if (m === 'site') SA.UI.renderSitePicker(ctx);
   else if (m === 'scramble_win') SA.UI.renderWinModal(ctx);
   else if (m === 'scramble_fail') SA.UI.renderFailModal(ctx);
@@ -18914,6 +19066,7 @@ SA.UI.renderConfirm = function (ctx, title, body, yesLabel, yesKind, noLabel, no
 };
 
 SA.Lang.add({
+  'Got it': 'הבנתי',
   'How to Build': 'איך בונים',
   'Drag a piece out of the pile onto the sukkah.': 'גררו חלק מהערמה אל הסוכה.',
   'Walls land on a wall, schach lands on the roof, furniture lands on the floor.': 'קירות על הקיר, סכך על הגג, רהיטים על הרצפה.',
@@ -18926,6 +19079,40 @@ SA.Lang.add({
   "Let's Build": 'הבה נבנה'
 });
 
+SA.UI.renderLevelBrief = function (ctx) {
+  var level = SA.Game.level;
+  var brief = SA.Levels.briefOf(level);
+  if (!brief) return;
+  SA.UI.backdrop(ctx);
+  var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
+  var pw = Math.min(340, w - 28), px = (w - pw) / 2;
+  var innerW = pw - 36;
+  var paras = [brief.have, brief.do];
+  var size = 13, lineH = 18, gap = 12;
+  var bodyH = 0;
+  for (var i = 0; i < paras.length; i++) {
+    bodyH += SA.UI.wrapText(ctx, paras[i], innerW, size).length * lineH + gap;
+  }
+  var maxPh = h - safe.t - safe.b - 20;
+  var ph = Math.min(maxPh, 62 + bodyH + 52);
+  var py = Math.max(safe.t + 8, (h - ph) / 2);
+  SA.UI.panel(ctx, px, py, pw, ph);
+  SA.Draw.text(ctx, level.title, px + pw / 2, py + 28, { size: 16, color: '#f0d98a', weight: '800' });
+  var yy = py + 52;
+  var align = SA.Lang.isHe() ? 'right' : 'left';
+  var tx = SA.Lang.isHe() ? px + pw - 18 : px + 18;
+  for (var p = 0; p < paras.length; p++) {
+    var lines = SA.UI.wrapText(ctx, paras[p], innerW, size);
+    for (var l = 0; l < lines.length; l++) {
+      if (yy > py + ph - 62) break;
+      SA.Draw.text(ctx, lines[l], tx, yy, { size: size, color: '#fff', align: align });
+      yy += lineH;
+    }
+    yy += gap;
+  }
+  SA.UI.btn(ctx, px + pw / 2 - 90, py + ph - 50, 180, 38, 'Got it', 'brief_close', {});
+};
+
 SA.UI.renderFirstRunTip = function (ctx) {
   SA.UI.backdrop(ctx);
   var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
@@ -18934,10 +19121,7 @@ SA.UI.renderFirstRunTip = function (ctx) {
     'Drag a piece out of the pile onto the sukkah.',
     'Walls land on a wall, schach lands on the roof, furniture lands on the floor.',
     'The tray shows five pieces - tap \u2039 \u203a to look through everything else you have.',
-    'Turn a piece with the \u21bb chip on its card before you drag it.',
-    'The pill at the top says KOSHER or NOT KOSHER YET - tap its ? to be told exactly what is missing.',
-    'A kosher sukkah: three walls, then schach on top. Schach must be cut vegetation that is not a vessel and not disgusting.',
-    'Two full walls plus a third of even one tefach, then cover more than half the roof - before Sukkot starts.'
+    'The pill at the top says KOSHER or NOT KOSHER YET - tap its ? to be told exactly what is missing.'
   ];
   var ph = Math.min(h - safe.t - safe.b - 24, SA.UI.firstRunTipHeight(ctx, pw, steps));
   var py = Math.max(safe.t + 12, (h - ph) / 2);
@@ -19292,7 +19476,10 @@ SA.UI.onBuildTap = function (hit) {
     /* Tapping the backdrop is a dismissal like any other, so the welcome
        walkthrough has to count as read here too - it was only marked seen by
        the Close button, which is why it came back on every single launch. */
-    if (SA.Game.modal === 'first_run_tip') SA.Progress.markBuildTipSeen();
+    if (SA.Game.modal === 'first_run_tip') {
+      SA.Progress.markBuildTipSeen();
+      if (SA.Game.openLevelBrief()) return;
+    }
     SA.Game.modal = null; SA.Game.modalCard = null; SA.Game.modalReturn = null;
     return;
   }
@@ -19318,9 +19505,7 @@ SA.UI.onBuildTap = function (hit) {
   if (hit.kind === 'restart_no') { SA.Game.modal = null; return; }
   if (hit.kind === 'sb_meter') { SA.Game.modal = 'issues'; SA.Game.modalScroll = 0; return; }
   if (hit.kind === 'sb_hint') {
-    /* The hint first, the card only if they want more. Opening a four-paragraph
-       halacha essay was the whole response to "what am I supposed to do here?",
-       which is why nobody read either one. */
+    if (SA.Game.openLevelBrief()) return;
     if (SA.Game.level) SA.Scramble.toast(SA.Game.level.hint || SA.Game.level.title, SA.Game.level.cardId, 'info');
     return;
   }
@@ -19357,7 +19542,12 @@ SA.UI.onBuildTap = function (hit) {
   if (hit.kind === 'sb_shelf_tab') { SA.Pile.setShelfTab(hit.payload.tab); SA.Audio.play('page'); return; }
   if (hit.kind === 'sb_tray_prev') { SA.Pile.trayStep(-1); SA.Audio.play('page'); return; }
   if (hit.kind === 'sb_tray_next') { SA.Pile.trayStep(1); SA.Audio.play('page'); return; }
-  if (hit.kind === 'tip_close') { SA.Progress.markBuildTipSeen(); SA.Game.modal = null; return; }
+  if (hit.kind === 'tip_close') {
+    SA.Progress.markBuildTipSeen();
+    if (!SA.Game.openLevelBrief()) SA.Game.modal = null;
+    return;
+  }
+  if (hit.kind === 'brief_close') { SA.Game.modal = null; return; }
   if (hit.kind === 'toast_card') {
     SA.Game.modalReturn = null;
     SA.Game.modal = 'card'; SA.Game.modalCard = hit.payload.cardId; SA.Game.modalScroll = 0;
@@ -21726,13 +21916,33 @@ SA.Pile.roll = function (cfg, state, seed) {
     }
   }
 
-  /* Shuffle so the tray order is genuinely random rather than
-     "all walls first, then all schach". */
-  for (var i = out.length - 1; i > 0; i--) {
-    var j = Math.floor(rnd() * (i + 1)) % (i + 1);
-    var tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+  /* Phone: page 1 must be buildable. Shuffle inside each kind so the first
+     board is not always the same pine, but walls → beams → schach → traps →
+     decor — never open on a bookshelf while the walls are on page 4. */
+  function saPileShuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(rnd() * (i + 1)) % (i + 1);
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
   }
-  SA.Pile.pieces = out;
+  var walls = [], beams = [], schachOk = [], traps = [], decor = [];
+  for (var si = 0; si < out.length; si++) {
+    var p = out[si];
+    if (p.kind === 'wall') walls.push(p);
+    else if (p.kind === 'beam') beams.push(p);
+    else if (p.kind === 'schach' && p.trap) traps.push(p);
+    else if (p.kind === 'schach') schachOk.push(p);
+    else decor.push(p);
+  }
+  saPileShuffle(walls); saPileShuffle(beams); saPileShuffle(schachOk);
+  saPileShuffle(traps); saPileShuffle(decor);
+  /* Full-side boards before leftover posts so page 1 is always a real wall. */
+  walls.sort(function (a, b) {
+    var af = a.fullSide || a.animal ? 0 : 1;
+    var bf = b.fullSide || b.animal ? 0 : 1;
+    return af - bf;
+  });
+  SA.Pile.pieces = walls.concat(beams).concat(schachOk).concat(traps).concat(decor);
   SA.Pile.dragging = null;
   SA.Pile.armed = null;
   SA.Pile.page = 0;
@@ -22705,7 +22915,7 @@ SA.Scramble = {
 /* Four nights + four days = eight phases, night first (the clock opens the
    moment Yom Kippur ends). */
 SA.Scramble.PHASES = 8;
-SA.Scramble.TOAST_MS = 5600;
+SA.Scramble.TOAST_MS = 3200;
 
 SA.Scramble.active = function () {
   return SA.Game.screen === 'build' && SA.Game.mode === 'scramble' && !!SA.Scramble.run;
@@ -22857,12 +23067,15 @@ SA.Scramble.start = function (levelId) {
     prevCodes: null, taughtKeys: {}, placed: 0
   };
   SA.Scramble.toasts = [];
+  SA.Scramble._spoke = false;
+  if (SA.FX) { SA.FX.bursts = []; SA.FX.ripples = []; SA.FX.flashes = []; }
   SA.Undo.clear();
   SA.Pile.roll(cfg, SA.Game.state, null);
   if (!cfg.roofPinned) SA.State.fitRoofToPieces(SA.Game.state);
   /* Roof may have moved after the roll - snap again so the pad sits in the
      clear band between the HUD and the tray, not under the chrome. */
   SA.Camera.snapFit(SA.Game.state);
+  if (level.brief) SA.Game.modal = 'level_brief';
 };
 
 SA.Scramble.retry = function () {
@@ -22983,15 +23196,14 @@ SA.Scramble.checkGoal = function (result) {
        and not again until something changes. */
     if (result.kosher && !run.goalNagged) {
       run.goalNagged = true;
-      SA.Scramble.toast(SA.Game.level.hint, SA.Game.level.cardId, 'info');
+      var nag = (SA.Game.level.brief && SA.Game.level.brief.do) || SA.Game.level.hint;
+      SA.Scramble.toast(nag, SA.Game.level.cardId, 'info');
     }
     if (!result.kosher) run.goalNagged = false;
     return;
   }
   if (run.goalMet) return;
   run.goalMet = true;
-  /* Meter already played the kosher chime - just invite them to keep building. */
-  SA.Scramble.toast(SA.Lang.t('Kosher! Keep decorating, then tap Finish.'), SA.Game.level.cardId, 'info');
 };
 
 /* Bank the win (Done button, or clock expiry while already goal-met). */
@@ -23042,11 +23254,23 @@ SA.Scramble.fail = function () {
 /* ---------------------------------------------- 24d. TEACHING */
 SA.Scramble.toast = function (text, cardId, tone) {
   if (!text) return;
-  SA.Scramble.toasts.push({ text: text, cardId: cardId || null, tone: tone || 'info', born: SA.FX.now() });
-  if (SA.Scramble.toasts.length > 3) SA.Scramble.toasts.shift();
-  /* A refusal already played its own 'nope' at the drop; a lesson arriving on
-     its own gets a two-note chime so it is noticed while the eyes are on the
-     sukkah. */
+  SA.Scramble._spoke = true;
+  var now = SA.FX.now();
+  tone = tone || 'info';
+  /* Phone: one toast, not a stack. A new line replaces the last live one
+     unless a refusal (bad) has to stay until they read it. */
+  if (tone !== 'bad' && SA.Scramble.toasts.length) {
+    var last = SA.Scramble.toasts[SA.Scramble.toasts.length - 1];
+    if (now - last.born < SA.Scramble.TOAST_MS && last.tone !== 'bad') {
+      last.text = text;
+      last.cardId = cardId || null;
+      last.tone = tone;
+      last.born = now;
+      SA.Audio.play('teach');
+      return;
+    }
+  }
+  SA.Scramble.toasts = [{ text: text, cardId: cardId || null, tone: tone, born: now }];
   if (tone !== 'bad') SA.Audio.play('teach');
 };
 
@@ -23063,31 +23287,31 @@ SA.Scramble.liveToasts = function () {
    to the thing the player just did rather than in a wall of text up front.
    Keyed by the engine's own issue codes (p12). */
 SA.Scramble.CLEARED = {
-  walls_incomplete: { en: 'Two full walls that meet plus a third of even one tefach - that is a sukkah (OC 630:2).', card: 'sk_two_walls' },
-  tzurat_hapetach_needed: { en: 'Tzurat ha-petach is up - the doorway form closes the third wall (OC 630:2).', card: 'sk_two_walls' },
-  shade_not_majority: { en: 'More shade than sun now - tzilata merubah me\'chamasa (OC 631:1).', card: 'sk_shade' },
-  roof_too_low: { en: 'Ten tefachim of headroom - now it counts as a sukkah (OC 633:8).', card: 'sk_height' },
-  roof_too_high: { en: 'Back under twenty amos, which is 120 tefachim (OC 633:1).', card: 'sk_height' },
-  floor_too_small: { en: 'Seven by seven tefachim - room for a person and his small table (OC 634:1).', card: 'sk_floor' },
-  avir_splits_sukkah: { en: 'The schach reaches across now - no gap cuts the sukkah in two any more (OC 632:2).', card: 'sk_avir' },
-  schach_unsupported: { en: 'Every armful of schach needs a pole under it or a wall to rest on (maamid, MB 629:22).', card: 'sk_maamid' },
-  roof_above_walls: { en: 'The roof is resting on the walls now, not hanging over them (maamid, MB 629:22).', card: 'sk_maamid' },
-  dofen_akumah_exceeded: { en: 'The pasul strip at the wall is back under four amos - dofen akumah (OC 632:1).', card: 'sk_dofen_akumah' },
-  pasul_schach_too_wide: { en: 'The invalid patch in the middle is back under four tefachim - the roof is whole again (OC 632:1).', card: 'sk_schach_conditions' },
-  untie_needed_animal: { en: 'Tied down - a live wall that cannot walk off counts (Sukkah 23a).', card: 'sk_elephant' },
-  untie_needed_fabric: { en: 'Tied down - ordinary wind cannot open a gap in it now (OC 630:10-11).', card: 'sk_ruach' },
-  untie_needed_lavud: { en: 'Ropes tied tightly - lavud gaps stay under three tefachim (OC 630:9-10).', card: 'sk_lavud' },
-  decor_interposing_ceiling: { en: 'The decoration is back within four tefachim of the schach (OC 627:4).', card: 'sk_decor' }
+  walls_incomplete: { en: 'Three walls count — they need not touch if lavud joins the gaps. Kosher schach under open sky finishes it.', card: 'sk_two_walls' },
+  tzurat_hapetach_needed: { en: 'Tzurat ha-petach is up — the doorway closes the third wall.', card: 'sk_two_walls' },
+  shade_not_majority: { en: 'More shade than sun now.', card: 'sk_shade' },
+  roof_too_low: { en: 'Ten tefachim of headroom — now it counts.', card: 'sk_height' },
+  roof_too_high: { en: 'Back under twenty amos.', card: 'sk_height' },
+  floor_too_small: { en: 'Seven by seven tefachim — room for a person and a table.', card: 'sk_floor' },
+  avir_splits_sukkah: { en: 'The schach reaches across — no gap splits the sukkah.', card: 'sk_avir' },
+  schach_unsupported: { en: 'The covering has something to lie on now.', card: 'sk_maamid' },
+  roof_above_walls: { en: 'The roof is sitting on the walls now.', card: 'sk_maamid' },
+  dofen_akumah_exceeded: { en: 'The pasul strip at the wall is back under four amos.', card: 'sk_dofen_akumah' },
+  pasul_schach_too_wide: { en: 'The invalid patch is back under four tefachim.', card: 'sk_schach_conditions' },
+  untie_needed_animal: { en: 'Tied — a live wall that cannot walk off counts.', card: 'sk_elephant' },
+  untie_needed_fabric: { en: 'Tied — ordinary wind cannot open a gap now.', card: 'sk_ruach' },
+  untie_needed_lavud: { en: 'Ropes tied — lavud gaps stay under three tefachim.', card: 'sk_lavud' },
+  decor_interposing_ceiling: { en: 'The decoration is back within four tefachim of the roof.', card: 'sk_decor' }
 };
 
 /* Why a piece was refused. Uses the schach entry's own reasonCode (p08) so
    the wording always matches which of the three conditions actually fails. */
 SA.Scramble.REFUSE = {
-  gidulo: 'This never grew from the ground, so it can never be schach (OC 629:1).',
-  talush: 'These are still attached and growing. Schach has to be cut first (OC 629:8).',
-  tumah: 'Mekabel tumah means it can become ritually impure (tamei). Schach may not be that - a finished vessel or food is out (OC 629:1).',
-  tumah_mat: 'Mekabel tumah means it can become ritually impure. A mat made for sitting or sleeping is a vessel for that use, so it cannot be schach - only a mat made for roofing counts (OC 629:1,6).',
-  wide: 'Boards four tefachim wide or more read as a house ceiling - gezeiras tikrah (OC 629:18).'
+  gidulo: 'Never grew from the ground — cannot be schach.',
+  talush: 'Still growing — cut it first.',
+  tumah: 'A finished vessel or food cannot be schach.',
+  tumah_mat: 'A sitting/sleeping mat cannot be schach — only a roofing mat.',
+  wide: 'Boards this wide read as a house ceiling — not schach.'
 };
 
 SA.Scramble.refuseSchach = function (piece) {
@@ -23101,7 +23325,7 @@ SA.Scramble.refuseSchach = function (piece) {
     body = SA.Scramble.REFUSE.tumah_mat;
     card = 'sk_bamboo_mat';
   }
-  SA.Scramble.toast(SA.Lang.t(entry.en) + ' - ' + SA.Lang.t(body), card, 'bad');
+  SA.Scramble.toast(SA.Lang.t(entry.en) + ': ' + SA.Lang.t(body), card, 'bad');
   SA.Pile.remove(piece.uid);
 };
 
@@ -23117,29 +23341,11 @@ SA.Scramble.teachOnce = function (key, en, card, tone) {
   return true;
 };
 
-/* First Scramble: say what a kosher sukkah is as they actually place it. */
-SA.Scramble.teachFirstRound = function (kind) {
-  var run = SA.Scramble.run;
-  if (!run || run.index !== 0) return false;
-  if (kind === 'wall') {
-    return SA.Scramble.teachOnce('fr_walls',
-      'A kosher sukkah needs three walls. Two full walls that meet at a corner, plus a third of even one tefach — custom is three full walls. Then the schach goes on top (OC 630).',
-      'sk_two_walls');
-  }
-  if (kind === 'beam') {
-    return SA.Scramble.teachOnce('fr_beams',
-      'Schach has to lie on poles or battens across the wall tops — that support is the maamid. Do not rest covering straight on metal (MB 629:22).',
-      'sk_maamid');
-  }
-  if (kind === 'schach') {
-    return SA.Scramble.teachOnce('fr_schach',
-      'Schach must be vegetation that grew from the ground, already cut (not still attached), not a vessel that can become tamei, and not rotting or disgusting. Metal, plastic, food, and sleeping mats fail (OC 629:1).',
-      'sk_schach_conditions');
-  }
-  return false;
-};
+/* First-round essays used to fire on every pine board. The level brief and
+   How to Build sheet already said that - stay quiet on ordinary pieces. */
+SA.Scramble.teachFirstRound = function () { return false; };
 
-/* Always teach a law tied to the piece they just used. */
+/* Only the weird piece. Ordinary wood / plants / chairs stay silent. */
 SA.Scramble.teachItem = function (entry, kind) {
   if (!entry) return false;
   var id = entry.id || '';
@@ -23147,123 +23353,77 @@ SA.Scramble.teachItem = function (entry, kind) {
   var mk = entry.matKind || '';
   var form = (entry.form && entry.form.id) || '';
 
-  if (kind === 'decor') {
-    if (entry.hang) {
-      return SA.Scramble.teachOnce('item_hang_decor',
-        'A hanging decoration is treated as part of the schach if it stays within four tefachim of the roof. Lower and four tefachim wide, it becomes its own ceiling (OC 627:4).',
-        'sk_decor');
-    }
-    return SA.Scramble.teachOnce('item_floor_decor',
-      'Furniture and floor pieces are for sitting in the sukkah — they are not walls or schach. Hangings are the ones that can become a ceiling if they drop too low (OC 627:4).',
+  if (kind === 'decor' && entry.hang) {
+    return SA.Scramble.teachOnce('item_hang_decor',
+      'Keep hanging fruit within four tefachim of the roof, or a wide bunch becomes its own ceiling.',
       'sk_decor');
   }
-
-  if (kind === 'beam') {
-    if (entry.mekabelTumah || /steel|metal/i.test(id)) {
-      return SA.Scramble.teachOnce('item_metal_beam',
-        'Metal never grew from the ground. It is a fine frame, but lay wood on the pipes and put schach on the wood — maamid d\'maamid (MB 629:22).',
-        'sk_maamid');
-    }
-    if (entry.fromSchachId || /ladder/i.test(id)) {
-      return SA.Scramble.teachOnce('item_ladder_beam',
-        'A wooden ladder is a finished tool, so it cannot be the covering. As a slat it may hold schach, because wood grew from the ground (MB 629:22).',
-        'sk_maamid');
-    }
-    return SA.Scramble.teachOnce('item_wood_beam',
-      'These poles are the maamid — what the schach lies on. Wood that grew from the ground is the preferred first support (MB 629:22).',
+  if (kind === 'beam' && (entry.mekabelTumah || /steel|metal/i.test(id))) {
+    return SA.Scramble.teachOnce('item_metal_beam',
+      'Metal is only a frame — lay wood on the pipes, then schach on the wood.',
       'sk_maamid');
   }
-
-  if (kind === 'schach') {
-    if (entry.category !== 'kosher') return false;
-    if (entry.tex === 'mat') {
-      return SA.Scramble.teachOnce('item_sch_mat',
-        'A reed or bamboo mat is kosher schach only if it was made for roofing, not for sitting. The string tying the slats must also be schach-kosher, like cotton (OC 629:6).',
-        'sk_bamboo_mat');
-    }
-    if (entry.tex === 'pole' || entry.tex === 'wood') {
-      return SA.Scramble.teachOnce('item_sch_pole',
-        'Bamboo and thin wood grew from the ground, are cut, and are not vessels — so they are covering and can also hold themselves up as a frame (OC 629:1).',
-        'sk_schach_conditions');
-    }
-    return SA.Scramble.teachOnce('item_sch_plant',
-      'This grew from the ground and is already cut, and it is not a vessel — that is what schach has to be. Even yard clippings count if they are dry vegetation (OC 629:1).',
-      'sk_schach_conditions');
+  if (kind === 'beam' && (entry.fromSchachId || /ladder/i.test(id))) {
+    return SA.Scramble.teachOnce('item_ladder_beam',
+      'A ladder cannot be schach. Laid as a slat it may hold covering.',
+      'sk_maamid');
   }
-
   if (mk === 'animal' || /elephant/i.test(id)) {
     return SA.Scramble.teachOnce('item_elephant',
-      'A live animal can be a sukkah wall if it is tied so it cannot walk away. A tied elephant still counts even lying down — its body is ten tefachim on its side (Sukkah 23a, OC 630:11).',
+      'A tied animal can be a wall — it cannot walk away.',
       'sk_elephant');
   }
   if (entry.lavudRopes || /lavud/i.test(fam) || /lavud/i.test(id)) {
     return SA.Scramble.teachOnce('item_lavud_ropes',
-      'Lavud: taut ropes less than three tefachim apart from the ground to ten tefachim are a real wall. Gud asik then pulls that wall up to the schach (OC 630:9).',
+      'Lavud: ropes under three tefachim apart count as solid wall.',
       'sk_lavud');
   }
   if (/tire/i.test(id) || /tire/i.test(fam)) {
     return SA.Scramble.teachOnce('item_tires',
-      'A stack of tires is a kosher wall. Walls can be almost anything that stands up to an ordinary wind — the gidulo, talush, and tumah tests are only for schach (OC 630:10).',
+      'Tires are a wall. The grew-from-the-ground test is only for schach.',
       'sk_any_wall');
   }
   if (/drum/i.test(id) || /oil_drum/i.test(fam)) {
     return SA.Scramble.teachOnce('item_drums',
-      'Oil drums make a wall. Any sturdy material counts — metal is fine for walls even though it can never be schach (OC 630:10).',
+      'Drums are a wall. Metal is fine here even though it can never be schach.',
       'sk_any_wall');
   }
   if (/pallet/i.test(id) || /pallet/i.test(fam)) {
     return SA.Scramble.teachOnce('item_pallets',
-      'Wood pallets are a wall. There is no "must grow from the ground" test for walls — only for the covering on top (OC 630:10).',
+      'Pallets are a wall. Walls do not have to grow from the ground.',
       'sk_any_wall');
   }
   if (/old_door/i.test(id) || /old_door/i.test(fam)) {
     return SA.Scramble.teachOnce('item_door_wall',
-      'An old door is a fine wall. The same door cannot be schach — as roofing it is a finished vessel that can become tamei (OC 629:1, 630:10).',
+      'A door is a fine wall. The same door cannot be the roof.',
       'sk_any_wall');
   }
   if (entry.swaysInWind || mk === 'fabric' || fam === 'canvas' || fam === 'tarpaulin' || fam === 'burlap') {
     return SA.Scramble.teachOnce('item_fabric',
-      'Fabric is a wall only if it is tied so ordinary wind cannot open a three-tefach gap. Soft sheets in this game come on a frame — tap Tie (OC 630:10).',
+      'Tap Tie — a sheet only counts if ordinary wind cannot open a gap.',
       'sk_ruach');
   }
   if (fam === 'chain_link') {
     return SA.Scramble.teachOnce('item_chain',
-      'Chain-link whose holes are under three tefachim is treated as solid — that is lavud, not "more open than standing" (OC 630:1).',
+      'Chain-link holes under three tefachim count as solid (lavud).',
       'sk_lavud');
   }
   if (fam === 'picket_fence' || fam === 'snow_fence') {
     return SA.Scramble.teachOnce('item_picket',
-      'A fence full of gaps can still be a wall even if the open area is bigger than the boards, as long as no single opening is ten amos (OC 630:5).',
+      'A fence full of holes can still be a wall (parutz merubeh).',
       'sk_parutz_merubeh');
-  }
-  if (mk === 'metal' || /tin|iron|galvanized|ornate/i.test(fam)) {
-    return SA.Scramble.teachOnce('item_metal_wall',
-      'Metal is a kosher wall. The three schach tests — grew, detached, not a vessel — do not apply to walls (OC 630:10).',
-      'sk_any_wall');
-  }
-  if (mk === 'masonry' || mk === 'glass' || fam === 'brick' || fam === 'cinderblock' || fam === 'glass') {
-    return SA.Scramble.teachOnce('item_masonry',
-      'Brick, block, or glass is a kosher wall if it stands in an ordinary wind. Walls have no vegetation or tumah test (OC 630:10).',
-      'sk_any_wall');
   }
   if (form === 'post' || form === 'slat') {
     return SA.Scramble.teachOnce('item_posts',
-      'Posts spaced under three tefachim apart count as a solid wall by lavud. A gap of three tefachim or more stays open (OC 630:1).',
+      'Keep post gaps under three tefachim — lavud treats them as solid.',
       'sk_lavud');
   }
-  return SA.Scramble.teachOnce('item_wood_wall',
-    'Wood boards are a classic wall. A kosher sukkah needs two full walls that meet plus a third of even one tefach — custom is three full walls (OC 630:2).',
-    'sk_two_walls');
+  return false;
 };
 
 SA.Scramble.teachOnPlace = function (piece, entry, preview) {
   if (!SA.Scramble.active() || !entry) return;
   var kind = (preview && preview.kind) || (piece && piece.kind) || entry.kind;
-  if (SA.Scramble.teachFirstRound(kind)) {
-    /* First-round milestone won this drop; item lesson waits for the next
-       matching piece so we do not stack two cards on one tap. */
-    return;
-  }
   SA.Scramble.teachItem(entry, kind);
 };
 
@@ -23271,18 +23431,18 @@ SA.Scramble.teachTie = function (entry) {
   if (!entry) return;
   if (entry.lavudRopes) {
     SA.Scramble.teachOnce('item_lavud_ropes',
-      'Lavud: taut ropes less than three tefachim apart from the ground to ten tefachim are a real wall. Gud asik then pulls that wall up to the schach (OC 630:9).',
+      'Lavud: ropes under three tefachim apart count as solid wall.',
       'sk_lavud');
     return;
   }
   if (entry.matKind === 'animal') {
     SA.Scramble.teachOnce('item_elephant',
-      'A live animal can be a sukkah wall if it is tied so it cannot walk away. A tied elephant still counts even lying down — its body is ten tefachim on its side (Sukkah 23a, OC 630:11).',
+      'A tied animal can be a wall — it cannot walk away.',
       'sk_elephant');
     return;
   }
   SA.Scramble.teachOnce('item_fabric',
-    'Fabric is a wall only if it is tied so ordinary wind cannot open a three-tefach gap. Soft sheets in this game come on a frame — tap Tie (OC 630:10).',
+    'Tap Tie — a sheet only counts if ordinary wind cannot open a gap.',
     'sk_ruach');
 };
 
@@ -23291,15 +23451,14 @@ SA.Scramble.teachLavudWall = function (entry) {
   var run = SA.Scramble.run;
   if (!run || !entry || !entry.lavudRopes || run.taughtLavudWall) return;
   run.taughtLavudWall = true;
-  SA.Scramble.toast(SA.Lang.t(
-    'Lavud: gaps under three tefachim count as solid. These taut ropes from the ground to ten tefachim are a real wall (OC 630:9).'),
+  SA.Scramble.toast(SA.Lang.t('Lavud: ropes under three tefachim apart count as solid wall.'),
     'sk_lavud', 'good');
 };
 
 /* Posts / pickets spaced under three tefachim - lavud closes the gaps. */
 SA.Scramble.teachLavudPosts = function (state, side) {
   var run = SA.Scramble.run;
-  if (!run || run.taughtLavudPosts || !state || !side) return;
+  if (!run || run.taughtLavudPosts || !state || !side || SA.Scramble._spoke) return;
   var wall = state.walls[side];
   if (!wall || wall.panels.length < 2) return;
   var sorted = wall.panels.slice().sort(function (a, b) { return a.col - b.col; });
@@ -23307,8 +23466,7 @@ SA.Scramble.teachLavudPosts = function (state, side) {
     var gap = sorted[i].col - (sorted[i - 1].col + sorted[i - 1].w);
     if (gap > 0 && gap < SA.Rule.LAVUD) {
       run.taughtLavudPosts = true;
-      SA.Scramble.toast(SA.Lang.t(
-        'Lavud: that gap is under three tefachim, so the law treats it as solid wall (OC 630:1).'),
+      SA.Scramble.toast(SA.Lang.t('Lavud: that gap is under three tefachim, so it counts as wall.'),
         'sk_lavud', 'good');
       return;
     }
@@ -23319,7 +23477,7 @@ SA.Scramble.teachLavudPosts = function (state, side) {
    partition up to the covering (OC 630:9). */
 SA.Scramble.teachGudAsik = function (state) {
   var run = SA.Scramble.run;
-  if (!run || run.taughtGudAsik || !state) return;
+  if (!run || run.taughtGudAsik || !state || SA.Scramble._spoke) return;
   var wc = SA.Halacha.wallCarries(state);
   var side, reach, gap;
   for (var i = 0; i < SA.WALL_SIDES.length; i++) {
@@ -23333,8 +23491,7 @@ SA.Scramble.teachGudAsik = function (state) {
        A full-height board already touching the roof is not this lesson. */
     if (reach >= SA.Rule.WALL_MIN_HEIGHT && gap > 0.05) {
       run.taughtGudAsik = true;
-      SA.Scramble.toast(SA.Lang.t(
-        'Gud asik: a real ten-tefach wall is treated as reaching straight up to the schach above it (OC 630:9).'),
+      SA.Scramble.toast(SA.Lang.t('Gud asik: that ten-tefach wall counts as reaching up to the schach.'),
         'sk_gud_asik', 'good');
       return;
     }
@@ -23412,17 +23569,71 @@ SA.Scramble.observe = function (result) {
       codes[it.code] = true;
     }
   }
-  if (run.prevCodes) {
+  if (run.prevCodes && !SA.Scramble._spoke) {
     for (var code in run.prevCodes) {
       if (!codes[code] && SA.Scramble.CLEARED[code]) {
         SA.Scramble.toast(SA.Scramble.CLEARED[code].en, SA.Scramble.CLEARED[code].card, 'good');
+        break;
       }
     }
   }
   run.prevCodes = codes;
+  SA.Scramble._spoke = false;
 };
 
 SA.Lang.add({
+  'Never grew from the ground — cannot be schach.': 'לא צמח מן הארץ — אינו יכול להיות סכך.',
+  'Still growing — cut it first.': 'עדיין צומח — תלשו קודם.',
+  'A finished vessel or food cannot be schach.': 'כלי מוגמר או אוכל אינם יכולים להיות סכך.',
+  'A sitting/sleeping mat cannot be schach — only a roofing mat.':
+    'מחצלת ישיבה או שכיבה אינה יכולה להיות סכך — רק מחצלת לסיכוך.',
+  'Boards this wide read as a house ceiling — not schach.':
+    'לוחות רחבים כך נקראים כתקרת בית — לא סכך.',
+  'Three walls count — they need not touch if lavud joins the gaps. Kosher schach under open sky finishes it.':
+    'שלושה קירות נחשבים — הם לא חייבים לגעת אם לבוד מחבר את הרווחים. סכך כשר תחת שמיים פתוחים משלים את זה.',
+  'Tzurat ha-petach is up — the doorway closes the third wall.': 'צורת הפתח עומדת — הפתח סוגר את הקיר השלישי.',
+  'More shade than sun now.': 'עכשיו יש יותר צל משמש.',
+  'Ten tefachim of headroom — now it counts.': 'עשרה טפחים גובה — עכשיו זה נחשב.',
+  'Back under twenty amos.': 'חזרנו מתחת לעשרים אמה.',
+  'Seven by seven tefachim — room for a person and a table.': 'שבעה על שבעה טפחים — מקום לאדם ולשולחן.',
+  'The schach reaches across — no gap splits the sukkah.': 'הסכך מגיע עד הצד — אין רווח שחולק את הסוכה.',
+  'The covering has something to lie on now.': 'עכשיו יש לסיכוך על מה לשכב.',
+  'The roof is sitting on the walls now.': 'הגג יושב עכשיו על הקירות.',
+  'The pasul strip at the wall is back under four amos.': 'רצועת הפסול ליד הקיר חזרה לפחות מארבע אמות.',
+  'The invalid patch is back under four tefachim.': 'הטלאי הפסול חזר לפחות מארבעה טפחים.',
+  'Tied — a live wall that cannot walk off counts.': 'קשור — קיר חי שאינו יכול לברוח נחשב.',
+  'Tied — ordinary wind cannot open a gap now.': 'קשור — רוח מצויה אינה יכולה לפתוח רווח.',
+  'Ropes tied — lavud gaps stay under three tefachim.': 'החבלים קשורים — רווחי הלבוד נשארים בפחות משלושה טפחים.',
+  'The decoration is back within four tefachim of the roof.': 'הקישוט חזר לתוך ארבעה טפחים מהגג.',
+  'Keep hanging fruit within four tefachim of the roof, or a wide bunch becomes its own ceiling.':
+    'השאירו פירות תלויים בתוך ארבעה טפחים מהגג, אחרת אשכול רחב הופך לתקרה.',
+  'Metal is only a frame — lay wood on the pipes, then schach on the wood.':
+    'מתכת היא רק שלד — הניחו עץ על הצינורות, ואז סכך על העץ.',
+  'A ladder cannot be schach. Laid as a slat it may hold covering.':
+    'סולם אינו יכול להיות סכך. כמונח כשריג הוא יכול להחזיק סיכוך.',
+  'A tied animal can be a wall — it cannot walk away.': 'חיה קשורה יכולה להיות קיר — היא לא יכולה ללכת.',
+  'Lavud: ropes under three tefachim apart count as solid wall.':
+    'לבוד: חבלים בפחות משלושה טפחים נחשבים קיר מלא.',
+  'Tires are a wall. The grew-from-the-ground test is only for schach.':
+    'צמיגים הם קיר. מבחן הצמיחה מן הארץ הוא רק לסכך.',
+  'Drums are a wall. Metal is fine here even though it can never be schach.':
+    'חביות הן קיר. מתכת כשרה כאן אף שלעולם אינה יכולה להיות סכך.',
+  'Pallets are a wall. Walls do not have to grow from the ground.':
+    'משטחים הם קיר. קירות לא חייבים לצמוח מן הארץ.',
+  'A door is a fine wall. The same door cannot be the roof.':
+    'דלת היא קיר טוב. אותה דלת אינה יכולה להיות הגג.',
+  'Tap Tie — a sheet only counts if ordinary wind cannot open a gap.':
+    'הקישו על קשרו — יריעה נחשבת רק אם רוח מצויה אינה יכולה לפתוח רווח.',
+  'Chain-link holes under three tefachim count as solid (lavud).':
+    'חורי רשת בפחות משלושה טפחים נחשבים מלאים (לבוד).',
+  'A fence full of holes can still be a wall (parutz merubeh).':
+    'גדר מלאה חורים עדיין יכולה להיות קיר (פרוץ מרובה).',
+  'Keep post gaps under three tefachim — lavud treats them as solid.':
+    'השאירו רווחי עמודים בפחות משלושה טפחים — לבוד מתייחס אליהם כמלאים.',
+  'Lavud: that gap is under three tefachim, so it counts as wall.':
+    'לבוד: הרווח הזה פחות משלושה טפחים, ולכן הוא נחשב קיר.',
+  'Gud asik: that ten-tefach wall counts as reaching up to the schach.':
+    'גוד אסיק: קיר של עשרה טפחים נחשב כמגיע עד הסכך.',
   'Two full walls that meet plus a third of even one tefach - that is a sukkah (OC 630:2).':
     'שני קירות מלאים הנפגשים ועוד קיר שלישי אפילו בטפח - זו סוכה (או"ח תרל:ב).',
   'More shade than sun now - tzilata merubah me\'chamasa (OC 631:1).':
