@@ -13616,12 +13616,16 @@ SA.Draw.DECOR_SHAPES = {
     ctx.closePath(); ctx.stroke();
   },
   rockingchair: function (ctx, a, b) {
-    ctx.strokeStyle = b; ctx.lineWidth = 2.0;
+    ctx.strokeStyle = SA.Mat.shadeColor(b, 0.72); ctx.lineWidth = 2.4;
     ctx.beginPath();
-    ctx.moveTo(-8.6, 8.8); ctx.quadraticCurveTo(-10.4, 2.0, -6.4, -2.4);
-    ctx.moveTo(8.6, 8.8); ctx.quadraticCurveTo(10.4, 2.0, 6.4, -2.4);
+    ctx.moveTo(-9.4, 10.2); ctx.quadraticCurveTo(-11.2, 6.4, -8.0, 3.6);
+    ctx.quadraticCurveTo(-4.8, 1.6, 0, 2.4);
+    ctx.quadraticCurveTo(4.8, 1.6, 8.0, 3.6);
+    ctx.quadraticCurveTo(11.2, 6.4, 9.4, 10.2);
     ctx.stroke();
-    saDecChair(ctx, 0, 0.6, 1.0, a, b);
+    saDecChair(ctx, 0, -0.8, 0.92, a, b);
+    ctx.fillStyle = SA.Mat.shadeColor(a, 1.12);
+    ctx.beginPath(); ctx.ellipse(0, 1.2, 5.6, 2.0, 0, 0, 7); ctx.fill();
   },
   stool: function (ctx, a, b) {
     saDecIsoTop(ctx, 0, -1.6, 8.4, 4.6, a);
@@ -16116,28 +16120,34 @@ SA.Cards = [
 
   { id: 'sk_lavud', game: 'sukkah', icon: 'link', title: 'Lavud: The Gap That Counts as Solid',
     hebrew: 'לָבוּד',
-    body: 'Any gap under three tefachim - between fence posts, between a wall and the ground, or between boards in a wall - is treated as fully solid. This is also why two walls do not have to physically touch to make a corner: if the gap between them is under three tefachim, the law sees them as joined. A lavud rope wall uses taut horizontal ropes or straps less than three tefachim apart from the ground up to ten tefachim - that band is a real wall. The metal frame on that piece goes all the way up to the roof so the schach can sit on it; the ropes are only the bottom ten tefachim. Two posts more than three tefachim apart with nothing between them are not lavud. With the schach lined up directly above the wall, gud asik then projects that wall up through the open air (see the Gud Asik card). Do not try to close the upper air gap with lavud after gud asik has already been used there. Some are stricter and want a wall that is only solid by lavud only when every wall of the sukkah is built that way.',
+    body: 'Any gap under three tefachim - between fence posts, between a wall and the ground, or between boards in a wall - is treated as fully solid. This is also why two walls do not have to physically touch to make a corner: if the gap between them is under three tefachim, the law sees them as joined. A lavud rope wall uses taut horizontal ropes or straps less than three tefachim apart from the ground up to ten tefachim - that band is a real wall. The metal frame on that piece goes all the way up to the roof so the schach can sit on it; the ropes are only the bottom ten tefachim. Two posts more than three tefachim apart with nothing between them are not lavud. With the schach lined up directly above the wall, gud asik then projects that wall up through the open air (see the Gud Asik card). You may not use lavud and gud asik on the exact same gap. Some are stricter (Mishnah Berurah 630:7): a wall that is solid only by lavud - posts or ropes with no fabric behind them - should be used only when every wall of the sukkah is built that way.',
     terms: [['Lavud', 'literally "attached" - a small enough gap is nullified'],
       ['Gud Asik', 'once you have ten tefachim, the wall is pulled up to the schach when aligned']],
     source: 'Shulchan Aruch OC 630:1,9,10; Mishnah Berurah 630:7' },
 
+  { id: 'sk_any_wall', game: 'sukkah', icon: 'wall', title: 'A Wall Can Be Almost Anything',
+    hebrew: 'כָּל הַדְּבָרִים כְּשֵׁרִים לַדְּפָנוֹת',
+    body: 'Walls have no gidulo, talush, or tumah test - those three rules are only for schach. Wood, metal, brick, glass, a stack of tires, an old door, or a house wall all count if they stand up to an ordinary wind. Fabric and a live animal are also walls, but only once they are tied so the wind or the animal cannot open a gap.',
+    terms: [['Dofen', 'a wall']],
+    source: 'Sukkah 24b; Shulchan Aruch OC 630:10-11' },
+
   { id: 'sk_dofen_akumah', game: 'sukkah', icon: 'corner', title: 'The Bent Wall',
     hebrew: 'דּוֹפֶן עֲקוּמָה',
-    body: 'Invalid schach touching a wall, less than four amos wide, is treated as if the wall bends and continues under it - the sukkah stays kosher, though you may not sit under that strip.',
+    body: 'Invalid schach touching a wall, less than four amos wide, is treated as if the wall bends and continues under it - the sukkah stays kosher. You may not sit under that strip if it is four tefachim or wider. In a seven-by-seven sukkah this leniency does not apply: even three tefachim of invalid schach fails.',
     terms: [['Dofen Akumah', 'literally "a bent wall"']],
     source: 'Rambam Hilchos Sukkah 4:14; Shulchan Aruch OC 632:1' },
 
   { id: 'sk_avir', game: 'sukkah', icon: 'sky', title: 'Open Air vs. Invalid Schach',
     hebrew: 'אֲוִיר שְׁלֹשָׁה, סְכָךְ פָּסוּל אַרְבָּעָה',
-    body: 'Open sky under three tefachim wide is closed by lavud and ignored. Three tefachim or more matters, but what it ruins depends on where it runs: a gap that reaches from one wall across to the opposite wall splits the sukkah in two, and each half then needs its own walls and its own seven by seven. A gap sitting in the middle, with schach around it, does not invalidate anything - the sukkah stays kosher and you simply may not eat or sleep directly under that open patch. Invalid material is judged differently again: it must reach four tefachim in the middle, or four amos at a wall, to be a problem.',
+    body: 'Open sky under three tefachim wide is closed by lavud and ignored. Three tefachim or more matters, but what it ruins depends on where it runs: a gap that reaches from one wall across to the opposite wall splits the sukkah in two, and each half then needs its own walls and its own seven by seven. A gap sitting in the middle, with schach around it, does not invalidate anything - the sukkah stays kosher and you simply may not eat or sleep directly under that open patch. Invalid material is judged differently again: it must reach four tefachim in the middle, or four amos at a wall, to be a problem. In a sukkah that is only seven by seven, both open air and invalid schach fail at three tefachim, in the middle or at a wall.',
     terms: [['Avir', 'open air'], ['Lavud', 'a gap under three tefachim is treated as closed']],
     source: 'Shulchan Aruch OC 632:1-2; Mishnah Berurah there' },
 
   { id: 'sk_parutz_merubeh', game: 'sukkah', icon: 'window', title: 'More Open Than Standing',
     hebrew: 'פָּרוּץ מְרוּבֶּה עַל הָעוֹמֵד',
-    body: 'A sukkah wall riddled with doorways and windows is kosher even if the open area is bigger than the standing area. A picket fence or chain-link panel is the classic example - more hole than board, and still a wall. (A single gap of ten amos or more is a different problem; this game\'s walls never get that wide.)',
+    body: 'A sukkah wall riddled with doorways and windows is kosher even if the open area is bigger than the standing area, so long as no single opening is ten amos (Shulchan Aruch OC 630:5). Many Ashkenaz poskim (Magen Avraham, Taz, Mishnah Berurah) are stricter: the two full walls should still have more standing than open. A picket fence with gaps wider than three tefachim is the usual example. Chain-link whose holes are under three tefachim is not this rule - that is lavud, and the wall is treated as solid.',
     terms: [['Parutz', 'open/breached'], ['Omed', 'standing']],
-    source: 'Rambam Hilchos Sukkah 4:12; Shulchan Aruch OC 630:5' },
+    source: 'Rambam Hilchos Sukkah 4:12; Shulchan Aruch OC 630:5; Mishnah Berurah there' },
 
   { id: 'sk_elephant', game: 'sukkah', icon: 'elephant', title: 'The Elephant in the Sukkah',
     hebrew: 'פִּיל קָשׁוּר',
@@ -16167,13 +16177,13 @@ SA.Cards = [
 
   { id: 'sk_build_order', game: 'sukkah', icon: 'hammer', title: 'Made, Not Found Already Made',
     hebrew: 'תַּעֲשֵׂה וְלֹא מִן הֶעָשׂוּי',
-    body: 'Schach must be actively laid down with intent to give shade. The Gemara\'s example: hollowing a nook into a haystack does not make a sukkah, even though the hay is kosher schach - it has to be lifted and placed by hand. Most poskim also want the walls up before the schach goes on.',
+    body: 'Schach must be actively laid down with intent to give shade. The Gemara\'s example: hollowing a nook into a haystack does not make a sukkah, even though the hay is kosher schach - it has to be lifted and placed by hand. L\'chatchila put the walls up first, then lay the schach. If the covering went on before there were walls, lift it and lay it again (ta\'aseh v\'lo min he\'asuy).',
     terms: [['Ta\'aseh v\'lo min he\'asuy', '"you shall make it" - not something already made']],
     source: 'Sukkah 11a-12a; Shulchan Aruch OC 626:2' },
 
-  { id: 'sk_overhead', game: 'sukkah', icon: 'tree', title: 'Nothing May Be Above the Schach',
+  { id: 'sk_overhead', game: 'sukkah', icon: 'tree', title: 'Nothing May Shade Out the Schach',
     hebrew: 'סֻכָּה תַּחַת סֻכָּה, תַּחַת אִילָן, תַּחַת גַּג',
-    body: 'The schach must open straight to the sky. A tree or a balcony overhang whose own shade is greater than its own sun means no valid sukkah can ever be built there - no amount of extra schach fixes it.',
+    body: 'The schach must open straight to the sky. A tree or a balcony overhang whose own shade is greater than its own sun means no valid sukkah can ever be built there - no amount of extra schach fixes it. A lighter canopy with more sun than shade can sit above if your kosher schach still makes the majority of shade on the floor.',
     terms: [['Ilan', 'a tree']],
     source: 'Sukkah 9b; Shulchan Aruch OC 626:1' },
 
@@ -16199,9 +16209,9 @@ SA.Cards = [
 
   { id: 'sk_decor', game: 'sukkah', icon: 'chain', title: 'Decorations Within Four Tefachim',
     hebrew: 'נוֹי סֻכָּה',
-    body: 'A decoration hung under the schach is treated as part of the schach as long as it hangs within four tefachim. Lower than that, a wide decoration becomes its own ceiling and invalidates the space under it.',
+    body: 'A decoration hung under the schach is treated as part of the schach as long as it hangs within four tefachim - even fruit or paper, which could never be schach themselves. Lower than that, a decoration four tefachim wide or more becomes its own ceiling and invalidates the space under it. Custom (Rema) is to keep every decoration within four tefachim, even a thin string.',
     terms: [['Noy Sukkah', 'sukkah decoration']],
-    source: 'Sukkah 10a; Shulchan Aruch OC 627:4' },
+    source: 'Sukkah 10a; Shulchan Aruch OC 627:4; Rema / Mishnah Berurah 627:15' },
 
   { id: 'sk_ground_gap', game: 'sukkah', icon: 'ground', title: 'Close to the Ground',
     hebrew: 'תְּלוּיָה מִן הַקַּרְקַע',
@@ -16213,7 +16223,7 @@ SA.Cards = [
     hebrew: 'סֻכָּה עַל גַּבֵּי בְהֵמָה, עַל גַּבֵּי עֲגָלָה',
     body: 'A sukkah can be built on a wagon or a boat, as long as it has the same walls, schach and size as any other sukkah - halacha does not care what is underneath. And there is no maximum length or width, ever: only height has a ceiling.',
     terms: [],
-    source: 'Shulchan Aruch OC 634:2; Sukkah 10a' }
+    source: 'Mishnah Sukkah 2:3; Shulchan Aruch OC 628; OC 634:1' }
 ];
 
 SA.Cards.byId = {};
@@ -16234,6 +16244,7 @@ SA.Lang.add({
   'Standing Up to a Normal Wind': 'עמידה מפני רוח מצויה',
   'Gud Asik: The Wall Reaches the Schach': 'גוד אסיק: הקיר מגיע לסכך',
   'Lavud: The Gap That Counts as Solid': 'לבוד: הרווח שנחשב כמלא',
+  'A Wall Can Be Almost Anything': 'קיר יכול להיות כמעט הכל',
   'The Bent Wall': 'דופן עקומה',
   'Open Air vs. Invalid Schach': 'אוויר לעומת סכך פסול',
   'More Open Than Standing': 'פרוץ מרובה על העומד',
@@ -16243,6 +16254,7 @@ SA.Lang.add({
   'A Mat Made for the Roof, Not for Sitting': 'מחצלת שנעשתה לסיכוך ולא לשכיבה',
   'Made, Not Found Already Made': 'תעשה ולא מן העשוי',
   'Nothing May Be Above the Schach': 'לא יהיה דבר מעל הסכך',
+  'Nothing May Shade Out the Schach': 'לא יצל דבר את הסכך',
   'More Shade Than Sun': 'צילתה מרובה מחמתה',
   'Thin Enough to See the Sky': 'דק מספיק לראות את השמיים',
   'What Holds the Schach Up': 'מה מעמיד את הסכך',
@@ -16270,14 +16282,16 @@ SA.Lang.add({
     'רווחים בפחות משלושה טפחים נחשבים כמלאים - כאן משתמשים בכך ליצירת עשרת הטפחים הראשונים',
   'once you have ten tefachim, the wall is pulled up to the schach when aligned':
     'ברגע שיש עשרה טפחים, הקיר נמשך למעלה עד הסכך כשהוא מיושר',
-  'Any gap under three tefachim - between fence posts, between a wall and the ground, or between boards in a wall - is treated as fully solid. This is also why two walls do not have to physically touch to make a corner: if the gap between them is under three tefachim, the law sees them as joined. A lavud rope wall uses taut horizontal ropes or straps less than three tefachim apart from the ground up to ten tefachim - that band is a real wall. The metal frame on that piece goes all the way up to the roof so the schach can sit on it; the ropes are only the bottom ten tefachim. Two posts more than three tefachim apart with nothing between them are not lavud. With the schach lined up directly above the wall, gud asik then projects that wall up through the open air (see the Gud Asik card). Do not try to close the upper air gap with lavud after gud asik has already been used there. Some are stricter and want a wall that is only solid by lavud only when every wall of the sukkah is built that way.':
-    'כל רווח שקטן משלושה טפחים - בין עמודי גדר, בין קיר לקרקע, או בין לוחות בקיר - נחשב כמלא לגמרי. מטעם זה גם שני קירות אינם צריכים לגעת ממש כדי ליצור פינה: אם הרווח ביניהם קטן משלושה טפחים, ההלכה רואה אותם כמחוברים. קיר חבלי לבוד משתמש בחבלים או רצועות אופקיים מתוחים בפחות משלושה טפחים זה מזה מהקרקע עד עשרה טפחים - הרצועה הזו היא קיר אמיתי. מסגרת המתכת של החלק עולה עד הגג כדי שהסכך יוכל לנוח עליה; החבלים הם רק עשרת הטפחים התחתונים. שני עמודים הרחוקים יותר משלושה טפחים בלי כלום ביניהם אינם לבוד. כשהסכך מיושר ישירות מעל הקיר, גוד אסיק מושך את הקיר דרך האוויר הפתוח (ראו את כרטיס גוד אסיק). אין לסגור את רווח האוויר העליון בלבוד אחרי שכבר השתמשו שם בגוד אסיק. יש מחמירים ורוצים שקיר העומד רק בלבוד יהיה כשר רק כאשר כל קירות הסוכה בנויים כך.',
-  'Invalid schach touching a wall, less than four amos wide, is treated as if the wall bends and continues under it - the sukkah stays kosher, though you may not sit under that strip.':
-    'סכך פסול הנוגע בקיר, ברוחב של פחות מארבע אמות, נחשב כאילו הקיר מתעקם וממשיך תחתיו - הסוכה נשארת כשרה, אך אין לשבת תחת אותה רצועה.',
-  'Open sky under three tefachim wide is closed by lavud and ignored. Three tefachim or more matters, but what it ruins depends on where it runs: a gap that reaches from one wall across to the opposite wall splits the sukkah in two, and each half then needs its own walls and its own seven by seven. A gap sitting in the middle, with schach around it, does not invalidate anything - the sukkah stays kosher and you simply may not eat or sleep directly under that open patch. Invalid material is judged differently again: it must reach four tefachim in the middle, or four amos at a wall, to be a problem.':
-    'אוויר פתוח ברוחב פחות משלושה טפחים נסגר בלבוד ואינו נחשב. שלושה טפחים או יותר כבר נחשבים, אך מה שהם פוסלים תלוי במקומם: רווח המגיע מדופן אחת אל הדופן שכנגדה חולק את הסוכה לשתיים, וכל חלק צריך אז קירות משלו ושבעה על שבעה משלו. רווח היושב באמצע, וסכך סביבו, אינו פוסל כלל - הסוכה נשארת כשרה, ופשוט אין לאכול או לישון ישירות תחת אותו פתח. סכך פסול נמדד אחרת: הוא צריך להגיע לארבעה טפחים באמצע, או ארבע אמות ליד קיר, כדי להיות בעיה.',
-  'A sukkah wall riddled with doorways and windows is kosher even if the open area is bigger than the standing area. A picket fence or chain-link panel is the classic example - more hole than board, and still a wall. (A single gap of ten amos or more is a different problem; this game\'s walls never get that wide.)':
-    'קיר סוכה מלא פתחים וחלונות כשר אפילו אם השטח הפתוח גדול מהעומד. גדר כלונסאות או רשת היא הדוגמה הקלאסית - יותר חור מלוח, ועדיין קיר. (פתח יחיד של עשר אמות או יותר הוא בעיה אחרת; קירות המשחק לעולם אינם מגיעים לרוחב כזה.)',
+  'Any gap under three tefachim - between fence posts, between a wall and the ground, or between boards in a wall - is treated as fully solid. This is also why two walls do not have to physically touch to make a corner: if the gap between them is under three tefachim, the law sees them as joined. A lavud rope wall uses taut horizontal ropes or straps less than three tefachim apart from the ground up to ten tefachim - that band is a real wall. The metal frame on that piece goes all the way up to the roof so the schach can sit on it; the ropes are only the bottom ten tefachim. Two posts more than three tefachim apart with nothing between them are not lavud. With the schach lined up directly above the wall, gud asik then projects that wall up through the open air (see the Gud Asik card). You may not use lavud and gud asik on the exact same gap. Some are stricter (Mishnah Berurah 630:7): a wall that is solid only by lavud - posts or ropes with no fabric behind them - should be used only when every wall of the sukkah is built that way.':
+    'כל רווח שקטן משלושה טפחים - בין עמודי גדר, בין קיר לקרקע, או בין לוחות בקיר - נחשב כמלא לגמרי. מטעם זה גם שני קירות אינם צריכים לגעת ממש כדי ליצור פינה: אם הרווח ביניהם קטן משלושה טפחים, ההלכה רואה אותם כמחוברים. קיר חבלי לבוד משתמש בחבלים או רצועות אופקיים מתוחים בפחות משלושה טפחים זה מזה מהקרקע עד עשרה טפחים - הרצועה הזו היא קיר אמיתי. מסגרת המתכת של החלק עולה עד הגג כדי שהסכך יוכל לנוח עליה; החבלים הם רק עשרת הטפחים התחתונים. שני עמודים הרחוקים יותר משלושה טפחים בלי כלום ביניהם אינם לבוד. כשהסכך מיושר ישירות מעל הקיר, גוד אסיק מושך את הקיר דרך האוויר הפתוח (ראו את כרטיס גוד אסיק). אין להשתמש בלבוד ובגוד אסיק על אותו רווח ממש. יש מחמירים (מ"ב תרל,ז): קיר העומד רק בלבוד - עמודים או חבלים בלי בד מאחוריהם - ראוי רק כאשר כל קירות הסוכה בנויים כך.',
+  'Walls have no gidulo, talush, or tumah test - those three rules are only for schach. Wood, metal, brick, glass, a stack of tires, an old door, or a house wall all count if they stand up to an ordinary wind. Fabric and a live animal are also walls, but only once they are tied so the wind or the animal cannot open a gap.':
+    'לקירות אין מבחן של גידולו, תלוש או טומאה - שלושת הכללים האלה הם רק לסכך. עץ, מתכת, לבנים, זכוכית, מערום צמיגים, דלת ישנה או קיר בית - כולם כשרים אם הם עומדים ברוח מצויה. בד ובעל חיים חיים הם גם קירות, אבל רק אחרי שקושרים אותם כדי שהרוח או החיה לא יפתחו רווח.',
+  'Invalid schach touching a wall, less than four amos wide, is treated as if the wall bends and continues under it - the sukkah stays kosher. You may not sit under that strip if it is four tefachim or wider. In a seven-by-seven sukkah this leniency does not apply: even three tefachim of invalid schach fails.':
+    'סכך פסול הנוגע בקיר, ברוחב של פחות מארבע אמות, נחשב כאילו הקיר מתעקם וממשיך תחתיו - הסוכה נשארת כשרה. אין לשבת תחת אותה רצועה אם היא רחבה ארבעה טפחים או יותר. בסוכה של שבעה על שבעה הקולא הזו אינה חלה: גם שלושה טפחים של סכך פסול פוסלים.',
+  'Open sky under three tefachim wide is closed by lavud and ignored. Three tefachim or more matters, but what it ruins depends on where it runs: a gap that reaches from one wall across to the opposite wall splits the sukkah in two, and each half then needs its own walls and its own seven by seven. A gap sitting in the middle, with schach around it, does not invalidate anything - the sukkah stays kosher and you simply may not eat or sleep directly under that open patch. Invalid material is judged differently again: it must reach four tefachim in the middle, or four amos at a wall, to be a problem. In a sukkah that is only seven by seven, both open air and invalid schach fail at three tefachim, in the middle or at a wall.':
+    'אוויר פתוח ברוחב פחות משלושה טפחים נסגר בלבוד ואינו נחשב. שלושה טפחים או יותר כבר נחשבים, אך מה שהם פוסלים תלוי במקומם: רווח המגיע מדופן אחת אל הדופן שכנגדה חולק את הסוכה לשתיים, וכל חלק צריך אז קירות משלו ושבעה על שבעה משלו. רווח היושב באמצע, וסכך סביבו, אינו פוסל כלל - הסוכה נשארת כשרה, ופשוט אין לאכול או לישון ישירות תחת אותו פתח. סכך פסול נמדד אחרת: הוא צריך להגיע לארבעה טפחים באמצע, או ארבע אמות ליד קיר, כדי להיות בעיה. בסוכה שהיא רק שבעה על שבעה, גם אוויר וגם סכך פסול נפסלים בשלושה טפחים, באמצע או ליד קיר.',
+  'A sukkah wall riddled with doorways and windows is kosher even if the open area is bigger than the standing area, so long as no single opening is ten amos (Shulchan Aruch OC 630:5). Many Ashkenaz poskim (Magen Avraham, Taz, Mishnah Berurah) are stricter: the two full walls should still have more standing than open. A picket fence with gaps wider than three tefachim is the usual example. Chain-link whose holes are under three tefachim is not this rule - that is lavud, and the wall is treated as solid.':
+    'קיר סוכה מלא פתחים וחלונות כשר אפילו אם השטח הפתוח גדול מהעומד, כל עוד אין פתח יחיד של עשר אמות (שולחן ערוך או"ח תרל,ה). פוסקים אשכנזים רבים (מגן אברהם, ט"ז, משנה ברורה) מחמירים: שני הקירות המלאים עדיין צריכים יותר עומד מפרוץ. גדר כלונסאות עם רווחים רחבים משלושה טפחים היא הדוגמה הרגילה. רשת שחוריה קטנים משלושה טפחים אינה הכלל הזה - זה לבוד, והקיר נחשב מלא.',
   'A Baraita asks whether a live animal may serve as a wall. Halacha follows the concern that it might wander off, so a live animal wall must be tied down. The Gemara\'s punchline is that a tied elephant would still count even lying down - its body is ten tefachim tall on its side - but in this game the elephant always stands, and the lesson you play is the rope.':
     'ברייתא שואלת אם חיה חיה יכולה לשמש כקיר. ההלכה חוששת שהיא תברח, ולכן קיר מחיה חיה צריך להיות קשור. הפאנץ\' של הגמרא הוא שפיל קשור היה נחשב גם כשהוא שוכב - גופו גבוה עשרה טפחים על צדו - אבל במשחק הזה הפיל תמיד עומד, והשיעור שמשחקים הוא החבל.',
   'Valid schach must have grown from the ground, be currently detached, and not be able to become ritually impure. That rules out metal, plastic, food, and finished furniture, even wooden furniture.':
@@ -16294,10 +16308,10 @@ SA.Lang.add({
     'יכול לקבל טומאה - כלים, אוכל, ומחצלות שנעשו לישיבה או לשכיבה',
   'able to become ritually impure - why a sleeping mat fails':
     'יכול לקבל טומאה - למה מחצלת לשכיבה נפסלת',
-  'Schach must be actively laid down with intent to give shade. The Gemara\'s example: hollowing a nook into a haystack does not make a sukkah, even though the hay is kosher schach - it has to be lifted and placed by hand. Most poskim also want the walls up before the schach goes on.':
-    'סכך צריך להיות מונח בפועל בכוונה לצל. משל הגמרא: חפירת גומחה בגדיש אינה עושה סוכה, אף שהתבן כשר לסכך - צריך להגביה ולהניח בידיים. רוב הפוסקים גם רוצים שהקירות יוקמו לפני הסכך.',
-  'The schach must open straight to the sky. A tree or a balcony overhang whose own shade is greater than its own sun means no valid sukkah can ever be built there - no amount of extra schach fixes it.':
-    'הסכך צריך להיפתח ישר לשמיים. עץ או גגון מרפסת שהצל שלו עצמו גדול מהשמש שלו עצמו - אי אפשר לבנות שם סוכה כשרה בשום מצב, ולא עוזר עוד סכך.',
+  'Schach must be actively laid down with intent to give shade. The Gemara\'s example: hollowing a nook into a haystack does not make a sukkah, even though the hay is kosher schach - it has to be lifted and placed by hand. L\'chatchila put the walls up first, then lay the schach. If the covering went on before there were walls, lift it and lay it again (ta\'aseh v\'lo min he\'asuy).':
+    'סכך צריך להיות מונח בפועל בכוונה לצל. משל הגמרא: חפירת גומחה בגדיש אינה עושה סוכה, אף שהתבן כשר לסכך - צריך להגביה ולהניח בידיים. לכתחילה מעמידים את הקירות קודם, ואז מניחים את הסכך. אם הכיסוי עלה לפני שהיו קירות, מגביהים ומניחים שוב (תעשה ולא מן העשוי).',
+  'The schach must open straight to the sky. A tree or a balcony overhang whose own shade is greater than its own sun means no valid sukkah can ever be built there - no amount of extra schach fixes it. A lighter canopy with more sun than shade can sit above if your kosher schach still makes the majority of shade on the floor.':
+    'הסכך צריך להיפתח ישר לשמיים. עץ או גגון מרפסת שהצל שלו עצמו גדול מהשמש שלו עצמו - אי אפשר לבנות שם סוכה כשרה בשום מצב, ולא עוזר עוד סכך. חופה קלה עם יותר שמש מצל יכולה לשבת מעל אם הסכך הכשר שלכם עדיין עושה את רוב הצל על הרצפה.',
   'Measured on the floor at midday, the shaded area must simply be greater than the sunlit area. That is the whole requirement - there is no three-quarters mark to hit. Exactly fifty-fifty is not enough, because the shade has to be the majority, but a roof only a little past half is already kosher.':
     'נמדד על רצפת הסוכה בצהריים: שטח הצל צריך פשוט להיות גדול משטח השמש. זו כל הדרישה - אין שיעור של שלושה רבעים. חצי בחצי בדיוק אינו מספיק, שהצל צריך להיות המרובה, אך גג שעבר את החצי במקצת כבר כשר.',
   'L\'chatchila, schach should be thin enough to see the open sky through it. But schach so thick that no light gets through at all is still fully kosher, as long as the material itself is valid.':
@@ -16309,8 +16323,8 @@ SA.Lang.add({
   'Mekabel tumah': 'מקבל טומאה',
   'able to become ritually impure': 'יכול לקבל טומאה',
   'susceptible to ritual impurity': 'רגיש לטומאה',
-  'A decoration hung under the schach is treated as part of the schach as long as it hangs within four tefachim. Lower than that, a wide decoration becomes its own ceiling and invalidates the space under it.':
-    'קישוט התלוי מתחת לסכך נחשב כחלק מהסכך כל עוד הוא תלוי בתוך ארבעה טפחים. נמוך מזה, קישוט רחב הופך לתקרה בפני עצמה ופוסל את המקום תחתיו.',
+  'A decoration hung under the schach is treated as part of the schach as long as it hangs within four tefachim - even fruit or paper, which could never be schach themselves. Lower than that, a decoration four tefachim wide or more becomes its own ceiling and invalidates the space under it. Custom (Rema) is to keep every decoration within four tefachim, even a thin string.':
+    'קישוט התלוי מתחת לסכך נחשב כחלק מהסכך כל עוד הוא תלוי בתוך ארבעה טפחים - אפילו פרי או נייר, שלעולם לא היו יכולים להיות סכך בעצמם. נמוך מזה, קישוט ברוחב ארבעה טפחים או יותר הופך לתקרה בפני עצמה ופוסל את המקום תחתיו. המנהג (רמ"א) הוא להשאיר כל קישוט בתוך ארבעה טפחים, אפילו חוט דק.',
   'A wall suspended more than three tefachim above the ground is invalid - that gap is too big for lavud to close. Within three tefachim of the ground is fine.':
     'קיר התלוי יותר משלושה טפחים מעל הקרקע פסול - הרווח גדול מכדי שלבוד יסגור אותו. בתוך שלושה טפחים מהקרקע זה כשר.',
   'A sukkah can be built on a wagon or a boat, as long as it has the same walls, schach and size as any other sukkah - halacha does not care what is underneath. And there is no maximum length or width, ever: only height has a ceiling.':
@@ -16397,6 +16411,8 @@ SA.Lang.add({
   'A Sukkah on a Boat': 'סוכה על סירה',
   'Parutz Merubeh': 'פרוץ מרובה',
   'The Graded Free Build': 'הבנייה החופשית המסכמת',
+  'Dashed square = 7×7 minimum. Two walls that meet, a tefach third near the corner, then shade over half the roof.':
+    'הריבוע המקווקו הוא מינימום שבעה על שבעה. שני קירות הנפגשים, קיר שלישי בטפח ליד הפינה, ואז צל על יותר מחצי הגג.',
   'The dashed square is the seven-by-seven minimum. Two full walls that meet, plus a tefach-wide third wall near the corner, then cover more than half the roof.':
     'הריבוע המקווקו הוא מינימום שבעה על שבעה. שני קירות מלאים הנפגשים, ועוד קיר שלישי ברוחב טפח קרוב לפינה, ואחר כך כסו יותר מחצי מהגג.',
   'The dashed square is the floor minimum. Shrink the pad below seven by seven tefachim and it stops being a sukkah - keep at least that mark.':
@@ -18903,6 +18919,8 @@ SA.Lang.add({
   'Two full walls plus a third of even one tefach, then cover more than half the roof - before Sukkot starts.': 'שני קירות מלאים ועוד קיר שלישי אפילו בטפח, ואז כסו יותר מחצי מהגג - לפני שסוכות מתחיל.',
   'Turn a piece with the \u21bb chip on its card before you drag it.': 'סובבו חלק בעזרת הסמל \u21bb שעל הכרטיס לפני שאתם גוררים אותו.',
   'The pill at the top says KOSHER or NOT KOSHER YET - tap its ? to be told exactly what is missing.': 'הכפתור למעלה אומר כשר או עדיין לא כשר - הקישו על ה-? כדי לדעת בדיוק מה חסר.',
+  'A kosher sukkah: three walls, then schach on top. Schach must be cut vegetation that is not a vessel and not disgusting.':
+    'סוכה כשרה: שלושה קירות, ואז סכך מלמעלה. הסכך חייב להיות צומח שתלשו, שאינו כלי ואינו מגעיל.',
   "Let's Build": 'הבה נבנה'
 });
 
@@ -18916,6 +18934,7 @@ SA.UI.renderFirstRunTip = function (ctx) {
     'The tray shows five pieces - tap \u2039 \u203a to look through everything else you have.',
     'Turn a piece with the \u21bb chip on its card before you drag it.',
     'The pill at the top says KOSHER or NOT KOSHER YET - tap its ? to be told exactly what is missing.',
+    'A kosher sukkah: three walls, then schach on top. Schach must be cut vegetation that is not a vessel and not disgusting.',
     'Two full walls plus a third of even one tefach, then cover more than half the roof - before Sukkot starts.'
   ];
   var ph = Math.min(h - safe.t - safe.b - 24, SA.UI.firstRunTipHeight(ctx, pw, steps));
@@ -19140,7 +19159,16 @@ SA.UI.rewardNames = function (reward) {
 };
 
 SA.UI.renderWinModal = function (ctx) {
-  SA.UI.backdrop(ctx);
+  /* Soft fade from the bottom so the schach roof stays visible. A full
+     opaque night wash used to make the covering look erased. */
+  var w0 = SA.View.w, h0 = SA.View.h;
+  var fade = ctx.createLinearGradient(0, 0, 0, h0);
+  fade.addColorStop(0, 'rgba(6,8,14,0.06)');
+  fade.addColorStop(0.42, 'rgba(6,8,14,0.22)');
+  fade.addColorStop(1, 'rgba(6,8,14,0.52)');
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, 0, w0, h0);
+  SA.Pick.addRect('modal_backdrop', {}, 0, 0, w0, h0);
   var w = SA.View.w, h = SA.View.h;
   var names0 = SA.UI.rewardNames(SA.Game.pendingReward);
   var run = SA.Scramble.run || { score: 0, mehadrin: false };
@@ -19149,7 +19177,7 @@ SA.UI.renderWinModal = function (ctx) {
      (inside / look around / share) sits above the card + next buttons. */
   var ph = 124 + (run.mehadrin ? 22 : 0) + (run.newBest ? 18 : 0) +
     (names0.length ? 24 + Math.min(4, names0.length) * 20 : 0) + 132;
-  var pw = Math.min(340, w - 40), px = (w - pw) / 2, py = h * 0.18;
+  var pw = Math.min(340, w - 40), px = (w - pw) / 2, py = Math.max(h * 0.28, h - ph - 28);
   SA.UI.panel(ctx, px, py, pw, ph);
   SA.Draw.text(ctx, 'KOSHER IN TIME!', px + pw / 2, py + 34, { size: 19, color: '#f0d98a', weight: '800' });
   SA.Draw.text(ctx, SA.Lang.fmt('{n} points', { n: run.score || 0 }), px + pw / 2, py + 68,
@@ -21961,7 +21989,7 @@ SA.Pile.place = function (piece, preview, state) {
       }
     }
     if (SA.Scramble.active()) {
-      if (wallEntry.lavudRopes) SA.Scramble.teachLavudWall(wallEntry);
+      SA.Scramble.teachOnPlace(piece, wallEntry, preview);
       SA.Scramble.fitRoofToWalls(state);
       SA.Scramble.teachGudAsik(state);
       SA.Scramble.teachLavudPosts(state, preview.side);
@@ -21988,7 +22016,7 @@ SA.Pile.place = function (piece, preview, state) {
       for (var z = preview.z; z < preview.z + preview.cd; z++) SA.State.placeSchach(state, x, z, entry, group);
     }
     SA.Progress.onAction('place_schach', piece.matId);
-    if (SA.Scramble.active() && SA.Mat.isRigidSchach(entry)) SA.Scramble.teachRigidSchach(entry);
+    if (SA.Scramble.active()) SA.Scramble.teachOnPlace(piece, entry, preview);
   } else if (preview.kind === 'beam') {
     SA.Tool.category = 'beam';
     /* Same settle as schach: a 46-tefach pad with ten-tefach walls still gets
@@ -21999,12 +22027,13 @@ SA.Pile.place = function (piece, preview, state) {
     SA.State.placeBeam(state, preview.x, preview.z, beamEntry,
       { cw: preview.cw, cd: preview.cd, rot: piece.rot || 0 });
     SA.Progress.onAction('place_beam', beamEntry.id);
-    if (SA.Scramble.active()) SA.Scramble.teachFrame(beamEntry);
+    if (SA.Scramble.active()) SA.Scramble.teachOnPlace(piece, beamEntry, preview);
   } else {
     SA.Tool.category = 'decor';
     var dcell = SA.Act.clampDecorCell(state, preview.x, preview.z);
     SA.State.placeDecor(state, entry, dcell.x, dcell.z, {});
     SA.Progress.onAction('place_decor', piece.matId);
+    if (SA.Scramble.active()) SA.Scramble.teachOnPlace(piece, entry, preview);
   }
   /* Heap pieces are spent; Free Build shelf cards are not. */
   if (!piece.infinite) SA.Pile.remove(piece.uid);
@@ -22654,7 +22683,7 @@ SA.Scramble = {
 /* Four nights + four days = eight phases, night first (the clock opens the
    moment Yom Kippur ends). */
 SA.Scramble.PHASES = 8;
-SA.Scramble.TOAST_MS = 4200;
+SA.Scramble.TOAST_MS = 5600;
 
 SA.Scramble.active = function () {
   return SA.Game.screen === 'build' && SA.Game.mode === 'scramble' && !!SA.Scramble.run;
@@ -22799,7 +22828,7 @@ SA.Scramble.start = function (levelId) {
     levelId: level.id, index: index, cfg: cfg,
     elapsed: 0, duration: cfg.seconds,
     status: 'building', etrogim: 0, goalMet: false,
-    prevCodes: null, taughtTie: false, placed: 0
+    prevCodes: null, taughtKeys: {}, placed: 0
   };
   SA.Scramble.toasts = [];
   SA.Undo.clear();
@@ -22877,7 +22906,11 @@ SA.Scramble.nightness = function () {
      nights, but a grade of 1.0 painted the site out entirely and the player was
      building against a blank navy field. 0.72 is moonlight - the lagoon, the
      palms and the flowers still read, and it is unmistakably night. */
-  return Math.min(0.72, SA.Scramble.clock().nightness);
+  var n = Math.min(0.72, SA.Scramble.clock().nightness);
+  /* Finish / Look Inside: keep the booth readable so the schach does not
+     vanish into the night grade plus a results wash. */
+  if (SA.Game.modal === 'scramble_win' || SA.Game.winTour) return Math.min(n, 0.28);
+  return n;
 };
 
 /* ---------------------------------------------- 24c. WIN / FAIL */
@@ -23037,6 +23070,7 @@ SA.Scramble.refuseSchach = function (piece) {
   var key = entry.reasonCode || 'wide';
   var body = SA.Scramble.REFUSE[key] || SA.Scramble.REFUSE.wide;
   var card = 'sk_schach_conditions';
+  if (key === 'wide' || !entry.reasonCode) card = 'sk_gezeiras_tikrah';
   if (key === 'tumah' && entry.id === 'sch_sleeping_mat') {
     body = SA.Scramble.REFUSE.tumah_mat;
     card = 'sk_bamboo_mat';
@@ -23045,18 +23079,185 @@ SA.Scramble.refuseSchach = function (piece) {
   SA.Pile.remove(piece.uid);
 };
 
-SA.Scramble.teachTie = function (entry) {
+/* One lesson per key per run. Same key from place, tie, or a first-round
+   milestone will not nag twice. */
+SA.Scramble.teachOnce = function (key, en, card, tone) {
   var run = SA.Scramble.run;
-  if (!run || run.taughtTie) return;
-  run.taughtTie = true;
-  if (entry && entry.lavudRopes) {
-    SA.Scramble.toast(SA.Lang.t('Tied ropes tightly') + ' - ' + SA.Lang.t(
-      'Lavud ropes must be tied tightly on the posts so every gap stays under three tefachim (OC 630:9-10).'), 'sk_lavud');
+  if (!run || !key || !en) return false;
+  if (!run.taughtKeys) run.taughtKeys = {};
+  if (run.taughtKeys[key]) return false;
+  run.taughtKeys[key] = true;
+  SA.Scramble.toast(en, card, tone || 'good');
+  return true;
+};
+
+/* First Scramble: say what a kosher sukkah is as they actually place it. */
+SA.Scramble.teachFirstRound = function (kind) {
+  var run = SA.Scramble.run;
+  if (!run || run.index !== 0) return false;
+  if (kind === 'wall') {
+    return SA.Scramble.teachOnce('fr_walls',
+      'A kosher sukkah needs three walls. Two full walls that meet at a corner, plus a third of even one tefach — custom is three full walls. Then the schach goes on top (OC 630).',
+      'sk_two_walls');
+  }
+  if (kind === 'beam') {
+    return SA.Scramble.teachOnce('fr_beams',
+      'Schach has to lie on poles or battens across the wall tops — that support is the maamid. Do not rest covering straight on metal (MB 629:22).',
+      'sk_maamid');
+  }
+  if (kind === 'schach') {
+    return SA.Scramble.teachOnce('fr_schach',
+      'Schach must be vegetation that grew from the ground, already cut (not still attached), not a vessel that can become tamei, and not rotting or disgusting. Metal, plastic, food, and sleeping mats fail (OC 629:1).',
+      'sk_schach_conditions');
+  }
+  return false;
+};
+
+/* Always teach a law tied to the piece they just used. */
+SA.Scramble.teachItem = function (entry, kind) {
+  if (!entry) return false;
+  var id = entry.id || '';
+  var fam = (entry.family && entry.family.id) || '';
+  var mk = entry.matKind || '';
+  var form = (entry.form && entry.form.id) || '';
+
+  if (kind === 'decor') {
+    if (entry.hang) {
+      return SA.Scramble.teachOnce('item_hang_decor',
+        'A hanging decoration is treated as part of the schach if it stays within four tefachim of the roof. Lower and four tefachim wide, it becomes its own ceiling (OC 627:4).',
+        'sk_decor');
+    }
+    return SA.Scramble.teachOnce('item_floor_decor',
+      'Furniture and floor pieces are for sitting in the sukkah — they are not walls or schach. Hangings are the ones that can become a ceiling if they drop too low (OC 627:4).',
+      'sk_decor');
+  }
+
+  if (kind === 'beam') {
+    if (entry.mekabelTumah || /steel|metal/i.test(id)) {
+      return SA.Scramble.teachOnce('item_metal_beam',
+        'Metal never grew from the ground. It is a fine frame, but lay wood on the pipes and put schach on the wood — maamid d\'maamid (MB 629:22).',
+        'sk_maamid');
+    }
+    if (entry.fromSchachId || /ladder/i.test(id)) {
+      return SA.Scramble.teachOnce('item_ladder_beam',
+        'A wooden ladder is a finished tool, so it cannot be the covering. As a slat it may hold schach, because wood grew from the ground (MB 629:22).',
+        'sk_maamid');
+    }
+    return SA.Scramble.teachOnce('item_wood_beam',
+      'These poles are the maamid — what the schach lies on. Wood that grew from the ground is the preferred first support (MB 629:22).',
+      'sk_maamid');
+  }
+
+  if (kind === 'schach') {
+    if (entry.category !== 'kosher') return false;
+    if (entry.tex === 'mat') {
+      return SA.Scramble.teachOnce('item_sch_mat',
+        'A reed or bamboo mat is kosher schach only if it was made for roofing, not for sitting. The string tying the slats must also be schach-kosher, like cotton (OC 629:6).',
+        'sk_bamboo_mat');
+    }
+    if (entry.tex === 'pole' || entry.tex === 'wood') {
+      return SA.Scramble.teachOnce('item_sch_pole',
+        'Bamboo and thin wood grew from the ground, are cut, and are not vessels — so they are covering and can also hold themselves up as a frame (OC 629:1).',
+        'sk_schach_conditions');
+    }
+    return SA.Scramble.teachOnce('item_sch_plant',
+      'This grew from the ground and is already cut, and it is not a vessel — that is what schach has to be. Even yard clippings count if they are dry vegetation (OC 629:1).',
+      'sk_schach_conditions');
+  }
+
+  if (mk === 'animal' || /elephant/i.test(id)) {
+    return SA.Scramble.teachOnce('item_elephant',
+      'A live animal can be a sukkah wall if it is tied so it cannot walk away. A tied elephant still counts even lying down — its body is ten tefachim on its side (Sukkah 23a, OC 630:11).',
+      'sk_elephant');
+  }
+  if (entry.lavudRopes || /lavud/i.test(fam) || /lavud/i.test(id)) {
+    return SA.Scramble.teachOnce('item_lavud_ropes',
+      'Lavud: taut ropes less than three tefachim apart from the ground to ten tefachim are a real wall. Gud asik then pulls that wall up to the schach (OC 630:9).',
+      'sk_lavud');
+  }
+  if (/tire/i.test(id) || /tire/i.test(fam)) {
+    return SA.Scramble.teachOnce('item_tires',
+      'A stack of tires is a kosher wall. Walls can be almost anything that stands up to an ordinary wind — the gidulo, talush, and tumah tests are only for schach (OC 630:10).',
+      'sk_any_wall');
+  }
+  if (/drum/i.test(id) || /oil_drum/i.test(fam)) {
+    return SA.Scramble.teachOnce('item_drums',
+      'Oil drums make a wall. Any sturdy material counts — metal is fine for walls even though it can never be schach (OC 630:10).',
+      'sk_any_wall');
+  }
+  if (/pallet/i.test(id) || /pallet/i.test(fam)) {
+    return SA.Scramble.teachOnce('item_pallets',
+      'Wood pallets are a wall. There is no "must grow from the ground" test for walls — only for the covering on top (OC 630:10).',
+      'sk_any_wall');
+  }
+  if (/old_door/i.test(id) || /old_door/i.test(fam)) {
+    return SA.Scramble.teachOnce('item_door_wall',
+      'An old door is a fine wall. The same door cannot be schach — as roofing it is a finished vessel that can become tamei (OC 629:1, 630:10).',
+      'sk_any_wall');
+  }
+  if (entry.swaysInWind || mk === 'fabric' || fam === 'canvas' || fam === 'tarpaulin' || fam === 'burlap') {
+    return SA.Scramble.teachOnce('item_fabric',
+      'Fabric is a wall only if it is tied so ordinary wind cannot open a three-tefach gap. Soft sheets in this game come on a frame — tap Tie (OC 630:10).',
+      'sk_ruach');
+  }
+  if (fam === 'chain_link') {
+    return SA.Scramble.teachOnce('item_chain',
+      'Chain-link whose holes are under three tefachim is treated as solid — that is lavud, not "more open than standing" (OC 630:1).',
+      'sk_lavud');
+  }
+  if (fam === 'picket_fence' || fam === 'snow_fence') {
+    return SA.Scramble.teachOnce('item_picket',
+      'A fence full of gaps can still be a wall even if the open area is bigger than the boards, as long as no single opening is ten amos (OC 630:5).',
+      'sk_parutz_merubeh');
+  }
+  if (mk === 'metal' || /tin|iron|galvanized|ornate/i.test(fam)) {
+    return SA.Scramble.teachOnce('item_metal_wall',
+      'Metal is a kosher wall. The three schach tests — grew, detached, not a vessel — do not apply to walls (OC 630:10).',
+      'sk_any_wall');
+  }
+  if (mk === 'masonry' || mk === 'glass' || fam === 'brick' || fam === 'cinderblock' || fam === 'glass') {
+    return SA.Scramble.teachOnce('item_masonry',
+      'Brick, block, or glass is a kosher wall if it stands in an ordinary wind. Walls have no vegetation or tumah test (OC 630:10).',
+      'sk_any_wall');
+  }
+  if (form === 'post' || form === 'slat') {
+    return SA.Scramble.teachOnce('item_posts',
+      'Posts spaced under three tefachim apart count as a solid wall by lavud. A gap of three tefachim or more stays open (OC 630:1).',
+      'sk_lavud');
+  }
+  return SA.Scramble.teachOnce('item_wood_wall',
+    'Wood boards are a classic wall. A kosher sukkah needs two full walls that meet plus a third of even one tefach — custom is three full walls (OC 630:2).',
+    'sk_two_walls');
+};
+
+SA.Scramble.teachOnPlace = function (piece, entry, preview) {
+  if (!SA.Scramble.active() || !entry) return;
+  var kind = (preview && preview.kind) || (piece && piece.kind) || entry.kind;
+  if (SA.Scramble.teachFirstRound(kind)) {
+    /* First-round milestone won this drop; item lesson waits for the next
+       matching piece so we do not stack two cards on one tap. */
     return;
   }
-  SA.Scramble.toast(SA.Lang.t('Tied it down') + ' - ' + SA.Lang.t(entry.matKind === 'animal'
-    ? 'An animal wall must be tied so it cannot walk away (Sukkah 23a).'
-    : 'Tied taut on its frame - ordinary wind cannot open a gap in it now (OC 630:10).'), 'sk_ruach');
+  SA.Scramble.teachItem(entry, kind);
+};
+
+SA.Scramble.teachTie = function (entry) {
+  if (!entry) return;
+  if (entry.lavudRopes) {
+    SA.Scramble.teachOnce('item_lavud_ropes',
+      'Lavud: taut ropes less than three tefachim apart from the ground to ten tefachim are a real wall. Gud asik then pulls that wall up to the schach (OC 630:9).',
+      'sk_lavud');
+    return;
+  }
+  if (entry.matKind === 'animal') {
+    SA.Scramble.teachOnce('item_elephant',
+      'A live animal can be a sukkah wall if it is tied so it cannot walk away. A tied elephant still counts even lying down — its body is ten tefachim on its side (Sukkah 23a, OC 630:11).',
+      'sk_elephant');
+    return;
+  }
+  SA.Scramble.teachOnce('item_fabric',
+    'Fabric is a wall only if it is tied so ordinary wind cannot open a three-tefach gap. Soft sheets in this game come on a frame — tap Tie (OC 630:10).',
+    'sk_ruach');
 };
 
 /* First lavud rope wall: the bottom ten tefachim of taut ropes are a real wall. */
@@ -23102,17 +23303,13 @@ SA.Scramble.teachGudAsik = function (state) {
     gap = state.roofHeight - reach;
     /* Carrying with a real ten-tefach wall (framed lavud stretches to roof;
        a short wall that lavud-closes the last couple of tefachim also counts). */
-    if (reach >= SA.Rule.WALL_MIN_HEIGHT) {
+    /* Only when there is real air between a ten-tefach wall and the schach.
+       A full-height board already touching the roof is not this lesson. */
+    if (reach >= SA.Rule.WALL_MIN_HEIGHT && gap > 0.05) {
       run.taughtGudAsik = true;
-      if (gap > 0.05) {
-        SA.Scramble.toast(SA.Lang.t(
-          'Gud asik: a real ten-tefach wall is treated as reaching straight up to the schach above it (OC 630:9).'),
-          'sk_gud_asik', 'good');
-      } else {
-        SA.Scramble.toast(SA.Lang.t(
-          'Gud asik: once the wall is ten tefachim, it is pulled up to meet the schach (OC 630:9).'),
-          'sk_gud_asik', 'good');
-      }
+      SA.Scramble.toast(SA.Lang.t(
+        'Gud asik: a real ten-tefach wall is treated as reaching straight up to the schach above it (OC 630:9).'),
+        'sk_gud_asik', 'good');
       return;
     }
   }
@@ -23172,7 +23369,7 @@ SA.Scramble.teachTurn = function (piece) {
   if (h >= SA.Rule.WALL_MIN_HEIGHT) return;
   run.taughtTurn = true;
   SA.Scramble.toast(SA.Lang.t('That way it is only') + ' ' + h + ' ' +
-    SA.Lang.t('tefachim tall') + ' - ' + SA.Lang.t('a wall has to reach ten. Turn it back on end.'), 'sk_walls');
+    SA.Lang.t('tefachim tall') + ' - ' + SA.Lang.t('a wall has to reach ten. Turn it back on end.'), 'sk_height');
 };
 
 /* Diff the engine's open problems against the previous placement's set. */
@@ -23291,7 +23488,55 @@ SA.Lang.add({
   'Small Bistro Set': 'סט ביסטרו קטן',
   'Designer Teak Table': 'שולחן טיק מעצבים',
   'Velvet Dining Chairs': 'כיסאות אוכל מקטיפה',
-  'Marble Side Table': 'שולחן צד משיש'
+  'Marble Side Table': 'שולחן צד משיש',
+  'A kosher sukkah needs three walls. Two full walls that meet at a corner, plus a third of even one tefach — custom is three full walls. Then the schach goes on top (OC 630).':
+    'סוכה כשרה צריכה שלושה קירות. שני קירות מלאים הנפגשים בזווית, ועוד שלישי אפילו בטפח — המנהג הוא שלושה קירות מלאים. אחר כך הסכך מלמעלה (או"ח תרל).',
+  'Schach has to lie on poles or battens across the wall tops — that support is the maamid. Do not rest covering straight on metal (MB 629:22).':
+    'הסכך צריך לנוח על מוטות או לטות בראשי הקירות — זה המעמיד. אין להניח סיכוך ישירות על מתכת (מ"ב תרכט:כב).',
+  'Schach must be vegetation that grew from the ground, already cut (not still attached), not a vessel that can become tamei, and not rotting or disgusting. Metal, plastic, food, and sleeping mats fail (OC 629:1).':
+    'סכך חייב להיות צומח מן הארץ, כבר תלוש (לא מחובר), לא כלי שמקבל טומאה, ולא רקוב או מגעיל. מתכת, פלסטיק, אוכל ומחצלת שכיבה נפסלים (או"ח תרכט:א).',
+  'A hanging decoration is treated as part of the schach if it stays within four tefachim of the roof. Lower and four tefachim wide, it becomes its own ceiling (OC 627:4).':
+    'קישוט תלוי נחשב חלק מהסכך אם הוא נשאר בתוך ארבעה טפחים מהגג. נמוך יותר וברוחב ארבעה טפחים, הוא הופך לתקרה בפני עצמה (או"ח תרכז:ד).',
+  'Furniture and floor pieces are for sitting in the sukkah — they are not walls or schach. Hangings are the ones that can become a ceiling if they drop too low (OC 627:4).':
+    'רהיטים וחלקי רצפה הם לישיבה בסוכה — הם אינם קירות או סכך. התלויים הם אלה שיכולים להפוך לתקרה אם הם יורדים נמוך מדי (או"ח תרכז:ד).',
+  'Metal never grew from the ground. It is a fine frame, but lay wood on the pipes and put schach on the wood — maamid d\'maamid (MB 629:22).':
+    'מתכת לא צמחה מן הארץ. היא שלד טוב, אבל מניחים עץ על הצינורות וסכך על העץ — מעמיד דמעמיד (מ"ב תרכט:כב).',
+  'A wooden ladder is a finished tool, so it cannot be the covering. As a slat it may hold schach, because wood grew from the ground (MB 629:22).':
+    'סולם עץ הוא כלי מוגמר, ולכן אינו יכול להיות הסיכוך. כשריג הוא יכול להחזיק סכך, כי העץ צמח מן הארץ (מ"ב תרכט:כב).',
+  'These poles are the maamid — what the schach lies on. Wood that grew from the ground is the preferred first support (MB 629:22).':
+    'המוטות האלה הם המעמיד — מה שהסכך מונח עליו. עץ שצמח מן הארץ הוא המעמיד הראשון המועדף (מ"ב תרכט:כב).',
+  'A reed or bamboo mat is kosher schach only if it was made for roofing, not for sitting. The string tying the slats must also be schach-kosher, like cotton (OC 629:6).':
+    'מחצלת קנים או במבוק כשרה לסכך רק אם נעשתה לסיכוך, לא לישיבה. החוט הקושר את השריגים גם הוא חייב להיות כשר לסכך, כמו כותנה (או"ח תרכט:ו).',
+  'Bamboo and thin wood grew from the ground, are cut, and are not vessels — so they are covering and can also hold themselves up as a frame (OC 629:1).':
+    'במבוק ועץ דק צמחו מן הארץ, תלושים, ואינם כלים — לכן הם סכך ויכולים גם להחזיק את עצמם כשלד (או"ח תרכט:א).',
+  'This grew from the ground and is already cut, and it is not a vessel — that is what schach has to be. Even yard clippings count if they are dry vegetation (OC 629:1).':
+    'זה צמח מן הארץ וכבר תלוש, ואינו כלי — זה מה שסכך צריך להיות. גם גזם חצר נחשב אם הוא צומח יבש (או"ח תרכט:א).',
+  'A live animal can be a sukkah wall if it is tied so it cannot walk away. A tied elephant still counts even lying down — its body is ten tefachim on its side (Sukkah 23a, OC 630:11).':
+    'בעל חיים חי יכול להיות קיר סוכה אם קושרים אותו כדי שלא יילך. פיל קשור נחשב גם כשהוא שוכב — גופו גבוה עשרה טפחים על צדו (סוכה כג., או"ח תרל:יא).',
+  'Lavud: taut ropes less than three tefachim apart from the ground to ten tefachim are a real wall. Gud asik then pulls that wall up to the schach (OC 630:9).':
+    'לבוד: חבלים מתוחים בפחות משלושה טפחים מהקרקע עד עשרה טפחים הם קיר אמיתי. גוד אסיק מושך אז את הקיר עד הסכך (או"ח תרל:ט).',
+  'A stack of tires is a kosher wall. Walls can be almost anything that stands up to an ordinary wind — the gidulo, talush, and tumah tests are only for schach (OC 630:10).':
+    'מערום צמיגים הוא קיר כשר. קירות יכולים להיות כמעט הכל שעומד ברוח מצויה — מבחני גידולו, תלוש וטומאה הם רק לסכך (או"ח תרל:י).',
+  'Oil drums make a wall. Any sturdy material counts — metal is fine for walls even though it can never be schach (OC 630:10).':
+    'חביות שמן עושות קיר. כל חומר יציב נחשב — מתכת כשרה לקירות אף שלעולם אינה יכולה להיות סכך (או"ח תרל:י).',
+  'Wood pallets are a wall. There is no "must grow from the ground" test for walls — only for the covering on top (OC 630:10).':
+    'משטחי עץ הם קיר. אין מבחן "חייב לצמוח מן הארץ" לקירות — רק לכיסוי מלמעלה (או"ח תרל:י).',
+  'An old door is a fine wall. The same door cannot be schach — as roofing it is a finished vessel that can become tamei (OC 629:1, 630:10).':
+    'דלת ישנה היא קיר טוב. אותה דלת אינה יכולה להיות סכך — כגג היא כלי מוגמר שמקבל טומאה (או"ח תרכט:א, תרל:י).',
+  'Fabric is a wall only if it is tied so ordinary wind cannot open a three-tefach gap. Soft sheets in this game come on a frame — tap Tie (OC 630:10).':
+    'בד הוא קיר רק אם קושרים אותו כדי שרוח מצויה לא תפתח רווח של שלושה טפחים. יריעות רכות במשחק מגיעות על מסגרת — הקישו על קשרו (או"ח תרל:י).',
+  'Chain-link whose holes are under three tefachim is treated as solid — that is lavud, not "more open than standing" (OC 630:1).':
+    'רשת שחוריה קטנים משלושה טפחים נחשבת מלאה — זה לבוד, לא "פרוץ מרובה על העומד" (או"ח תרל:א).',
+  'A fence full of gaps can still be a wall even if the open area is bigger than the boards, as long as no single opening is ten amos (OC 630:5).':
+    'גדר מלאה רווחים עדיין יכולה להיות קיר גם אם השטח הפתוח גדול מהלוחות, כל עוד אין פתח יחיד של עשר אמות (או"ח תרל:ה).',
+  'Metal is a kosher wall. The three schach tests — grew, detached, not a vessel — do not apply to walls (OC 630:10).':
+    'מתכת היא קיר כשר. שלושת מבחני הסכך — צמח, תלוש, אינו כלי — אינם חלים על קירות (או"ח תרל:י).',
+  'Brick, block, or glass is a kosher wall if it stands in an ordinary wind. Walls have no vegetation or tumah test (OC 630:10).':
+    'לבנים, בלוק או זכוכית הם קיר כשר אם הם עומדים ברוח מצויה. לקירות אין מבחן צומח או טומאה (או"ח תרל:י).',
+  'Posts spaced under three tefachim apart count as a solid wall by lavud. A gap of three tefachim or more stays open (OC 630:1).':
+    'עמודים במרחק של פחות משלושה טפחים נחשבים קיר מלא בלבוד. רווח של שלושה טפחים או יותר נשאר פתוח (או"ח תרל:א).',
+  'Wood boards are a classic wall. A kosher sukkah needs two full walls that meet plus a third of even one tefach — custom is three full walls (OC 630:2).':
+    'לוחות עץ הם קיר קלאסי. סוכה כשרה צריכה שני קירות מלאים הנפגשים ועוד שלישי אפילו בטפח — המנהג הוא שלושה קירות מלאים (או"ח תרל:ב).'
 });
 </script>
 </body>
