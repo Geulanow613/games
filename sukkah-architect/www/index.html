@@ -11374,58 +11374,85 @@ SA.Draw.SCHACH_TEX = {
   /* Whole pieces of fruit sitting on the roof, laid out on a jittered lattice
      so they stay separate round things instead of merging into one red mass -
      a player has to see FOOD up there to see why it is pasul. */
+  /* WHOLE PIECES OF FRUIT LYING ON THE ROOF.
+     Nine little discs to a cell came out at eight pixels each on a twelve-foot
+     pad and merged into one dark red mass - reported as "fruit looks like a
+     splat on the roof". A player has to see FOOD up there to see why it is
+     pasul (it takes tumah, OC 629:6), so this draws FOUR real pieces to a
+     cell: a round body with a dark rim so they do not run together, a bloom of
+     light on the shoulder, and a stem with a leaf on every one. They are not
+     all the same fruit either - apples, a golden quince, a pomegranate - which
+     is what stops a patch of them reading as a stain. */
   fruit: function (ctx, u, pal, k, det) {
     if (!u.noBg) {
       ctx.fillStyle = pal.deepV[k];
       ctx.fillRect(-0.06, -0.06, 1.12, 1.12);
     }
-    var g = det < 1 ? 2 : 3;
-    var cell = 1 / g, r = cell * 0.4;
-    var i, j, cnt = 0;
+    var warm = SA.Mat.blendColor(pal.baseV[k], '#d8a12c', 0.55);
+    var deepRed = SA.Mat.shadeColor(pal.baseV[k], 0.74);
+    var rim = 'rgba(46,22,16,0.55)';
+    var g = 2, cell = 1 / g, i, j;
+    var lwRim = u.lw(1.5), lwStem = u.lw(2.6);
     for (i = 0; i < g; i++) {
       for (j = 0; j < g; j++) {
-        var b = cnt * 5, hb = SA_SCH_R2 + cnt * 5, sb = SA_SCH_R3 + cnt * 5;
-        var fx = (i + 0.5) * cell + (u.rnd(1) - 0.5) * cell * 0.32;
-        var fy = (j + 0.5) * cell + (u.rnd(1) - 0.5) * cell * 0.32;
-        var fr = r * (0.8 + u.rnd(0.34));
-        saSchBuf[b] = fx; saSchBuf[b + 1] = fy;
-        saSchBuf[b + 2] = fr; saSchBuf[b + 3] = fr; saSchBuf[b + 4] = 0;
-        /* the offset highlight is what turns a disc into a round fruit */
-        saSchBuf[hb] = fx - fr * 0.22; saSchBuf[hb + 1] = fy - fr * 0.24;
-        saSchBuf[hb + 2] = fr * 0.62; saSchBuf[hb + 3] = fr * 0.62; saSchBuf[hb + 4] = 0;
-        saSchBuf[sb] = fx - fr * 0.34; saSchBuf[sb + 1] = fy - fr * 0.4;
-        saSchBuf[sb + 2] = fr * 0.24; saSchBuf[sb + 3] = fr * 0.16; saSchBuf[sb + 4] = -0.6;
-        cnt++;
+        var fx = (i + 0.5) * cell + (u.rnd(1) - 0.5) * cell * 0.26;
+        var fy = (j + 0.5) * cell + (u.rnd(1) - 0.5) * cell * 0.26;
+        var fr = cell * (0.34 + u.rnd(0.10));
+        var pick = u.rnd(1);
+        var body = pick < 0.34 ? warm : (pick < 0.68 ? pal.baseV[k] : deepRed);
+
+        /* the fruit sits on the schach, so it throws a little shade under it */
+        ctx.fillStyle = 'rgba(0,0,0,0.20)';
+        ctx.beginPath();
+        ctx.ellipse(fx + fr * 0.10, fy + fr * 0.44, fr * 0.92, fr * 0.42, 0, 0, 6.2832);
+        ctx.fill();
+
+        /* the body: a touch wider than tall, the way an apple sits */
+        ctx.fillStyle = body;
+        ctx.beginPath();
+        ctx.ellipse(fx, fy, fr, fr * 0.90, 0, 0, 6.2832);
+        ctx.fill();
+        if (det > 0) {
+          ctx.strokeStyle = rim; ctx.lineWidth = lwRim;
+          ctx.stroke();
+        }
+        /* the bloom, which is what turns a disc into something round */
+        ctx.fillStyle = SA.Mat.shadeColor(body, 1.34);
+        ctx.beginPath();
+        ctx.ellipse(fx - fr * 0.26, fy - fr * 0.28, fr * 0.52, fr * 0.40, -0.5, 0, 6.2832);
+        ctx.fill();
+        if (det > 1) {
+          ctx.fillStyle = 'rgba(255,255,255,0.62)';
+          ctx.beginPath();
+          ctx.ellipse(fx - fr * 0.38, fy - fr * 0.42, fr * 0.20, fr * 0.13, -0.5, 0, 6.2832);
+          ctx.fill();
+          /* a pomegranate keeps its crown */
+          if (pick >= 0.68) {
+            ctx.strokeStyle = SA_SCH_FRUIT.stem;
+            ctx.lineWidth = lwRim;
+            ctx.beginPath();
+            ctx.moveTo(fx - fr * 0.20, fy - fr * 0.86);
+            ctx.lineTo(fx, fy - fr * 1.16);
+            ctx.lineTo(fx + fr * 0.20, fy - fr * 0.86);
+            ctx.stroke();
+          }
+        }
+        /* stem and leaf on every one - this is FOOD */
+        ctx.strokeStyle = SA_SCH_FRUIT.stem;
+        ctx.lineWidth = lwStem;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(fx, fy - fr * 0.84);
+        ctx.lineTo(fx + fr * 0.26, fy - fr * 1.34);
+        ctx.stroke();
+        if (det > 0) {
+          ctx.fillStyle = SA_SCH_FRUIT.leaf;
+          ctx.beginPath();
+          ctx.ellipse(fx + fr * 0.66, fy - fr * 1.20, fr * 0.42, fr * 0.19, -0.45, 0, 6.2832);
+          ctx.fill();
+        }
       }
     }
-    saSchBlobPass(ctx, cnt, 0, 1, pal.gapV[k], 1.14);
-    saSchBlobPass(ctx, cnt, 0, 1, pal.baseV[k], 1);
-    /* Highlights go through the blob pass like everything else: painted as a
-       bare loop of ellipse() they were strung together with chords and filled
-       as one polygon, which is why a roof of fruit came out as a red starfish. */
-    saSchBlobPass(ctx, cnt, SA_SCH_R2, 1, pal.litV[k], 1);
-    /* Stem and leaf on every one. Fruit is FOOD - it takes tumah, so it may not
-       be schach - and the player has to read fruit up there, not red dots. */
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = SA_SCH_FRUIT.stem;
-    ctx.lineWidth = u.lw(2.4);
-    ctx.beginPath();
-    for (i = 0; i < cnt; i++) {
-      var q = i * 5;
-      ctx.moveTo(saSchBuf[q], saSchBuf[q + 1] - saSchBuf[q + 3] * 0.88);
-      ctx.lineTo(saSchBuf[q] + saSchBuf[q + 2] * 0.34, saSchBuf[q + 1] - saSchBuf[q + 3] * 1.46);
-    }
-    ctx.stroke();
-    ctx.fillStyle = SA_SCH_FRUIT.leaf;
-    ctx.beginPath();
-    for (i = 0; i < cnt; i++) {
-      var p = i * 5;
-      var lx = saSchBuf[p] + saSchBuf[p + 2] * 0.76, ly = saSchBuf[p + 1] - saSchBuf[p + 3] * 1.32;
-      ctx.moveTo(lx + saSchBuf[p + 2] * 0.44, ly);
-      ctx.ellipse(lx, ly, saSchBuf[p + 2] * 0.44, saSchBuf[p + 2] * 0.19, -0.45, 0, 6.2832);
-    }
-    ctx.fill();
-    if (det > 0) saSchBlobPass(ctx, cnt, SA_SCH_R3, 1, 'rgba(255,255,255,0.68)', 1);
   }
 };
 
@@ -13512,27 +13539,90 @@ SA.Draw.DECOR_SHAPES = {
     }
   },
   curtains: function (ctx, a, b) {
-    var i;
+    /* REAL CURTAINS, drawn back off the middle.
+       A flat slab with a scalloped bottom and five straight lines down it read
+       as a coloured rectangle with a pink lid - reported as "curtains look like
+       random garbage". These are two panels gathered at the sides with a
+       tie-back each, folds that get closer together where the fabric bunches,
+       a pelmet across the top on a rail with rings, and the wall showing
+       between them, which is the thing that says "curtains" at a glance. */
+    var i, side, s;
+    var dark = SA.Mat.shadeColor(a, 0.58);
+    var mid = SA.Mat.shadeColor(a, 0.86);
+    var lit = SA.Mat.shadeColor(a, 1.20);
+    var TOP = -10.6, HEM = 9.6;
+
+    /* the rail, and its rings */
+    ctx.fillStyle = SA.Mat.shadeColor(b, 0.68);
+    ctx.fillRect(-11.4, TOP, 22.8, 1.15);
+    saDecInk(ctx); ctx.strokeRect(-11.4, TOP, 22.8, 1.15);
+    ctx.fillStyle = SA.Mat.shadeColor(b, 1.25);
+    ctx.beginPath(); ctx.arc(-11.4, TOP + 0.55, 0.85, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.beginPath(); ctx.arc(11.4, TOP + 0.55, 0.85, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+
+    /* two panels, each gathered toward its own side */
+    for (side = -1; side <= 1; side += 2) {
+      s = side;
+      /* the outline of a drawn-back curtain: wide at the top, pinched at the
+         tie-back, flaring again to the hem */
+      ctx.fillStyle = s < 0 ? mid : SA.Mat.shadeColor(a, 0.78);
+      ctx.beginPath();
+      ctx.moveTo(s * 11.0, TOP + 0.9);
+      ctx.lineTo(s * 3.6, TOP + 0.9);
+      ctx.quadraticCurveTo(s * 4.4, -2.0, s * 5.4, 0.8);
+      ctx.quadraticCurveTo(s * 6.2, 3.2, s * 4.6, 5.4);
+      ctx.quadraticCurveTo(s * 3.4, 7.4, s * 4.2, HEM);
+      ctx.lineTo(s * 11.0, HEM + 0.5);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+
+      /* folds: bunched near the tie-back, opening out toward the wall */
+      ctx.save();
+      ctx.clip();
+      for (i = 0; i < 6; i++) {
+        var t = i / 5;
+        var fx = s * (4.4 + t * t * 6.4);
+        ctx.strokeStyle = i % 2 ? 'rgba(0,0,0,0.16)' : 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 0.9 + (1 - t) * 0.7;
+        ctx.beginPath();
+        ctx.moveTo(fx, TOP + 1.4);
+        ctx.quadraticCurveTo(fx + s * 0.9, 2.0, fx - s * 0.5, HEM + 0.4);
+        ctx.stroke();
+      }
+      /* light down the leading edge */
+      ctx.strokeStyle = SA.Mat.shadeColor(lit, 1.0);
+      ctx.globalAlpha = 0.5; ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(s * 4.2, TOP + 1.4);
+      ctx.quadraticCurveTo(s * 5.6, 2.4, s * 4.4, HEM);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      /* the tie-back holding it open, with its little tassel */
+      ctx.fillStyle = b;
+      ctx.beginPath();
+      ctx.moveTo(s * 4.0, 1.6); ctx.lineTo(s * 8.2, 0.9);
+      ctx.lineTo(s * 8.2, 2.6); ctx.lineTo(s * 4.0, 3.3);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      ctx.strokeStyle = SA.Mat.shadeColor(b, 0.72); ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(s * 5.4, 3.1); ctx.lineTo(s * 5.2, 5.2); ctx.stroke();
+      ctx.fillStyle = SA.Mat.shadeColor(b, 0.72);
+      ctx.beginPath(); ctx.ellipse(s * 5.2, 5.7, 0.55, 0.85, 0, 0, 7); ctx.fill();
+      saDecInk(ctx); ctx.stroke();
+    }
+
+    /* the pelmet across the top, scalloped, sitting over both panels */
     ctx.fillStyle = b;
     ctx.beginPath();
-    ctx.moveTo(-10.6, -10.2); ctx.lineTo(10.6, -10.2); ctx.lineTo(10.6, -5.6);
-    saDecScallops(ctx, -10.6, 10.6, -5.6, 3.2, 5);
+    ctx.moveTo(-11.0, TOP + 0.6); ctx.lineTo(11.0, TOP + 0.6); ctx.lineTo(11.0, -6.6);
+    saDecScallops(ctx, -11.0, 11.0, -6.6, 2.4, 5);
     ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
-    var g = ctx.createLinearGradient(-9.6, 0, 9.6, 0);
-    g.addColorStop(0, SA.Mat.shadeColor(a, 0.7));
-    g.addColorStop(0.28, SA.Mat.shadeColor(a, 1.14));
-    g.addColorStop(0.5, SA.Mat.shadeColor(a, 0.74));
-    g.addColorStop(0.72, SA.Mat.shadeColor(a, 1.14));
-    g.addColorStop(1, SA.Mat.shadeColor(a, 0.7));
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.moveTo(-9.6, -6.4); ctx.lineTo(9.6, -6.4); ctx.lineTo(9.6, 7.8);
-    saDecScallops(ctx, -9.6, 9.6, 7.8, 3.0, 6);
-    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (i = -2; i <= 2; i++) { ctx.moveTo(i * 3.2, -5.8); ctx.lineTo(i * 3.2, 7.4); }
-    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.20)'; ctx.lineWidth = 0.9;
+    ctx.beginPath(); ctx.moveTo(-10.2, TOP + 1.6); ctx.lineTo(10.2, TOP + 1.6); ctx.stroke();
+    ctx.fillStyle = SA.Mat.shadeColor(b, 1.3);
+    for (i = -2; i <= 2; i++) {
+      ctx.beginPath(); ctx.arc(i * 4.2, -6.2, 0.62, 0, 7); ctx.fill();
+    }
   },
   tablecloth: function (ctx, a, b) {
     /* Cloth hangs lowest at the corners - squared off it was just a white box
@@ -21842,7 +21932,8 @@ SA.Scene.drawTableCloth = function (ctx, state, dec, spot, entry, cx, cz) {
   var halfX = spot.top.span / 2 * (runner ? 1.00 : 1.07);
   var halfZ = deepT / 2 * (runner ? 0.36 : 1.09);
   var y = spot.y + 0.12;
-  var drop = Math.max(1.2, Math.min(spot.top.h * (style.drop || 0.36), spot.top.h - 1.2));
+  /* A cloth hangs a hand or so over the edge, not half way to the floor. */
+  var drop = Math.max(1.1, Math.min(spot.top.h * (style.drop || 0.36) * 0.66, spot.top.h - 2.2));
   if (runner) drop = Math.min(drop, 2.6);
   var mx = spot.x, mz = spot.z;
   function P(dx, dz, dy) {
@@ -21964,9 +22055,11 @@ SA.Scene.drawClothWeave = function (ctx, style, halfX, halfZ, runner) {
   ctx.lineJoin = 'round';
   if (style.weave === 'damask') {
     /* a diaper of small linked diamonds, the way damask reads at a distance */
-    ctx.strokeStyle = SA.Mat.shadeColor(style.cloth, 0.90);
-    ctx.lineWidth = 0.22;
-    var step = 2.6;
+    /* Damask is a whisper, not a honeycomb - at full contrast a fine diaper
+       reads as a grid of cells stamped on a slab. */
+    ctx.strokeStyle = SA.Mat.shadeColor(style.cloth, 0.945);
+    ctx.lineWidth = 0.16;
+    var step = 1.9;
     for (i = -halfX; i <= halfX; i += step) {
       for (j = -halfZ; j <= halfZ; j += step) {
         ctx.beginPath();
@@ -23202,10 +23295,25 @@ SA.Scene.render = function (ctx, state, result) {
         }
       }
       var gdepth = SA.Iso.depthKey(mx, yTop, mz, cx, cz);
+      /* THE UNDERSIDE OF THE ROOF.
+         Looking up from inside you are looking at the shaded back of the
+         schach with the lanterns hanging under it. So the roof gets an opaque
+         dark backing painted BEFORE the hanging things (or the sky would show
+         through a see-through roof), the hanging things go over that, and the
+         covering itself washes over the lot - which is what actually reads as
+         "under the schach". */
+      if (SA.Scene._roofGhost < 1) {
+        jobs.push({ layer: 1.7, depth: gdepth, draw: function () {
+          SA.Draw.poly(ctx, quad, SA.Mat.shadeColor(sEntry.tone || '#6a7a4a', 0.52), null);
+        } });
+      }
       jobs.push({ layer: 2, depth: gdepth, draw: function () {
+        var ghost = SA.Scene._roofGhost;
+        if (ghost < 1) { ctx.save(); ctx.globalAlpha = ghost; }
         SA.FX.withPop(ctx, quad, grp.placedAt, function () {
           SA.Draw.schachTile(ctx, quad, sEntry, g.seed, hw * 2, hd * 2);
         });
+        if (ghost < 1) ctx.restore();
       } });
     })(groups[gi]);
   }
@@ -23234,7 +23342,16 @@ SA.Scene.render = function (ctx, state, result) {
      side, which is exactly right. Standing inside you are under the schach,
      so the same things are in front of it. */
   var insideNow = !!(SA.Camera.inside || (SA.Game && SA.Game.winTour === 'inside'));
-  var roomLayer = insideNow ? 3 : 0.5;
+  /* HANGING THINGS ARE UNDER THE ROOF, NOT ON IT.
+     Layer 3 is "room contents" - it paints over the schach, which is why a
+     string of mason jars came out sitting on the green like a sticker on the
+     roof. They belong between the walls and the covering. And so that they can
+     still be SEEN from inside, the roof itself goes see-through when you step
+     in: the jars are drawn first, the schach washes over them, and the result
+     reads as exactly what it is - fruit and lanterns hanging under the
+     schach. */
+  var roomLayer = insideNow ? 1.8 : 0.5;
+  SA.Scene._roofGhost = insideNow ? 0.50 : 1;
   for (var di = 0; di < state.decor.length; di++) {
     var dec = state.decor[di];
     var dEntry = SA.Mat.DECOR_BY_ID[dec.matId];
