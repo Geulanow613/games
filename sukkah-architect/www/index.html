@@ -380,6 +380,15 @@ SA.Lang.add({
   'South Wall': 'קיר דרומי',
   'West Wall': 'קיר מערבי',
   'FILL WALL': 'מלאו קיר',
+  'Not there yet - the gap you aimed at is wider than {s} tefachim, which is as far as this covering will reach on its own. Put another pole across the middle of it and try again.':
+    'עדיין לא שם - המרווח שכיוונתם אליו רחב מ-{s} טפחים, וזה כל מה שהסכך הזה מסוגל לגשר בעצמו. הניחו מוט נוסף באמצע המרווח ונסו שוב.',
+  'There is nothing further over for this pole to rest on.':
+    'אין הלאה משהו שהמוט הזה יוכל לנוח עליו.',
+  'Turned the other way this pole has nothing to reach across to.':
+    'בכיוון השני אין למוט הזה על מה להישען משני צדדיו.',
+  'holds a bay of {n} tefachim': 'נושא מפתח של {n} טפחים',
+  'Next wall': 'הקיר הבא',
+  'Turn': 'סובבו',
   'No material selected': 'לא נבחר חומר',
   'Pick a material below': 'בחרו חומר למטה',
   'Target': 'מטרה',
@@ -7911,6 +7920,55 @@ SA.Mat.BEAM = [
     fromSchachId: 'sch_old_ladder', heapHidden: true
   }
 ];
+/* HOW FAR THIS MEMBER WILL HOLD A ROOF UP.
+   `spanTefachim` above is the LENGTH of the stick as it is dealt on a card.
+   This is a different question: laid across a booth with a covering on top,
+   how wide a bay will it carry before it bends? Crooked branches sag under an
+   armful of straw; planed timber does not notice it. Together with the
+   covering's own reach (p08 schach) this decides how many poles a roof needs -
+   weak sticks, more of them.
+   Measured in tefachim of clear bay either side of the member. */
+SA.Mat.BEAM_CARRY = {
+  beam_wood_sticks: 12, beam_crooked_branches: 13, beam_bamboo_shoots: 14,
+  beam_furring_scrap: 15, beam_rough_laths: 15, beam_pine_battens: 18,
+  beam_bamboo_pole: 20, beam_steel_pipe: 24, beam_pine_beams: 22,
+  beam_cedar_beams: 24, beam_planed_timber: 26, beam_old_ladder: 18
+};
+SA.Mat.BEAM_CARRY_BY_TEX = { branch: 13, cane: 15, batten: 16, pipe: 24, beam: 22, ladder: 18 };
+SA.Mat.beamCarryTefachim = function (entry) {
+  if (!entry) return 15;
+  var v = SA.Mat.BEAM_CARRY[entry.id];
+  if (v != null) return v;
+  v = SA.Mat.BEAM_CARRY_BY_TEX[entry.tex];
+  return v == null ? 15 : v;
+};
+/* A wall top holds whatever is laid on it - it is the building. The second
+   number is what it contributes to a BAY it shares with a pole: a wall is the
+   strong end, but not infinitely so, or a bay against a wall would never
+   close. */
+SA.Mat.WALL_CARRY = 999;
+SA.Mat.WALL_CARRY_BAY = 24;
+
+/* The feeblest stick a player has to hand - what the frame has to be spaced
+   for, since that is the one that will be holding some bay. */
+SA.Mat.weakestBeamCarry = function (pieces, beams) {
+  var worst = null, i, e;
+  for (i = 0; pieces && i < pieces.length; i++) {
+    if (pieces[i].kind !== 'beam') continue;
+    e = SA.Mat.BEAM_BY_ID[pieces[i].matId];
+    if (!e) continue;
+    var c = SA.Mat.beamCarryTefachim(e);
+    if (worst == null || c < worst) worst = c;
+  }
+  for (i = 0; beams && i < beams.length; i++) {
+    e = SA.Mat.BEAM_BY_ID[beams[i].matId];
+    if (!e) continue;
+    var c2 = SA.Mat.beamCarryTefachim(e);
+    if (worst == null || c2 < worst) worst = c2;
+  }
+  return worst;
+};
+
 SA.Mat.BEAM_BY_ID = {};
 (function () {
   var dict = {};
@@ -9026,6 +9084,54 @@ SA.Mat.SCHACH_BY_ID = {};
 SA.Mat.isRigidSchach = function (entry) {
   return !!(entry && entry.category === 'kosher' && (entry.tex === 'pole' || entry.tex === 'wood'));
 };
+/* HOW FAR THIS COVERING WILL BRIDGE ON ITS OWN.
+   A roof is a covering resting on a frame, and every covering has a distance
+   it will cross before it sags through: an armful of straw almost none, a
+   rolled reed mat a couple of feet, a run of stiff bamboo poles a good deal
+   more. This is the number the whole frame comes out of - the poles under a
+   roof are spaced so that no bay is wider than what the covering can carry
+   itself across, which is why a twelve-foot booth under a mat wants three
+   poles and the same booth under stiff poles wants two.
+   Measured in tefachim of CLEAR span between the members under it. */
+/* HOW MANY POLES IS A REASONABLE NUMBER?
+   Two or three across a twelve-foot booth - which is what a person actually
+   lays, and what the whole idea was meant to teach. The first pass at these
+   numbers made a bay of eleven tefachim too wide for evergreen, so three
+   slats laid sensibly still refused the covering and the run came out pasul.
+   That is not a lesson, it is an obstacle. So the spans are set from the
+   answer: on the 46-tefach pad, three poles leave bays of eleven and two
+   leave fifteen, and every kosher covering in the game crosses fifteen. One
+   pole is not enough for anything soft, and bare walls are not enough for
+   anything at all, so the mechanic still means something. */
+SA.Mat.SCHACH_SPAN_BY_TEX = {
+  pole: 24,        /* stiff bamboo culms - a frame in their own right */
+  wood: 22,        /* sawn slats, boards */
+  ladder: 20, door: 20, metal: 20, pole_metal: 18,
+  mat: 18,         /* rolled reed / bamboo / olive mats */
+  tarp: 16, plastic: 16,
+  frond: 15,       /* palm, cut garland */
+  branch: 15,      /* willow, evergreen, hedge trimmings */
+  stalk: 15,       /* straw, corn, bulrushes - an armful knits together */
+  fruit: 10
+};
+SA.Mat.schachSpanTefachim = function (entry) {
+  if (!entry) return 8;
+  if (entry.spanTefachim) return entry.spanTefachim;
+  var v = SA.Mat.SCHACH_SPAN_BY_TEX[entry.tex];
+  return v == null ? 15 : v;
+};
+
+/* How many poles a booth this wide needs under this covering, given the
+   members it will rest on. Walls hold the two edges; everything between is
+   bays no wider than the covering will cross. */
+SA.Mat.schachPolesNeeded = function (entry, acrossTefachim, beamCarry) {
+  var span = SA.Mat.schachSpanTefachim(entry);
+  if (beamCarry) span = Math.min(span, beamCarry);
+  var clear = Math.max(0, acrossTefachim - 1);
+  var bays = Math.ceil(clear / Math.max(1, span));
+  return Math.max(0, bays - 1);
+};
+
 SA.Mat.beamCountsAsSchach = function (entry) {
   return !!(entry && entry.matKind === 'beam' && !entry.mekabelTumah);
 };
@@ -11592,6 +11698,17 @@ SA.Mat.DECOR_SIZE_TEF = {
   table: 10, folding_chairs: 11, bench: 7, shtender: 14, bed: 8, bookshelf: 22,
   coat_hook: 4, side_table: 8, serving_cart: 11, storage_chest: 7,
   folding_table: 10, small_rug: 1, plastic_folding_table: 10,
+  /* the new furniture, measured the same way: a table about 30in, a chair
+     about a metre to the top of its back, a bench seat about 18in */
+  long_dining_table: 10, round_table: 10, kids_table: 6, sideboard: 11,
+  /* A cloth is a tefach of folded linen off the table; on one it is cut to
+     the top (p09 CLOTH_STYLE, p16 drawTableCloth). */
+  white_damask_cloth: 1, gold_trim_cloth: 1, lace_overlay_cloth: 1,
+  blue_white_cloth: 1, burgundy_velvet_cloth: 1, pomegranate_cloth: 1,
+  gingham_cloth: 1,
+  long_bench: 7, dining_chairs: 12, garden_chairs: 11, high_chair: 14,
+  folding_stools: 6, coat_rack: 20, folding_screen: 18,
+  water_urn: 8, washing_station: 12, bencher_box: 4,
   metal_folding_chair: 11, crate_table: 7, picnic_bench: 6, wood_picnic_table: 10,
   director_chair: 11, bistro_set: 11, teak_table: 10, velvet_chairs: 12,
   marble_side_table: 8, rocking_chair: 13, kids_stool: 4, sefarim_stand: 14,
@@ -11648,7 +11765,10 @@ SA.Mat.DECOR_SIZE_TEF = {
 SA.Mat.DECOR_FLAT_SPAN = {
   carpet_rug: 15, small_rug: 9, floor_mat: 8, welcome_mat: 6,
   table_runner: 8, israeli_runner: 8, red_carpet: 22, persian_rug: 17,
-  picnic_blanket: 12, swimming_pool: 18
+  picnic_blanket: 12, swimming_pool: 18,
+  white_damask_cloth: 12, gold_trim_cloth: 12, lace_overlay_cloth: 12,
+  blue_white_cloth: 12, burgundy_velvet_cloth: 12, pomegranate_cloth: 12,
+  gingham_cloth: 12
 };
 SA.Mat.decorFlatSpan = function (entry) {
   if (!entry) return 0;
@@ -11792,6 +11912,20 @@ SA.Mat.DECOR = [
   saDecor('velvet_hanging', 'Velvet Wall Hanging', 'וילון קיר מקטיפה', 'textile', false, 1),
   saDecor('israeli_runner', 'Striped Blue-White Runner', 'ריצוף פסים כחול-לבן', 'textile', false, 1),
 
+  /* THE GOOD CLOTHS.
+     A cloth is not an ornament you put somewhere - it is cut to the table it
+     goes on. Each of these is drawn to the real top of whatever table it is
+     laid on (p16 drawTableCloth), skirt and hem and all, so the same cloth
+     fits the kids' table and the long dining table without the player doing
+     anything. What differs between them is the cloth itself. */
+  saDecor('white_damask_cloth', 'White Damask Tablecloth', 'מפת דמשק לבנה', 'textile', false, 2),
+  saDecor('gold_trim_cloth', 'Gold-Trimmed Yom Tov Cloth', 'מפת יום טוב עם פס זהב', 'textile', false, 2),
+  saDecor('lace_overlay_cloth', 'Lace Overlay Cloth', 'מפת תחרה', 'textile', false, 2),
+  saDecor('blue_white_cloth', 'Blue and White Cloth', 'מפה כחול-לבן', 'textile', false, 2),
+  saDecor('burgundy_velvet_cloth', 'Burgundy Velvet Cloth', 'מפת קטיפה בורדו', 'textile', false, 2),
+  saDecor('pomegranate_cloth', 'Pomegranate Embroidered Cloth', 'מפה רקומה ברימונים', 'textile', false, 2),
+  saDecor('gingham_cloth', 'Red Checked Cloth', 'מפה משובצת אדומה', 'textile', false, 1),
+
   saDecor('table', 'Table', 'שולחן', 'furniture', false, 1),
   saDecor('folding_chairs', 'Folding Chairs', 'כיסאות מתקפלים', 'furniture', false, 1),
   saDecor('bench', 'Bench', 'ספסל', 'furniture', false, 1),
@@ -11818,6 +11952,27 @@ SA.Mat.DECOR = [
   saDecor('kids_stool', "Kids' Stool", 'שרפרף ילדים', 'furniture', false, 1),
   saDecor('sefarim_stand', 'Sefarim Stand', 'מעמד ספרים', 'furniture', false, 1),
   saDecor('wine_crate', 'Wine Bottle Crate', 'ארגז בקבוקי יין', 'furniture', false, 1),
+
+  /* MORE TO SIT AT AND MORE TO SIT ON.
+     Reported: "there needs to be more tables and chairs and stuff, theres not
+     enough decorations". A sukkah is a room you eat in for a week, so these
+     are the things that are really in one - the long table the family sits
+     at, benches down both sides, a high chair, the urn, the washing station,
+     the box of benchers - rather than more ornaments. */
+  saDecor('long_dining_table', 'Long Dining Table', 'שולחן אוכל ארוך', 'furniture', false, 2),
+  saDecor('round_table', 'Round Table', 'שולחן עגול', 'furniture', false, 2),
+  saDecor('kids_table', "Kids' Table", 'שולחן ילדים', 'furniture', false, 1),
+  saDecor('sideboard', 'Sideboard', 'מזנון', 'furniture', false, 2),
+  saDecor('long_bench', 'Long Bench', 'ספסל ארוך', 'furniture', false, 1),
+  saDecor('dining_chairs', 'Wooden Dining Chairs', 'כיסאות אוכל מעץ', 'furniture', false, 1),
+  saDecor('garden_chairs', 'White Garden Chairs', 'כיסאות גן לבנים', 'furniture', false, 1),
+  saDecor('high_chair', 'High Chair', 'כיסא אוכל לתינוק', 'furniture', false, 1),
+  saDecor('folding_stools', 'Pair of Folding Stools', 'זוג שרפרפים מתקפלים', 'furniture', false, 1),
+  saDecor('coat_rack', 'Standing Coat Rack', 'מתלה מעילים', 'furniture', false, 1),
+  saDecor('folding_screen', 'Folding Screen', 'פרגוד מתקפל', 'furniture', false, 2),
+  saDecor('water_urn', 'Hot Water Urn', 'מיחם מים חמים', 'misc', false, 1),
+  saDecor('washing_station', 'Netilas Yadayim Station', 'עמדת נטילת ידיים', 'misc', false, 1),
+  saDecor('bencher_box', 'Box of Benchers', 'ארגז ברכונים', 'misc', false, 1),
 
   saDecor('potted_plant', 'Potted Plant', 'עציץ', 'misc', false, 1),
   saDecor('hanging_ivy_pot', 'Hanging Ivy Pot', 'עציץ קיסוס תלוי', 'misc', true, 1),
@@ -11984,6 +12139,13 @@ SA.Mat.DECOR_ART = {
   dec_embroidered_tablecloth: ['tablecloth', '#f0e8d8', '#c9a86a'],
   dec_velvet_hanging: ['tapestry', '#5a1e3a', '#c9a86a'],
   dec_israeli_runner: ['stripedrunner', '#2f6fd0', '#f0f4f7'],
+  dec_white_damask_cloth: ['clothcard', '#f4f1e8', '#d8d0bc'],
+  dec_gold_trim_cloth: ['clothcard', '#f6efdc', '#c9a24a'],
+  dec_lace_overlay_cloth: ['clothcard', '#fbfaf6', '#e2dcc8'],
+  dec_blue_white_cloth: ['clothcard', '#f2f5f8', '#2f6fd0'],
+  dec_burgundy_velvet_cloth: ['clothcard', '#6e1f2e', '#d4af37'],
+  dec_pomegranate_cloth: ['clothcard', '#f3ead6', '#a52a3a'],
+  dec_gingham_cloth: ['clothcard', '#f4efe6', '#c0392b'],
 
   dec_table: ['table', '#8a6b48', '#6b4f34'],
   dec_folding_chairs: ['chairs', '#7a7a82', '#5a5a62'],
@@ -12077,6 +12239,20 @@ SA.Mat.DECOR_ART = {
   dec_leather_club_chair: ['clubchair', '#7a4a2e', '#4a2c1a'],
   dec_gilt_mirror: ['giltmirror', '#d4af37', '#cfe0e8'],
   dec_wine_rack: ['winerack', '#6a4a30', '#3a2244'],
+  dec_long_dining_table: ['longtable', '#a8814e', '#c9a068'],
+  dec_round_table: ['roundtable', '#9c7748', '#c9a068'],
+  dec_kids_table: ['kidstable', '#c96a4a', '#f0d98a'],
+  dec_sideboard: ['sideboard', '#8a6440', '#c9a86a'],
+  dec_long_bench: ['longbench', '#a8814e', '#7a5c3a'],
+  dec_dining_chairs: ['diningchairs', '#8a6440', '#c9b07a'],
+  dec_garden_chairs: ['gardenchairs', '#e8e6e0', '#b8b6b0'],
+  dec_high_chair: ['highchair', '#a8814e', '#7aa8c9'],
+  dec_folding_stools: ['stools', '#8a6440', '#5a7a4a'],
+  dec_coat_rack: ['coatrack', '#7a5c3a', '#4a5a6a'],
+  dec_folding_screen: ['screen', '#8a6440', '#c9b07a'],
+  dec_water_urn: ['urn', '#c9ccd0', '#6a7078'],
+  dec_washing_station: ['washstand', '#a8814e', '#8aa8c0'],
+  dec_bencher_box: ['bencherbox', '#8a6440', '#c9b07a'],
   dec_porcelain_vase: ['porcelain', '#f2f0e8', '#2f5aa0'],
   dec_marble_console: ['console', '#e6e2da', '#d4af37'],
   dec_crystal_epergne: ['epergne', '#e2eef4', '#c02a3a']
@@ -12446,21 +12622,65 @@ function saDecLanternBody(ctx, cy, k, metal, glow) {
   ctx.fillRect(-w - 1.4, cy + h, w * 2 + 2.8, 2.4 * k);
   saDecInk(ctx); ctx.strokeRect(-w - 1.4, cy + h, w * 2 + 2.8, 2.4 * k);
 }
+/* A DINING CHAIR THAT READS AS ONE.
+   This was a flat square for the back, a lozenge for the seat and two crossed
+   strokes for legs - so a pair of them came out as purple tiles over a beige
+   X, and the pale oval that was meant to be a velvet sheen floated in the gap
+   between them looking like a stray circle. Four legs where legs go, a seat
+   with a front edge you can see, a back with a rail and an upright, and the
+   sheen ON the back where light would actually catch it. */
 function saDecChair(ctx, x, y, k, col, legCol) {
   ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
-  ctx.fillStyle = SA.Mat.shadeColor(col, 0.88);
+  var dark = SA.Mat.shadeColor(col, 0.72);
+  var mid = SA.Mat.shadeColor(col, 0.88);
+  var legDk = SA.Mat.shadeColor(legCol, 0.72);
+
+  /* back legs first, so the seat covers their tops */
+  ctx.strokeStyle = legDk; ctx.lineWidth = 1.7; ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(-5.4, -11.0); ctx.lineTo(1.6, -11.0); ctx.lineTo(1.6, -2.6); ctx.lineTo(-5.4, -2.6);
+  ctx.moveTo(-4.6, -1.6); ctx.lineTo(-4.2, 7.6);
+  ctx.moveTo(2.2, -2.6); ctx.lineTo(2.6, 6.6);
+  ctx.stroke();
+
+  /* back: upright panel with a top rail */
+  ctx.fillStyle = mid;
+  ctx.beginPath();
+  ctx.moveTo(-5.0, -11.2); ctx.lineTo(1.8, -12.0); ctx.lineTo(1.8, -3.0); ctx.lineTo(-5.0, -2.2);
   ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+  /* the sheen belongs on the upholstery, not in mid-air */
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(-5.0, -11.2); ctx.lineTo(1.8, -12.0); ctx.lineTo(1.8, -3.0); ctx.lineTo(-5.0, -2.2);
+  ctx.closePath(); ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  ctx.beginPath(); ctx.ellipse(-2.4, -8.4, 1.9, 3.2, -0.25, 0, 7); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = legCol;
+  ctx.beginPath();
+  ctx.moveTo(-5.4, -12.4); ctx.lineTo(2.2, -13.3); ctx.lineTo(2.2, -11.6); ctx.lineTo(-5.4, -10.7);
+  ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+
+  /* seat: top face plus the front edge, so it has thickness */
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.moveTo(-6.2, -2.0); ctx.lineTo(1.6, -3.4); ctx.lineTo(7.0, 0.4); ctx.lineTo(-1.0, 1.8);
+  ctx.moveTo(-6.2, -2.2); ctx.lineTo(1.8, -3.6); ctx.lineTo(7.2, 0.2); ctx.lineTo(-0.8, 1.6);
   ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
-  ctx.strokeStyle = legCol; ctx.lineWidth = 2.2;
+  ctx.fillStyle = dark;
   ctx.beginPath();
-  ctx.moveTo(-5.6, -1.4); ctx.lineTo(5.2, 8.6);
-  ctx.moveTo(6.4, 0.8); ctx.lineTo(-3.6, 8.6);
+  ctx.moveTo(-6.2, -2.2); ctx.lineTo(-0.8, 1.6); ctx.lineTo(-0.8, 3.0); ctx.lineTo(-6.2, -0.8);
+  ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(-0.8, 1.6); ctx.lineTo(7.2, 0.2); ctx.lineTo(7.2, 1.6); ctx.lineTo(-0.8, 3.0);
+  ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+
+  /* front legs */
+  ctx.strokeStyle = legCol; ctx.lineWidth = 1.9;
+  ctx.beginPath();
+  ctx.moveTo(-5.4, 0.2); ctx.lineTo(-5.0, 9.0);
+  ctx.moveTo(6.2, 1.4); ctx.lineTo(6.6, 8.0);
   ctx.stroke();
+  ctx.lineCap = 'butt';
   ctx.restore();
 }
 
@@ -13670,10 +13890,11 @@ SA.Draw.DECOR_SHAPES = {
     saDecGloss(ctx, -4.4, -4.8, 3.2, 1.2);
   },
   velvetchairs: function (ctx, a, b) {
-    saDecChair(ctx, 3.8, 0.6, 0.9, SA.Mat.shadeColor(a, 1.12), b);
-    saDecChair(ctx, -3.4, 1.8, 1.02, a, b);
-    ctx.fillStyle = b;
-    ctx.beginPath(); ctx.ellipse(-2.2, -1.2, 2.4, 1.1, 0, 0, 7); ctx.fill();
+    /* A PAIR of chairs, one behind the other - and nothing floating between
+       them. The loose ellipse here was a stray gold blob in the gap: the
+       "weird circle on the velvet chairs". */
+    saDecChair(ctx, 4.2, 0.2, 0.88, SA.Mat.shadeColor(a, 1.14), b);
+    saDecChair(ctx, -3.6, 2.0, 1.02, a, b);
   },
   marbleside: function (ctx, a, b) {
     saDecLeg(ctx, -1.6, -3.0, 3.2, 10.4, b);
@@ -16139,40 +16360,520 @@ SA.Draw.DECOR_SHAPES = {
       ctx.beginPath(); ctx.arc(i * 5.9, 9.4, 0.72, 0, 7); ctx.fill();
     }
   },
+  /* ---------------------------------------------- the new furniture (p09)
+     All built from the same three moves the rest of the room uses: an
+     isometric top (saDecIsoTop), a front edge under it so the top has
+     thickness, and legs. Drawn to their own real heights, so a kids' table
+     really is knee-high next to the long table. */
+  longtable: function (ctx, a, b) {
+    var dark = SA.Mat.shadeColor(b, 0.72);
+    /* far legs first, then the top, then the near legs in front of it */
+    saDecLeg(ctx, -14.6, -8.4, 2.0, 6.0, dark);
+    saDecLeg(ctx, 12.6, -8.4, 2.0, 6.0, dark);
+    saDecIsoTop(ctx, 0, -2.4, 16.4, 6.0, SA.Mat.shadeColor(a, 1.16));
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.82);
+    ctx.beginPath();
+    ctx.moveTo(-16.4, -2.4); ctx.lineTo(0, 3.6); ctx.lineTo(16.4, -2.4); ctx.lineTo(16.4, -0.5);
+    ctx.lineTo(0, 5.5); ctx.lineTo(-16.4, -0.5);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    saDecLeg(ctx, -15.8, -2.0, 2.2, 8.2, dark);
+    saDecLeg(ctx, 13.6, -2.0, 2.2, 8.2, dark);
+    saDecLeg(ctx, -1.1, 3.4, 2.2, 7.6, b);
+  },
+  roundtable: function (ctx, a, b) {
+    var dark = SA.Mat.shadeColor(b, 0.72);
+    /* The column goes BELOW the top, or the top covers it and the whole thing
+       reads as a plate lying on the floor. */
+    saDecLeg(ctx, -1.2, -1.6, 2.4, 9.6, dark);
+    /* a round top is an ellipse in this projection */
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.80);
+    ctx.beginPath(); ctx.ellipse(0, -1.6, 11.2, 5.6, 0, 0, 7); ctx.fill();
+    saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = SA.Mat.shadeColor(a, 1.16);
+    ctx.beginPath(); ctx.ellipse(0, -2.9, 11.2, 5.6, 0, 0, 7); ctx.fill();
+    saDecInk(ctx); ctx.stroke();
+    ctx.strokeStyle = SA.Mat.shadeColor(a, 0.86); ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.ellipse(0, -2.9, 7.6, 3.7, 0, 0, 7); ctx.stroke();
+    /* a splayed pedestal foot */
+    ctx.fillStyle = b;
+    ctx.beginPath();
+    ctx.moveTo(-4.6, 9.6); ctx.lineTo(-1.4, 7.4); ctx.lineTo(1.4, 7.4); ctx.lineTo(4.6, 9.6);
+    ctx.lineTo(0, 11.2);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+  },
+  kidstable: function (ctx, a, b) {
+    var dark = SA.Mat.shadeColor(a, 0.72);
+    saDecLeg(ctx, -7.4, -3.0, 2.1, 6.0, dark);
+    saDecLeg(ctx, 5.3, -3.0, 2.1, 6.0, dark);
+    saDecIsoTop(ctx, 0, -3.4, 8.4, 4.4, SA.Mat.shadeColor(a, 1.18));
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.84);
+    ctx.beginPath();
+    ctx.moveTo(-8.4, -3.4); ctx.lineTo(0, 1.0); ctx.lineTo(8.4, -3.4); ctx.lineTo(8.4, -1.9);
+    ctx.lineTo(0, 2.5); ctx.lineTo(-8.4, -1.9);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    saDecLeg(ctx, -1.1, 1.0, 2.2, 6.8, b);
+    /* a crayon left on it, because it is the kids' table */
+    ctx.fillStyle = b;
+    ctx.save(); ctx.translate(2.2, -4.4); ctx.rotate(-0.25);
+    ctx.fillRect(-2.2, -0.45, 4.4, 0.9); saDecInk(ctx); ctx.strokeRect(-2.2, -0.45, 4.4, 0.9);
+    ctx.restore();
+  },
+  sideboard: function (ctx, a, b) {
+    var carc = a, dk = SA.Mat.shadeColor(a, 0.70), lt = SA.Mat.shadeColor(a, 1.18);
+    var HW = 8.8, TOP = -6.4, BOT = 10.4, DX = 3.0, DY = -1.9;
+    ctx.fillStyle = dk;
+    ctx.beginPath();
+    ctx.moveTo(HW, TOP); ctx.lineTo(HW + DX, TOP + DY);
+    ctx.lineTo(HW + DX, BOT + DY); ctx.lineTo(HW, BOT);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = lt;
+    ctx.beginPath();
+    ctx.moveTo(-HW, TOP); ctx.lineTo(-HW + DX, TOP + DY);
+    ctx.lineTo(HW + DX, TOP + DY); ctx.lineTo(HW, TOP);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = carc;
+    ctx.fillRect(-HW, TOP, HW * 2, BOT - TOP);
+    saDecInk(ctx); ctx.strokeRect(-HW, TOP, HW * 2, BOT - TOP);
+    /* two doors with handles */
+    var i;
+    for (i = 0; i < 2; i++) {
+      var dxl = -HW + 0.9 + i * (HW - 0.45);
+      ctx.fillStyle = SA.Mat.shadeColor(a, 0.88);
+      ctx.fillRect(dxl, TOP + 1.1, HW - 1.35, BOT - TOP - 3.4);
+      saDecInk(ctx); ctx.strokeRect(dxl, TOP + 1.1, HW - 1.35, BOT - TOP - 3.4);
+      ctx.fillStyle = b;
+      ctx.beginPath();
+      ctx.arc(dxl + (i ? 1.3 : HW - 2.6), TOP + (BOT - TOP) * 0.44, 0.72, 0, 7);
+      ctx.fill(); saDecInk(ctx); ctx.stroke();
+    }
+    ctx.fillStyle = dk;
+    ctx.fillRect(-HW, BOT - 1.8, HW * 2, 1.8);
+    saDecInk(ctx); ctx.strokeRect(-HW, BOT - 1.8, HW * 2, 1.8);
+  },
+  longbench: function (ctx, a, b) {
+    saDecIsoTop(ctx, 0, -0.8, 16.0, 3.4, SA.Mat.shadeColor(a, 1.14));
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.82);
+    ctx.beginPath();
+    ctx.moveTo(-16.0, -0.8); ctx.lineTo(0, 2.6); ctx.lineTo(16.0, -0.8); ctx.lineTo(16.0, 0.7);
+    ctx.lineTo(0, 4.1); ctx.lineTo(-16.0, 0.7);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    /* trestle ends and a stretcher between them */
+    var i;
+    for (i = 0; i < 2; i++) {
+      var ex = i ? 10.4 : -14.0;
+      ctx.fillStyle = b;
+      ctx.beginPath();
+      ctx.moveTo(ex, 0.5); ctx.lineTo(ex + 3.0, 1.6); ctx.lineTo(ex + 3.0, 9.6); ctx.lineTo(ex, 8.5);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    }
+    ctx.fillStyle = SA.Mat.shadeColor(b, 0.88);
+    ctx.fillRect(-11.6, 5.4, 22.6, 1.1);
+    saDecInk(ctx); ctx.strokeRect(-11.6, 5.4, 22.6, 1.1);
+  },
+  diningchairs: function (ctx, a, b) {
+    /* two straight-backed wooden chairs, the far one behind */
+    function chair(ox, oy, sc, tone) {
+      ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+      var dk = SA.Mat.shadeColor(tone, 0.70);
+      saDecLeg(ctx, -3.9, -1.2, 1.3, 7.2, dk);
+      saDecLeg(ctx, 2.7, -1.2, 1.3, 7.2, dk);
+      /* back: two uprights and three rails */
+      saDecLeg(ctx, -3.6, -11.4, 1.2, 10.4, tone);
+      saDecLeg(ctx, 2.4, -11.4, 1.2, 10.4, tone);
+      var r;
+      for (r = 0; r < 3; r++) {
+        ctx.fillStyle = SA.Mat.shadeColor(tone, 1.1);
+        ctx.fillRect(-3.6, -10.6 + r * 2.6, 7.2, 0.95);
+        saDecInk(ctx); ctx.strokeRect(-3.6, -10.6 + r * 2.6, 7.2, 0.95);
+      }
+      saDecIsoTop(ctx, 0, -1.0, 4.9, 2.5, SA.Mat.shadeColor(b, 1.1));
+      ctx.fillStyle = SA.Mat.shadeColor(b, 0.84);
+      ctx.beginPath();
+      ctx.moveTo(-4.9, -1.0); ctx.lineTo(0, 1.5); ctx.lineTo(4.9, -1.0); ctx.lineTo(4.9, 0.1);
+      ctx.lineTo(0, 2.6); ctx.lineTo(-4.9, 0.1);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      saDecLeg(ctx, -4.2, 1.0, 1.3, 6.6, tone);
+      saDecLeg(ctx, 3.0, 1.0, 1.3, 6.6, tone);
+      ctx.restore();
+    }
+    chair(4.4, -0.6, 0.88, SA.Mat.shadeColor(a, 1.12));
+    chair(-3.8, 1.6, 1.0, a);
+  },
+  gardenchairs: function (ctx, a, b) {
+    /* white moulded plastic - rounded back, tapered legs */
+    function chair(ox, oy, sc) {
+      ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+      ctx.fillStyle = SA.Mat.shadeColor(b, 0.94);
+      ctx.beginPath();
+      ctx.moveTo(-3.6, 0.4); ctx.lineTo(-4.6, 7.6); ctx.lineTo(-3.2, 7.6); ctx.lineTo(-2.6, 0.6);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(3.6, 0.4); ctx.lineTo(4.6, 7.6); ctx.lineTo(3.2, 7.6); ctx.lineTo(2.6, 0.6);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      ctx.fillStyle = a;
+      ctx.beginPath();
+      ctx.moveTo(-4.6, -10.6); ctx.quadraticCurveTo(0, -12.4, 4.6, -10.6);
+      ctx.lineTo(4.0, -1.2); ctx.lineTo(-4.0, -1.2);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      ctx.strokeStyle = SA.Mat.shadeColor(a, 0.86); ctx.lineWidth = 0.55;
+      var r;
+      for (r = 0; r < 3; r++) {
+        ctx.beginPath(); ctx.moveTo(-3.4, -9.0 + r * 2.2); ctx.lineTo(3.4, -9.0 + r * 2.2); ctx.stroke();
+      }
+      saDecIsoTop(ctx, 0, -0.8, 5.2, 2.6, a);
+      ctx.restore();
+    }
+    chair(4.6, -0.8, 0.86);
+    chair(-3.8, 1.4, 1.0);
+  },
+  highchair: function (ctx, a, b) {
+    var dk = SA.Mat.shadeColor(a, 0.70);
+    /* four splayed legs */
+    ctx.fillStyle = dk;
+    [[-4.4, -1.0, -6.4, 12.6], [3.2, -1.0, 5.2, 12.6]].forEach(function (L) {
+      ctx.beginPath();
+      ctx.moveTo(L[0], L[1]); ctx.lineTo(L[0] + 1.3, L[1]);
+      ctx.lineTo(L[2] + 1.3, L[3]); ctx.lineTo(L[2], L[3]);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    });
+    /* footrest */
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.88);
+    ctx.fillRect(-5.0, 7.0, 9.6, 1.1); saDecInk(ctx); ctx.strokeRect(-5.0, 7.0, 9.6, 1.1);
+    /* seat and high back */
+    saDecLeg(ctx, -4.2, -12.6, 1.3, 11.8, a);
+    saDecLeg(ctx, 2.9, -12.6, 1.3, 11.8, a);
+    var r;
+    for (r = 0; r < 3; r++) {
+      ctx.fillStyle = SA.Mat.shadeColor(a, 1.12);
+      ctx.fillRect(-4.2, -11.8 + r * 3.0, 8.4, 0.95);
+      saDecInk(ctx); ctx.strokeRect(-4.2, -11.8 + r * 3.0, 8.4, 0.95);
+    }
+    saDecIsoTop(ctx, 0, -1.0, 5.0, 2.5, SA.Mat.shadeColor(a, 1.18));
+    /* the tray across the front */
+    ctx.fillStyle = b;
+    saDecIsoTop(ctx, 0, -3.2, 6.2, 2.9, b);
+  },
+  stools: function (ctx, a, b) {
+    function stool(ox, oy, sc) {
+      ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+      var dk = SA.Mat.shadeColor(a, 0.70);
+      ctx.fillStyle = dk;
+      /* crossed folding legs */
+      ctx.beginPath();
+      ctx.moveTo(-4.2, 7.4); ctx.lineTo(-3.0, 7.4); ctx.lineTo(4.2, -1.0); ctx.lineTo(3.0, -1.0);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(4.2, 7.4); ctx.lineTo(3.0, 7.4); ctx.lineTo(-4.2, -1.0); ctx.lineTo(-3.0, -1.0);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      /* canvas top */
+      saDecIsoTop(ctx, 0, -1.4, 5.4, 2.7, b);
+      ctx.restore();
+    }
+    stool(4.6, -1.4, 0.86);
+    stool(-4.0, 1.2, 1.0);
+  },
+  coatrack: function (ctx, a, b) {
+    var dk = SA.Mat.shadeColor(a, 0.70);
+    /* splayed tripod foot */
+    ctx.fillStyle = dk;
+    [[-6.4, 11.4], [6.4, 11.4], [0, 12.8]].forEach(function (F) {
+      ctx.beginPath();
+      ctx.moveTo(-0.9, 6.4); ctx.lineTo(0.9, 6.4); ctx.lineTo(F[0] + 0.9, F[1]); ctx.lineTo(F[0] - 0.9, F[1]);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    });
+    saDecLeg(ctx, -1.0, -12.6, 2.0, 19.2, a);
+    /* four pegs at the top */
+    ctx.fillStyle = SA.Mat.shadeColor(a, 1.14);
+    [[-4.6, -10.8], [4.6, -10.8], [-3.6, -8.2], [3.6, -8.2]].forEach(function (P) {
+      ctx.beginPath();
+      ctx.moveTo(0, P[1] - 0.6); ctx.lineTo(P[0], P[1] - 1.6);
+      ctx.lineTo(P[0], P[1] - 0.2); ctx.lineTo(0, P[1] + 0.8);
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    });
+    /* a coat hanging off one of them */
+    ctx.fillStyle = b;
+    ctx.beginPath();
+    ctx.moveTo(4.4, -10.2); ctx.quadraticCurveTo(7.4, -6.4, 6.2, -0.6);
+    ctx.quadraticCurveTo(4.2, 0.4, 2.6, -0.8);
+    ctx.quadraticCurveTo(2.2, -6.2, 4.4, -10.2);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+  },
+  screen: function (ctx, a, b) {
+    /* three hinged panels, the middle one facing us and the wings angled */
+    var panels = [
+      { x0: -12.4, x1: -4.6, top: -10.2, bot: 8.4, dy: -1.6, tone: SA.Mat.shadeColor(a, 0.84) },
+      { x0: -4.6, x1: 4.6, top: -11.4, bot: 9.2, dy: 0, tone: a },
+      { x0: 4.6, x1: 12.4, top: -10.2, bot: 8.4, dy: 1.6, tone: SA.Mat.shadeColor(a, 0.72) }
+    ];
+    panels.forEach(function (P) {
+      ctx.fillStyle = P.tone;
+      ctx.beginPath();
+      ctx.moveTo(P.x0, P.top + (P.dy < 0 ? -P.dy : 0));
+      ctx.lineTo(P.x1, P.top + (P.dy > 0 ? P.dy : 0));
+      ctx.lineTo(P.x1, P.bot + (P.dy > 0 ? P.dy : 0));
+      ctx.lineTo(P.x0, P.bot + (P.dy < 0 ? -P.dy : 0));
+      ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+      /* a lattice inset */
+      ctx.strokeStyle = SA.Mat.shadeColor(b, 1.0); ctx.lineWidth = 0.6;
+      var n;
+      for (n = 1; n < 4; n++) {
+        var yy = P.top + (P.bot - P.top) * (n / 4);
+        ctx.beginPath(); ctx.moveTo(P.x0 + 1.0, yy); ctx.lineTo(P.x1 - 1.0, yy); ctx.stroke();
+      }
+      var m;
+      for (m = 1; m < 3; m++) {
+        var xx = P.x0 + (P.x1 - P.x0) * (m / 3);
+        ctx.beginPath(); ctx.moveTo(xx, P.top + 1.2); ctx.lineTo(xx, P.bot - 1.2); ctx.stroke();
+      }
+    });
+  },
+  urn: function (ctx, a, b) {
+    /* a stainless hot water urn - the one appliance every sukkah has */
+    var body = a, dk = SA.Mat.shadeColor(a, 0.72);
+    ctx.fillStyle = dk;
+    ctx.beginPath(); ctx.ellipse(0, 9.6, 6.0, 2.2, 0, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(-5.6, -6.4); ctx.lineTo(5.6, -6.4); ctx.lineTo(6.2, 9.0);
+    ctx.lineTo(-6.2, 9.0);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    /* a highlight down one side */
+    ctx.fillStyle = 'rgba(255,255,255,0.34)';
+    ctx.beginPath();
+    ctx.moveTo(-3.6, -5.6); ctx.lineTo(-1.8, -5.6); ctx.lineTo(-2.4, 8.2); ctx.lineTo(-4.2, 8.2);
+    ctx.closePath(); ctx.fill();
+    /* lid, handles, tap and the little gauge */
+    ctx.fillStyle = SA.Mat.shadeColor(a, 1.16);
+    ctx.beginPath(); ctx.ellipse(0, -6.6, 5.8, 2.1, 0, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = b;
+    ctx.beginPath(); ctx.arc(0, -8.6, 1.15, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = b;
+    ctx.fillRect(-1.1, 3.6, 2.2, 1.5); saDecInk(ctx); ctx.strokeRect(-1.1, 3.6, 2.2, 1.5);
+    ctx.beginPath();
+    ctx.moveTo(-0.7, 5.1); ctx.lineTo(0.7, 5.1); ctx.lineTo(0.5, 7.0); ctx.lineTo(-0.5, 7.0);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(3.4, -3.4, 1.3, 9.0); saDecInk(ctx); ctx.strokeRect(3.4, -3.4, 1.3, 9.0);
+  },
+  washstand: function (ctx, a, b) {
+    /* a small stand with the washing cup and a basin under it */
+    var dk = SA.Mat.shadeColor(a, 0.70);
+    saDecLeg(ctx, -5.4, 0.4, 1.5, 9.6, dk);
+    saDecLeg(ctx, 3.9, 0.4, 1.5, 9.6, dk);
+    saDecIsoTop(ctx, 0, 0.2, 7.6, 3.6, SA.Mat.shadeColor(a, 1.16));
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.84);
+    ctx.beginPath();
+    ctx.moveTo(-7.6, 0.2); ctx.lineTo(0, 3.8); ctx.lineTo(7.6, 0.2); ctx.lineTo(7.6, 1.6);
+    ctx.lineTo(0, 5.2); ctx.lineTo(-7.6, 1.6);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    /* the two-handled cup standing on it */
+    ctx.fillStyle = b;
+    ctx.beginPath();
+    ctx.moveTo(-2.6, -7.4); ctx.lineTo(2.6, -7.4); ctx.lineTo(2.0, -0.6); ctx.lineTo(-2.0, -0.6);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    ctx.strokeStyle = SA.Mat.shadeColor(b, 0.72); ctx.lineWidth = 0.85;
+    ctx.beginPath(); ctx.moveTo(-2.5, -6.2); ctx.quadraticCurveTo(-4.6, -4.8, -2.3, -3.2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2.5, -6.2); ctx.quadraticCurveTo(4.6, -4.8, 2.3, -3.2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.32)';
+    ctx.fillRect(-1.6, -6.8, 1.1, 5.4);
+    /* the basin below */
+    ctx.fillStyle = SA.Mat.shadeColor(b, 0.86);
+    ctx.beginPath(); ctx.ellipse(0, 10.0, 5.4, 2.0, 0, 0, 7); ctx.fill(); saDecInk(ctx); ctx.stroke();
+  },
+  bencherbox: function (ctx, a, b) {
+    /* an open box with a row of benchers standing in it */
+    var dk = SA.Mat.shadeColor(a, 0.68);
+    ctx.fillStyle = dk;
+    ctx.beginPath();
+    ctx.moveTo(8.2, -3.0); ctx.lineTo(10.4, -4.4); ctx.lineTo(10.4, 4.6); ctx.lineTo(8.2, 6.0);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    /* THE BOX IS OPEN AT THE TOP, so the back goes down first, then the books
+       standing in it, then only the FRONT wall - painting the whole carcass
+       after the books hid every one of them. */
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.52);
+    ctx.beginPath();
+    ctx.moveTo(-6.0, -4.4); ctx.lineTo(10.4, -4.4); ctx.lineTo(10.4, 1.2); ctx.lineTo(-6.0, 1.2);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    var i;
+    for (i = 0; i < 5; i++) {
+      var bx = -5.0 + i * 3.0;
+      ctx.save(); ctx.translate(bx, -2.2); ctx.rotate(-0.07 + i * 0.03);
+      ctx.fillStyle = i % 2 ? b : SA.Mat.shadeColor(b, 0.78);
+      ctx.fillRect(-1.25, -5.0, 2.5, 7.4); saDecInk(ctx); ctx.strokeRect(-1.25, -5.0, 2.5, 7.4);
+      ctx.fillStyle = SA.Mat.shadeColor(b, 1.4);
+      ctx.fillRect(-0.6, -4.1, 1.2, 0.7);
+      ctx.restore();
+    }
+    /* the front wall, only as high as the box */
+    ctx.fillStyle = a;
+    ctx.beginPath();
+    ctx.moveTo(-8.2, -1.2); ctx.lineTo(8.2, -1.2); ctx.lineTo(8.2, 6.0); ctx.lineTo(-8.2, 6.0);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    /* the near rim, catching the light */
+    ctx.fillStyle = SA.Mat.shadeColor(a, 1.16);
+    ctx.beginPath();
+    ctx.moveTo(-8.2, -1.2); ctx.lineTo(-6.0, -2.6); ctx.lineTo(10.4, -2.6); ctx.lineTo(8.2, -1.2);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+  },
+  clothcard: function (ctx, a, b) {
+    /* THE CARD, not the cloth. In the room a cloth is cut to whatever table it
+       is laid on (p16 drawTableCloth) - here it just has to be recognisable in
+       a tray thumbnail, so it is drawn as a small table already dressed, which
+       says both what it is and what it is for. */
+    var style = null, id;
+    for (id in SA.Mat.DECOR_CLOTH_STYLE) {
+      var st = SA.Mat.DECOR_CLOTH_STYLE[id];
+      if (st.cloth === a && st.trim === b) { style = st; break; }
+    }
+    if (!style) style = { cloth: a, trim: b, weave: 'plain', drop: 0.36 };
+    var cloth = a, deep = SA.Mat.shadeColor(a, 0.80), trim = b;
+    /* two legs peeking out under the hem */
+    ctx.fillStyle = '#6a4f33';
+    ctx.fillRect(-6.2, 6.6, 1.6, 3.4); saDecInk(ctx); ctx.strokeRect(-6.2, 6.6, 1.6, 3.4);
+    ctx.fillRect(4.6, 6.6, 1.6, 3.4); saDecInk(ctx); ctx.strokeRect(4.6, 6.6, 1.6, 3.4);
+    /* the skirt */
+    ctx.fillStyle = deep;
+    ctx.beginPath();
+    ctx.moveTo(-10.4, -1.2); ctx.lineTo(0, 3.8); ctx.lineTo(10.4, -1.2); ctx.lineTo(10.4, 3.2);
+    ctx.lineTo(0, 8.2); ctx.lineTo(-10.4, 3.2);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    /* the top */
+    saDecIsoTop(ctx, 0, -1.2, 10.4, 5.0, SA.Mat.shadeColor(cloth, 1.05));
+    /* what makes it this cloth */
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-10.4, -1.2); ctx.lineTo(0, -6.2); ctx.lineTo(10.4, -1.2); ctx.lineTo(0, 3.8);
+    ctx.closePath(); ctx.clip();
+    var i;
+    if (style.weave === 'check' || style.weave === 'stripe') {
+      ctx.fillStyle = trim; ctx.globalAlpha = 0.6;
+      for (i = -5; i <= 5; i++) {
+        ctx.beginPath();
+        ctx.moveTo(-10.4 + i * 2.0, -1.2 - i * 0); ctx.lineTo(0 + i * 2.0, 3.8);
+        ctx.lineTo(0 + i * 2.0 + 0.9, 3.8); ctx.lineTo(-10.4 + i * 2.0 + 0.9, -1.2);
+        ctx.closePath(); ctx.fill();
+      }
+      if (style.weave === 'check') {
+        for (i = -5; i <= 5; i++) {
+          ctx.beginPath();
+          ctx.moveTo(10.4 - i * 2.0, -1.2); ctx.lineTo(0 - i * 2.0, 3.8);
+          ctx.lineTo(0 - i * 2.0 + 0.9, 3.8); ctx.lineTo(10.4 - i * 2.0 + 0.9, -1.2);
+          ctx.closePath(); ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    } else if (style.weave === 'lace') {
+      ctx.strokeStyle = trim; ctx.lineWidth = 0.3;
+      for (i = 0; i < 16; i++) {
+        ctx.beginPath();
+        ctx.arc(-7.5 + (i % 6) * 3.0, -4.4 + Math.floor(i / 6) * 2.6, 0.8, 0, 7);
+        ctx.stroke();
+      }
+    } else if (style.weave === 'damask' || style.weave === 'velvet') {
+      ctx.strokeStyle = style.weave === 'velvet' ? trim : SA.Mat.shadeColor(cloth, 0.90);
+      ctx.lineWidth = 0.32;
+      for (i = 0; i < 14; i++) {
+        var dx = -7.8 + (i % 5) * 3.9, dy = -4.6 + Math.floor(i / 5) * 2.6;
+        ctx.beginPath();
+        ctx.moveTo(dx, dy - 1.0); ctx.lineTo(dx + 1.1, dy);
+        ctx.lineTo(dx, dy + 1.0); ctx.lineTo(dx - 1.1, dy);
+        ctx.closePath(); ctx.stroke();
+      }
+    } else if (style.weave === 'rimon') {
+      ctx.fillStyle = trim;
+      for (i = 0; i < 5; i++) {
+        var rx = -6.4 + i * 3.2;
+        ctx.beginPath(); ctx.ellipse(rx, -2.0, 0.9, 1.1, 0, 0, 7); ctx.fill();
+        ctx.strokeStyle = SA.Mat.shadeColor(trim, 0.7); ctx.lineWidth = 0.3;
+        ctx.beginPath(); ctx.moveTo(rx, -3.1); ctx.lineTo(rx, -4.0); ctx.stroke();
+      }
+    } else if (style.weave === 'band' || style.weave === 'vine') {
+      ctx.strokeStyle = trim; ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(-8.4, -1.2); ctx.lineTo(0, -5.2); ctx.lineTo(8.4, -1.2); ctx.lineTo(0, 2.8);
+      ctx.closePath(); ctx.stroke();
+    } else {
+      ctx.strokeStyle = trim; ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(-8.6, -1.2); ctx.lineTo(0, -5.3); ctx.lineTo(8.6, -1.2); ctx.lineTo(0, 2.9);
+      ctx.closePath(); ctx.stroke();
+    }
+    ctx.restore();
+    saDecInk(ctx);
+    ctx.beginPath();
+    ctx.moveTo(-10.4, -1.2); ctx.lineTo(0, -6.2); ctx.lineTo(10.4, -1.2); ctx.lineTo(0, 3.8);
+    ctx.closePath(); ctx.stroke();
+    /* the hem, and a fringe on the ones that have one */
+    ctx.strokeStyle = trim; ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-10.4, 3.2); ctx.lineTo(0, 8.2); ctx.lineTo(10.4, 3.2); ctx.stroke();
+    if (style.fringe) {
+      ctx.lineWidth = 0.4;
+      for (i = 0; i <= 8; i++) {
+        var t = i / 8;
+        var fx = -10.4 + 10.4 * t, fy = 3.2 + 5.0 * t;
+        ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy + 1.2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-fx, fy); ctx.lineTo(-fx, fy + 1.2); ctx.stroke();
+      }
+    }
+  },
   winerack: function (ctx, a, b) {
-    /* Bottles on their sides in a rack, which is how wine is stored and how a
-       rack reads at a glance: rows of dark circles with a cork in the middle. */
-    var wood = a, woodDk = SA.Mat.shadeColor(a, 0.62), bottle = b;
+    /* A RACK STANDING IN A ROOM, NOT A POSTER OF ONE.
+       Drawn as a flat front-on rectangle it read as a picture hung in mid-air
+       at the wrong angle next to furniture that recedes properly - reported as
+       "wine chest looks weird, not the right angle". Same carcass idiom as the
+       bookshelf: a front face, a foreshortened side and a top board, so it
+       sits in the isometric room with everything else. */
+    var wood = a, woodDk = SA.Mat.shadeColor(a, 0.62), woodLt = SA.Mat.shadeColor(a, 1.18);
+    var bottle = b;
+    var HW = 6.4, TOP = -10.6, BOT = 10.2;
+    var DX = 3.0, DY = -1.9;
     var i, k;
-    /* carcass */
+    /* the side of the carcass, receding */
+    ctx.fillStyle = woodDk;
+    ctx.beginPath();
+    ctx.moveTo(HW, TOP); ctx.lineTo(HW + DX, TOP + DY);
+    ctx.lineTo(HW + DX, BOT + DY); ctx.lineTo(HW, BOT);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    /* top board */
+    ctx.fillStyle = woodLt;
+    ctx.beginPath();
+    ctx.moveTo(-HW, TOP); ctx.lineTo(-HW + DX, TOP + DY);
+    ctx.lineTo(HW + DX, TOP + DY); ctx.lineTo(HW, TOP);
+    ctx.closePath(); ctx.fill(); saDecInk(ctx); ctx.stroke();
+    /* front carcass and the dark inside */
     ctx.fillStyle = wood;
-    ctx.fillRect(-8.0, -10.6, 16.0, 20.8); saDecInk(ctx); ctx.strokeRect(-8.0, -10.6, 16.0, 20.8);
-    ctx.fillStyle = SA.Mat.shadeColor(a, 0.42);
-    ctx.fillRect(-6.6, -9.2, 13.2, 18.0);
-    /* three shelves of bottles */
-    for (i = 0; i < 3; i++) {
-      var sy = -9.0 + i * 6.0;
+    ctx.fillRect(-HW, TOP, HW * 2, BOT - TOP);
+    saDecInk(ctx); ctx.strokeRect(-HW, TOP, HW * 2, BOT - TOP);
+    var IX = HW - 0.9, IT = TOP + 0.9, IB = BOT - 2.0;
+    ctx.fillStyle = SA.Mat.shadeColor(a, 0.40);
+    ctx.fillRect(-IX, IT, IX * 2, IB - IT);
+    /* three shelves of bottles lying on their sides, corks out */
+    var rows = 3, gap = (IB - IT) / rows;
+    for (i = 0; i < rows; i++) {
+      var sy = IT + i * gap;
       for (k = 0; k < 4; k++) {
-        var bx = -5.1 + k * 3.4;
+        var bx = -IX + 1.35 + k * ((IX * 2 - 2.7) / 3);
+        var cy = sy + gap * 0.46;
         ctx.fillStyle = k % 2 ? bottle : SA.Mat.shadeColor(b, 1.35);
-        ctx.beginPath(); ctx.ellipse(bx, sy + 2.3, 1.35, 1.35, 0, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(bx, cy, 1.25, 1.25, 0, 0, 7); ctx.fill();
         saDecInk(ctx); ctx.stroke();
         ctx.fillStyle = SA.Mat.shadeColor(b, 2.6);
-        ctx.beginPath(); ctx.ellipse(bx - 0.42, sy + 1.9, 0.42, 0.36, 0, 0, 7); ctx.fill();
-        /* the cork end */
+        ctx.beginPath(); ctx.ellipse(bx - 0.40, cy - 0.38, 0.40, 0.34, 0, 0, 7); ctx.fill();
         ctx.fillStyle = '#c9a87a';
-        ctx.beginPath(); ctx.arc(bx, sy + 2.3, 0.52, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx, cy, 0.50, 0, 7); ctx.fill();
+        saDecInk(ctx); ctx.stroke();
       }
-      /* the shelf board */
+      /* the shelf board, with its own receding edge */
+      var by = sy + gap - 0.55;
       ctx.fillStyle = woodDk;
-      ctx.fillRect(-6.6, sy + 3.9, 13.2, 1.0);
-      saDecInk(ctx); ctx.strokeRect(-6.6, sy + 3.9, 13.2, 1.0);
+      ctx.fillRect(-IX, by, IX * 2, 0.95);
+      saDecInk(ctx); ctx.strokeRect(-IX, by, IX * 2, 0.95);
     }
-    /* plinth and a small label plate */
+    /* plinth */
     ctx.fillStyle = woodDk;
-    ctx.fillRect(-8.0, 8.6, 16.0, 1.6); saDecInk(ctx); ctx.strokeRect(-8.0, 8.6, 16.0, 1.6);
-    ctx.fillStyle = '#cdb87a';
-    ctx.fillRect(-2.6, -10.2, 5.2, 1.1); saDecInk(ctx); ctx.strokeRect(-2.6, -10.2, 5.2, 1.1);
+    ctx.fillRect(-HW, BOT - 1.9, HW * 2, 1.9);
+    saDecInk(ctx); ctx.strokeRect(-HW, BOT - 1.9, HW * 2, 1.9);
   },
   porcelain: function (ctx, a, b) {
     /* A tall blue-and-white porcelain vase on a hardwood stand: swelling
@@ -16397,12 +17098,23 @@ SA.Draw.decorNativeBox = function (entry) {
 /* Paint this decoration so it stands exactly `pxH` pixels tall, centred on
    (x, y). Everything in the scene that draws a decoration goes through here,
    so real-world size is decided in one place. */
-SA.Draw.decorIconAt = function (ctx, x, y, pxH, entry, fitWidth) {
+SA.Draw.decorIconAt = function (ctx, x, y, pxH, entry, fitWidth, flip) {
   var nb = SA.Draw.decorNativeBox(entry);
   /* fitWidth: for something that lies flat - a rug, a runner, a pool - the
      height is one tefach and meaningless as a scale. Those are fitted to
      their floor span across instead (see DECOR_FLAT_SPAN). */
   var s = fitWidth ? (pxH / Math.max(0.5, nb.w)) : (pxH / Math.max(0.5, nb.h));
+  /* Turned around: mirrored about its own centre line, so a bench or a
+     schtender can face the other way (the inspector's turn button). */
+  if (flip) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(-1, 1);
+    ctx.translate(-x, -y);
+    SA.Draw.decorIcon(ctx, x - nb.cx * s, y - nb.cy * s, s, entry);
+    ctx.restore();
+    return s;
+  }
   SA.Draw.decorIcon(ctx, x - nb.cx * s, y - nb.cy * s, s, entry);
   return s;
 };
@@ -16463,6 +17175,151 @@ SA.Mat.decorWallHeight = function (entry) {
   if (!entry) return 0.6;
   var f = SA.Mat.DECOR_WALL_HEIGHT[String(entry.id || '').replace(/^dec_/, '')];
   return f == null ? 0.6 : f;
+};
+
+/* ------------------------------------------------- 9c. THINGS THAT GO ON A TABLE
+   Reported: "I got a glass cup with a candle in it, and I can only put it on
+   the floor. things should be allowed to go on tables/carts/etc."
+   Quite right - a kiddush cup on the packed earth is nobody's sukkah. So some
+   furniture is a SURFACE with a top you can stand things on, and the small
+   things that belong on a top know it. A drop that lands over a table's top
+   goes ON the table; the same piece dropped on bare floor still stands on the
+   floor, because a candle on the ground is a choice, not a bug.
+
+   `h` is how high the top is off the floor in tefachim, `span` how wide the
+   top is - both real, so a votive sits at the right height on a side table and
+   the tablecloth reaches the edges of the big one. */
+/* `deep` is how deep the top is compared with how wide it is. A table is a
+   long shallow rectangle, not a square, and a cloth cut square to its width
+   hung a foot over both long sides. Round tops are 1. */
+SA.Mat.DECOR_SURFACE = {
+  table:                  { h: 10, span: 13, deep: 0.58 },
+  folding_table:          { h: 10, span: 13, deep: 0.55 },
+  plastic_folding_table:  { h: 10, span: 13, deep: 0.52 },
+  wood_picnic_table:      { h: 10, span: 15, deep: 0.5 },
+  teak_table:             { h: 10, span: 14, deep: 0.58 },
+  billiard_table:         { h: 10, span: 16, deep: 0.52 },
+  side_table:             { h: 8,  span: 7, deep: 0.8 },
+  marble_side_table:      { h: 8,  span: 7, deep: 0.8 },
+  marble_console:         { h: 10, span: 12, deep: 0.4 },
+  crate_table:            { h: 7,  span: 8, deep: 0.78 },
+  crate_stand:            { h: 7,  span: 7, deep: 0.85 },
+  wine_crate:             { h: 5,  span: 7, deep: 0.72 },
+  storage_chest:          { h: 7,  span: 9, deep: 0.55 },
+  bistro_set:             { h: 9,  span: 7, deep: 0.9 },
+  serving_cart:           { h: 9,  span: 8, deep: 0.6 },
+  private_chef_cart:      { h: 9,  span: 9, deep: 0.58 },
+  bench:                  { h: 7,  span: 9, deep: 0.3 },
+  picnic_bench:           { h: 6,  span: 9, deep: 0.3 },
+  kids_stool:             { h: 4,  span: 4, deep: 0.9 },
+  cake_stand:             { h: 7,  span: 5, deep: 1.0 },
+  bookshelf:              { h: 22, span: 6, deep: 0.4 },
+  grand_piano:            { h: 10, span: 12, deep: 0.7 },
+  long_dining_table:      { h: 10, span: 18, deep: 0.4 },
+  round_table:            { h: 10, span: 13, deep: 1.0 },
+  kids_table:             { h: 6,  span: 9, deep: 0.62 },
+  sideboard:              { h: 11, span: 11, deep: 0.42 },
+  long_bench:             { h: 7,  span: 12, deep: 0.26 },
+  washing_station:        { h: 12, span: 8, deep: 0.7 }
+};
+SA.Mat.decorIsSurface = function (entry) {
+  if (!entry) return false;
+  return !!SA.Mat.DECOR_SURFACE[String(entry.id || '').replace(/^dec_/, '')];
+};
+SA.Mat.decorSurfaceTop = function (entry) {
+  if (!entry) return null;
+  var t = SA.Mat.DECOR_SURFACE[String(entry.id || '').replace(/^dec_/, '')];
+  if (!t) return null;
+  /* THE TOP IS AS WIDE AS THE TABLE IS DRAWN.
+     A span picked by eye and a piece of art drawn to its own proportions do
+     not agree, and the gap shows: a cloth cut to a thirteen-tefach top hung
+     off a table drawn ten wide like a bedsheet, and a becher put down at the
+     edge of the "top" stood in mid-air. So the top is measured off the art -
+     its real drawn width at its real height - and capped by the number in the
+     table above. */
+  var span = t.span;
+  if (SA.Draw && SA.Draw.decorNativeBox) {
+    var nb = SA.Draw.decorNativeBox(entry);
+    if (nb && nb.h > 0 && nb.w > 0) {
+      var drawn = SA.Mat.decorSizeTefachim(entry) * (nb.w / nb.h);
+      span = Math.max(3, Math.min(t.span, drawn * 0.82));
+    }
+  }
+  return { h: t.h, span: span, deep: Math.max(0.22, Math.min(1, t.deep || 0.58)) };
+};
+/* How deep the top is, in tefachim - the other half of "cut it to the table". */
+SA.Mat.decorSurfaceDepth = function (top) {
+  if (!top) return 0;
+  return top.span * (top.deep == null ? 0.58 : top.deep);
+};
+
+/* And what belongs up there. Anything small enough to pick up with one hand:
+   the kiddush set, a votive in its glass, a bowl of fruit, the cloth itself.
+   Big furniture, rugs and anything that hangs is not on this list. */
+SA.Mat.DECOR_TABLETOP = {
+  glass_votive: 1, battery_candle: 1, led_candle_trio: 1, oil_lamp: 1,
+  hurricane_lamp: 1, mason_jar_lights: 1, citronella_candle: 1,
+  kiddush_set: 1, challah_board: 1, lulav_etrog_set: 1, silver_candelabra: 1,
+  kiddush_fountain: 1, silver_etrog_box: 1, crystal_decanter: 1,
+  crystal_epergne: 1, porcelain_vase: 1, orchid_arrangement: 1,
+  etrog_bowl: 1, fruit_basket: 1, gourd_bowl: 1, leaf_basket: 1,
+  woven_basket: 1, roses: 1, olive_vase: 1, myrtle_bundle: 1,
+  eucalyptus_bunch: 1, wheat_bundle: 1, marigolds: 1, potted_plant: 1,
+  board_games: 1, espresso_machine: 1, cake_stand: 1, ushpizin_cards: 1,
+  tablecloth: 1, embroidered_tablecloth: 1, table_runner: 1, israeli_runner: 1,
+  chili_peppers: 1, dried_apricots: 1, apples: 1, dates: 1, figs: 1,
+  water_urn: 1, bencher_box: 1,
+  white_damask_cloth: 1, gold_trim_cloth: 1, lace_overlay_cloth: 1,
+  blue_white_cloth: 1, burgundy_velvet_cloth: 1, pomegranate_cloth: 1,
+  gingham_cloth: 1
+};
+SA.Mat.decorSitsOnTable = function (entry) {
+  if (!entry) return false;
+  if (entry.hang) return false;
+  return !!SA.Mat.DECOR_TABLETOP[String(entry.id || '').replace(/^dec_/, '')];
+};
+
+/* A cloth lies flat and covers the top; everything else stands on it. */
+SA.Mat.DECOR_CLOTH = {
+  tablecloth: 1, embroidered_tablecloth: 1, table_runner: 1, israeli_runner: 1,
+  white_damask_cloth: 1, gold_trim_cloth: 1, lace_overlay_cloth: 1,
+  blue_white_cloth: 1, burgundy_velvet_cloth: 1, pomegranate_cloth: 1,
+  gingham_cloth: 1
+};
+SA.Mat.decorIsCloth = function (entry) {
+  if (!entry) return false;
+  return !!SA.Mat.DECOR_CLOTH[String(entry.id || '').replace(/^dec_/, '')];
+};
+/* A RUNNER IS NOT A TABLECLOTH. It lies down the middle of the table and does
+   not reach the edges, so it gets a third of the width and no skirt. */
+SA.Mat.DECOR_RUNNER = { table_runner: 1, israeli_runner: 1 };
+SA.Mat.decorIsRunner = function (entry) {
+  if (!entry) return false;
+  return !!SA.Mat.DECOR_RUNNER[String(entry.id || '').replace(/^dec_/, '')];
+};
+
+/* WHAT EACH CLOTH IS MADE OF.
+   `cloth` is the linen itself, `trim` the border or the fringe, `weave` the
+   thing that makes it that cloth rather than a coloured rectangle, and `drop`
+   how far it hangs over the edge as a fraction of the table's height. The
+   scene cuts every one of them to the table it is laid on (p16
+   drawTableCloth), so a cloth is a cloth and the table decides the size. */
+SA.Mat.DECOR_CLOTH_STYLE = {
+  tablecloth:              { cloth: '#e9e3d3', trim: '#c9b8a0', weave: 'plain',   drop: 0.34 },
+  embroidered_tablecloth:  { cloth: '#f2ebdb', trim: '#c9a86a', weave: 'vine',    drop: 0.36 },
+  white_damask_cloth:      { cloth: '#f6f3ea', trim: '#dcd4c0', weave: 'damask',  drop: 0.40, sheen: 0.30 },
+  gold_trim_cloth:         { cloth: '#f7f0dd', trim: '#c9a24a', weave: 'band',    drop: 0.38, sheen: 0.22 },
+  lace_overlay_cloth:      { cloth: '#fcfbf7', trim: '#e6e0cc', weave: 'lace',    drop: 0.42 },
+  blue_white_cloth:        { cloth: '#f3f6f9', trim: '#2f6fd0', weave: 'stripe',  drop: 0.36 },
+  burgundy_velvet_cloth:   { cloth: '#6e1f2e', trim: '#d4af37', weave: 'velvet',  drop: 0.46, sheen: 0.34, fringe: 1 },
+  pomegranate_cloth:       { cloth: '#f4ecd8', trim: '#a52a3a', weave: 'rimon',   drop: 0.38 },
+  gingham_cloth:           { cloth: '#f5f0e7', trim: '#c0392b', weave: 'check',   drop: 0.32 }
+};
+SA.Mat.decorClothStyle = function (entry) {
+  if (!entry) return null;
+  var k = String(entry.id || '').replace(/^dec_/, '');
+  return SA.Mat.DECOR_CLOTH_STYLE[k] ||
+    (SA.Mat.DECOR_CLOTH[k] ? SA.Mat.DECOR_CLOTH_STYLE.tablecloth : null);
 };
 </script>
 <script>
@@ -17077,7 +17934,7 @@ SA.State.fillSchach = function (st, matEntry) {
   /* A one-tap fill still lays a frame first so floppy covering is not left
      over empty room. Auto-frame poles are tagged so they do not count as
      extra schach (a hole in the covering is still a hole). */
-  SA.State.frameRoof(st);
+  SA.State.frameRoof(st, matEntry);
   /* A whole-roof fill is still made of armfuls: bands of a couple of cells each
      get their own group, so "cover everything" does not snap back to a grid. */
   /* Compact patches, never running bands. The old loop kept one band alive
@@ -17180,26 +18037,35 @@ function saFillBeam() {
    ends. Mid-room sticks that only clip one side wall are not a frame - they
    hang in the air. Used by the whole-roof fill and by levels that hand the
    player a roof already framed. */
-SA.State.frameRoof = function (st) {
+SA.State.frameRoof = function (st, covering) {
   var beam = saFillBeam();
   if (!beam) return;
   var w = st.footprint.w, d = st.footprint.d;
   var carries = SA.Halacha.wallCarries(st).carries;
-  /* Battens every eight tefachim - about two feet, which is how far apart a
-     person actually lays roof poles - and in ONE direction only. The old frame
-     ran a pole every three tefachim along BOTH axes plus all four edges: on a
-     twelve-foot pad that is thirty-six members, a basket weave rather than a
-     frame, and with the covering on top of it the roof read as scaffolding.
-     A run of battens across the two walls that face each other is a frame. */
-  var STEP = 8;
+  /* HOW MANY POLES, NOT A FIXED EVERY-EIGHT.
+     A roof is framed so that no bay is wider than the covering will cross by
+     itself - which depends on BOTH the covering (a rolled mat goes further
+     than an armful of straw) and the members under it (crooked branches sag
+     where planed timber does not). So the spacing comes out of the same two
+     numbers the engine judges the finished roof by, and a twelve-foot booth
+     under a mat gets the three poles a person would actually lay. */
+  var step = SA.State.roofBayStep(st, covering, beam);
   var x, z, laid = 0;
   if (carries.N && carries.S) {
-    for (x = 1; x < w - 1; x += STEP) {
+    /* A member right at an OPEN side as well as the stepped run. Three walls
+       and a doorway: the covering over the doorway has the two side walls to
+       reach across, and without a beam there the last couple of feet of roof
+       hang off nothing. That is the beam a person puts across the front. */
+    if (!carries.W) { SA.State.placeBeam(st, 0, 0, beam, { cw: 1, cd: d, auto: true }); laid++; }
+    if (!carries.E) { SA.State.placeBeam(st, w - 1, 0, beam, { cw: 1, cd: d, auto: true }); laid++; }
+    for (x = step; x < w - 1; x += step) {
       SA.State.placeBeam(st, x, 0, beam, { cw: 1, cd: d, auto: true });
       laid++;
     }
   } else if (carries.E && carries.W) {
-    for (z = 1; z < d - 1; z += STEP) {
+    if (!carries.N) { SA.State.placeBeam(st, 0, 0, beam, { cw: w, cd: 1, auto: true }); laid++; }
+    if (!carries.S) { SA.State.placeBeam(st, 0, d - 1, beam, { cw: w, cd: 1, auto: true }); laid++; }
+    for (z = step; z < d - 1; z += step) {
       SA.State.placeBeam(st, 0, z, beam, { cw: w, cd: 1, auto: true });
       laid++;
     }
@@ -17211,6 +18077,39 @@ SA.State.frameRoof = function (st) {
   if (carries.S) SA.State.placeBeam(st, 0, d - 1, beam, { cw: w, cd: 1, auto: true });
   if (carries.W) SA.State.placeBeam(st, 0, 0, beam, { cw: 1, cd: d, auto: true });
   if (carries.E) SA.State.placeBeam(st, w - 1, 0, beam, { cw: 1, cd: d, auto: true });
+};
+
+/* How far apart the poles go: one bay of what the covering can cross, plus
+   the pole itself. Falls back to a mat's reach when nothing is up there yet. */
+SA.State.roofBayStep = function (st, covering, beam) {
+  var span = covering ? SA.Mat.schachSpanTefachim(covering) : 11;
+  if (!covering) {
+    /* Whatever is already on the roof, at its most demanding. */
+    for (var x = 0; x < st.footprint.w; x++) {
+      for (var z = 0; z < st.footprint.d; z++) {
+        var c = st.schach[x] && st.schach[x][z];
+        if (!c) continue;
+        span = Math.min(span, SA.Mat.schachSpanTefachim(SA.Mat.SCHACH_BY_ID[c.matId]));
+      }
+    }
+  }
+  /* Space for the WEAKEST pole to hand, not the last one laid: the player
+     cannot choose which stick holds which bay, so the frame has to be laid for
+     the feeblest of them or one thin batten leaves a hole. */
+  var carry = beam ? SA.Mat.beamCarryTefachim(beam) : null;
+  var weak = SA.Mat.weakestBeamCarry
+    ? SA.Mat.weakestBeamCarry(SA.Pile && SA.Pile.pieces, st.beams)
+    : null;
+  if (weak != null) carry = carry == null ? weak : Math.min(carry, weak);
+  if (carry != null) span = Math.min(span, carry);
+  return Math.max(3, span + 1);
+};
+
+/* How many poles this covering wants across a booth this wide - the number
+   the player is told when a mat is refused for having nothing under it. */
+SA.State.polesWanted = function (st, covering) {
+  var across = Math.min(st.footprint.w, st.footprint.d);
+  return SA.Mat.schachPolesNeeded(covering, across, null);
 };
 
 /* THE FRAME HAS TO BE THERE BEFORE THE COVERING IS.
@@ -17315,6 +18214,16 @@ SA.State.placeDecor = function (st, matEntry, x, z, opts) {
        was rather than in the middle of the nearest tefach. */
     ox: opts.ox != null ? opts.ox : null,
     oz: opts.oz != null ? opts.oz : null,
+    /* Turned round to face the other way, and how far up its wall it sits -
+       both set by hand in the decoration inspector (p17), both survive being
+       lifted and put down again (p23 pickUp). */
+    flip: !!opts.flip,
+    wallY: opts.wallY != null ? opts.wallY : null,
+    /* Standing ON something: the uid of the table / cart / bench it is on,
+       and where on that top it sits (tefachim from the middle). */
+    onUid: opts.onUid || null,
+    tx: opts.tx != null ? opts.tx : 0,
+    tz: opts.tz != null ? opts.tz : 0,
     placedAt: SA.FX.now()
   };
   /* Garland / chain: two tie points under the schach (BHG-style soft sag). */
@@ -17329,6 +18238,53 @@ SA.State.placeDecor = function (st, matEntry, x, z, opts) {
   return d;
 };
 
+SA.State.decorByUid = function (st, uid) {
+  if (!st || !uid) return null;
+  for (var i = 0; i < st.decor.length; i++) if (st.decor[i].uid === uid) return st.decor[i];
+  return null;
+};
+
+/* THE TABLE UNDER THIS SPOT.
+   Every surface already placed is asked whether its top covers the point the
+   player let go of. Nearest middle wins, so two tables pushed together still
+   take the cup that lands on one of them. */
+SA.State.surfaceAt = function (st, x, z) {
+  if (!st || !st.decor) return null;
+  var best = null, bestD = Infinity;
+  for (var i = 0; i < st.decor.length; i++) {
+    var d = st.decor[i];
+    if (d.wallSide || d.hang || d.onUid) continue;
+    var e = SA.Mat.DECOR_BY_ID[d.matId];
+    var top = SA.Mat.decorSurfaceTop(e);
+    if (!top) continue;
+    var mx = d.x + (d.ox != null ? d.ox : 0.5);
+    var mz = d.z + (d.oz != null ? d.oz : 0.5);
+    var halfX = top.span / 2;
+    var halfZ = SA.Mat.decorSurfaceDepth(top) / 2;
+    var dx = x - mx, dz = z - mz;
+    if (Math.abs(dx) > halfX || Math.abs(dz) > halfZ) continue;
+    var dist = dx * dx + dz * dz;
+    if (dist < bestD) { bestD = dist; best = { host: d, top: top, tx: dx, tz: dz }; }
+  }
+  return best;
+};
+
+/* Where a thing standing on a table actually is, in world terms. */
+SA.State.surfaceSpot = function (st, dec) {
+  if (!dec || !dec.onUid) return null;
+  var host = SA.State.decorByUid(st, dec.onUid);
+  if (!host) return null;
+  var e = SA.Mat.DECOR_BY_ID[host.matId];
+  var top = SA.Mat.decorSurfaceTop(e);
+  if (!top) return null;
+  return {
+    host: host, top: top,
+    x: host.x + (host.ox != null ? host.ox : 0.5) + (dec.tx || 0),
+    z: host.z + (host.oz != null ? host.oz : 0.5) + (dec.tz || 0),
+    y: top.h
+  };
+};
+
 /* Is there a wall panel standing at this column of this side? A wall-mounted
    decoration needs a wall to hang on. */
 SA.State.wallHasPanelAt = function (st, side, col) {
@@ -17338,6 +18294,246 @@ SA.State.wallHasPanelAt = function (st, side, col) {
     if (col >= ps[i].col && col < ps[i].col + ps[i].w) return true;
   }
   return false;
+};
+
+/* ------------------------------------------------- 10y. MOVING A DECORATION
+   Placement is a guess in an isometric room, so every decoration has to be
+   movable after the fact. Screen left/right is the (x - z) diagonal and screen
+   up/down is (x + z), so a nudge is a step along a diagonal, not along a world
+   axis - press left and it goes left on the screen, which is the only thing
+   the player cares about. */
+SA.State.DECOR_NUDGE = 1.4;
+
+/* WHICH WAY IS LEFT?
+   The arrows promise "this goes left on the screen", and they used to deliver
+   that by hard-coding the diagonal for an unrotated camera: screen-left was
+   -x +z, and so on. Turn the sukkah and every one of them points somewhere
+   else - reported as "the direction buttons move it in incorrect directions,
+   maybe cuz the sukkah is rotated". So ask the projection instead: find where
+   a tefach of world x and a tefach of world z land on screen right now, and
+   invert that to get the world step for a screen direction. Right at any
+   rotation, tilt or zoom, and it costs two projections. */
+SA.State.screenStep = function (st, dir, len) {
+  var n = len || SA.State.DECOR_NUDGE;
+  var cx = st.footprint.w / 2, cz = st.footprint.d / 2;
+  var o = SA.Iso.project(cx, 0, cz, cx, cz);
+  var px = SA.Iso.project(cx + 1, 0, cz, cx, cz);
+  var pz = SA.Iso.project(cx, 0, cz + 1, cx, cz);
+  var ux = px.sx - o.sx, uy = px.sy - o.sy;
+  var vx = pz.sx - o.sx, vy = pz.sy - o.sy;
+  var det = ux * vy - uy * vx;
+  /* Camera flat on: no way to tell the two axes apart. Fall back to the old
+     fixed diagonals rather than dividing by nothing. */
+  if (!det || Math.abs(det) < 0.0001) {
+    if (dir === 'left') return { dx: -n, dz: n };
+    if (dir === 'right') return { dx: n, dz: -n };
+    if (dir === 'up') return { dx: -n, dz: -n };
+    return { dx: n, dz: n };
+  }
+  var sx = 0, sy = 0;
+  if (dir === 'left') sx = -1;
+  else if (dir === 'right') sx = 1;
+  else if (dir === 'up') sy = -1;
+  else sy = 1;
+  var dx = (sx * vy - sy * vx) / det;
+  var dz = (-sx * uy + sy * ux) / det;
+  var m = Math.sqrt(dx * dx + dz * dz) || 1;
+  return { dx: dx / m * n, dz: dz / m * n };
+};
+SA.State.nudgeDecor = function (st, dec, dir) {
+  if (!st || !dec) return false;
+  if (dec.wallSide) {
+    /* On a wall: slide along it, or raise and lower it. */
+    var len = SA.State.wallLength(st, dec.wallSide);
+    if (dir === 'left' || dir === 'right') {
+      /* Which way along THIS wall looks like right on screen? Columns run one
+         way on the north wall and the other way on the west one, so a fixed
+         +2 slid a plaque left on half the walls in the booth. */
+      var wa = SA.Scene.wallCellWorldFor(dec.wallSide, 0, st.footprint);
+      var wb = SA.Scene.wallCellWorldFor(dec.wallSide, 1, st.footprint);
+      var wcx = st.footprint.w / 2, wcz = st.footprint.d / 2;
+      var pa = SA.Iso.project(wa.x, 0, wa.z, wcx, wcz);
+      var pb = SA.Iso.project(wb.x, 0, wb.z, wcx, wcz);
+      var colGoesRight = pb.sx >= pa.sx;
+      var step = (dir === 'right') === colGoesRight ? 2 : -2;
+      var col = Math.max(0, Math.min(len - 1, (dec.wallCol | 0) + step));
+      var solid = SA.Scene && SA.Scene.nearestShownWallCol
+        ? SA.Scene.nearestShownWallCol(st, dec.wallSide, col) : null;
+      if (solid == null) solid = SA.State.nearestWallCol(st, dec.wallSide, col);
+      dec.wallCol = solid == null ? dec.wallCol : solid;
+      var cell = SA.State.wallMountCell(st, dec.wallSide, dec.wallCol);
+      dec.x = cell.x; dec.z = cell.z;
+    } else {
+      var h = dec.wallY == null ? null : dec.wallY;
+      var base = h == null ? SA.Mat.decorWallHeight(SA.Mat.DECOR_BY_ID[dec.matId]) : h;
+      dec.wallY = Math.max(0.12, Math.min(0.94, base + (dir === 'up' ? 0.06 : -0.06)));
+    }
+    SA.State.touch(st);
+    return true;
+  }
+  /* ON A TABLE: the arrows walk it around the top, and it stays on the top.
+     Pushed past the edge it steps down onto the floor beside the table, which
+     is what happens to a becher you push too far anyway. */
+  if (dec.onUid) {
+    var spot = SA.State.surfaceSpot(st, dec);
+    if (spot) {
+      var sstp = SA.State.screenStep(st, dir, 1.1);
+      var sdx = sstp.dx, sdz = sstp.dz;
+      var ntx = (dec.tx || 0) + sdx, ntz = (dec.tz || 0) + sdz;
+      var slimX = Math.max(0.4, spot.top.span / 2 - 0.8);
+      var slimZ = Math.max(0.4, SA.Mat.decorSurfaceDepth(spot.top) / 2 - 0.6);
+      if (Math.abs(ntx) > slimX || Math.abs(ntz) > slimZ) {
+        /* off the edge - put it on the floor where it would land */
+        var fx = spot.x + sdx, fz = spot.z + sdz;
+        fx = Math.max(0.02, Math.min(st.footprint.w - 0.02, fx));
+        fz = Math.max(0.02, Math.min(st.footprint.d - 0.02, fz));
+        dec.onUid = null; dec.tx = 0; dec.tz = 0;
+        dec.x = Math.floor(fx); dec.z = Math.floor(fz);
+        dec.ox = fx - dec.x; dec.oz = fz - dec.z;
+      } else {
+        dec.tx = ntx; dec.tz = ntz;
+      }
+      SA.State.touch(st);
+      return true;
+    }
+  }
+  var stp = SA.State.screenStep(st, dir);
+  var dx = stp.dx, dz = stp.dz;
+  var px = dec.x + (dec.ox != null ? dec.ox : 0.5) + dx;
+  var pz = dec.z + (dec.oz != null ? dec.oz : 0.5) + dz;
+  /* Walked onto a table? Then it is on the table. */
+  if (SA.Mat.decorSitsOnTable(SA.Mat.DECOR_BY_ID[dec.matId]) && SA.State.surfaceAt) {
+    var onto = SA.State.surfaceAt(st, px, pz);
+    if (onto) {
+      dec.onUid = onto.host.uid; dec.tx = onto.tx; dec.tz = onto.tz;
+      dec.x = onto.host.x; dec.z = onto.host.z;
+      SA.State.touch(st);
+      return true;
+    }
+  }
+  px = Math.max(0.02, Math.min(st.footprint.w - 0.02, px));
+  pz = Math.max(0.02, Math.min(st.footprint.d - 0.02, pz));
+  dec.x = Math.floor(px); dec.z = Math.floor(pz);
+  dec.ox = px - dec.x; dec.oz = pz - dec.z;
+  /* A garland is a run between two tie points - move the whole run. */
+  if (dec.x0 != null) {
+    dec.x0 += dx; dec.x1 += dx; dec.z0 += dz; dec.z1 += dz;
+  }
+  SA.State.touch(st);
+  return true;
+};
+
+/* MOVING A SLAT THAT IS ALREADY UP.
+   Reported: "you can't move slats once you put them down which makes it hard
+   to adjust". A pole is a one-tefach sliver on screen, so picking it back up
+   with a finger is a lottery - it needs the same arrows the furniture has.
+   Slides the whole member ACROSS its own run (a purlin running east-west
+   moves north-south), one tefach at a time, and only onto a line that can
+   still carry it. */
+SA.State.nudgeBeam = function (st, beam, dir) {
+  if (!st || !beam) return false;
+  var alongX = beam.cw >= beam.cd;
+  /* Which way is "right" for this member on screen right now? */
+  var stp = SA.State.screenStep(st, dir, 1);
+  var move = alongX ? stp.dz : stp.dx;
+  if (Math.abs(move) < 0.2) return false;
+  var sign = move > 0 ? 1 : -1;
+  var limit = alongX ? st.footprint.d : st.footprint.w;
+  /* Walk out from where it is until a line will hold it - a purlin can only
+     sit where both ends have something under them. */
+  var others = [];
+  for (var i = 0; i < st.beams.length; i++) if (st.beams[i].uid !== beam.uid) others.push(st.beams[i]);
+  var saved = st.beams;
+  st.beams = others;
+  var solid = SA.Halacha.frameSupport(st).solid;
+  st.beams = saved;
+  var start = alongX ? beam.z : beam.x;
+  for (var step = 1; step <= limit; step++) {
+    var at = start + sign * step;
+    if (at < 0 || at >= limit) break;
+    var nx = alongX ? beam.x : at;
+    var nz = alongX ? at : beam.z;
+    if (!SA.Halacha.beamFullyCarried(solid, nx, nz, beam.cw, beam.cd)) continue;
+    beam.x = nx; beam.z = nz;
+    SA.State.touch(st);
+    return true;
+  }
+  return false;
+};
+
+/* Turn a slat the other way, if that way is carried too. */
+SA.State.turnBeam = function (st, beam) {
+  if (!st || !beam) return false;
+  var alongX = beam.cw >= beam.cd;
+  var lay = SA.Halacha.beamDropLayout(st, alongX,
+    beam.x + (beam.cw >> 1), beam.z + (beam.cd >> 1));
+  if (!lay || !lay.ok) return false;
+  if (lay.cw === beam.cw && lay.cd === beam.cd && lay.x === beam.x && lay.z === beam.z) return false;
+  beam.x = lay.x; beam.z = lay.z; beam.cw = lay.cw; beam.cd = lay.cd;
+  beam.turn = beam.turn ? 0 : 1;
+  SA.State.touch(st);
+  return true;
+};
+
+/* Which way a slat CAN move, on screen. A purlin slides across its own run and
+   nowhere else, and across-the-run is a diagonal on an isometric floor - so the
+   inspector has to offer the pair of arrows that actually points that way
+   rather than assuming up/down. */
+SA.State.beamAcrossScreen = function (st, beam) {
+  var alongX = beam.cw >= beam.cd;
+  var cx = st.footprint.w / 2, cz = st.footprint.d / 2;
+  var mx = beam.x + beam.cw / 2, mz = beam.z + beam.cd / 2;
+  var o = SA.Iso.project(mx, st.roofHeight, mz, cx, cz);
+  var p = SA.Iso.project(alongX ? mx : mx + 1, st.roofHeight, alongX ? mz + 1 : mz, cx, cz);
+  return { sx: p.sx - o.sx, sy: p.sy - o.sy };
+};
+/* Left/right if that diagonal reads mostly sideways, up/down if it reads
+   mostly vertical. */
+SA.State.beamArrowAxis = function (st, beam) {
+  var a = SA.State.beamAcrossScreen(st, beam);
+  return Math.abs(a.sx) >= Math.abs(a.sy) ? 'x' : 'y';
+};
+
+SA.State.beamByUid = function (st, uid) {
+  if (!st || !uid) return null;
+  var list = st.beams || [];
+  for (var i = 0; i < list.length; i++) if (list[i].uid === uid) return list[i];
+  return null;
+};
+
+/* Send a wall-mounted thing round to the next wall that has something to hang
+   on - the fourth "direction" a plaque can move in. */
+SA.State.moveDecorToNextWall = function (st, dec) {
+  if (!st || !dec || !dec.wallSide) return false;
+  var order = SA.WALL_SIDES;
+  var at = order.indexOf(dec.wallSide);
+  var fw = st.footprint.w, fd = st.footprint.d;
+  for (var i = 1; i <= order.length; i++) {
+    var side = order[(at + i) % order.length];
+    /* Only walls whose INSIDE faces the camera. Sending a plaque round to the
+       back of a near wall would look exactly like deleting it. */
+    if (SA.Scene && SA.Scene.wallIsFar &&
+        !SA.Scene.wallIsFar(side, st.footprint, fw / 2, fd / 2)) continue;
+    var mid = (SA.State.wallLength(st, side) / 2) | 0;
+    var col = SA.Scene && SA.Scene.nearestShownWallCol
+      ? SA.Scene.nearestShownWallCol(st, side, mid) : null;
+    if (col == null) col = SA.State.nearestWallCol(st, side, mid);
+    if (col == null) continue;
+    dec.wallSide = side; dec.wallCol = col;
+    var cell = SA.State.wallMountCell(st, side, col);
+    dec.x = cell.x; dec.z = cell.z;
+    SA.State.touch(st);
+    return true;
+  }
+  return false;
+};
+
+/* The column and width of one wall panel, by uid. */
+SA.State.wallPanelSpan = function (st, side, uid) {
+  if (!st || !st.walls[side]) return null;
+  var ps = st.walls[side].panels;
+  for (var i = 0; i < ps.length; i++) if (ps[i].uid === uid) return { col: ps[i].col, w: ps[i].w };
+  return null;
 };
 
 /* The nearest column on this side that actually has something to hang on.
@@ -17768,10 +18964,41 @@ SA.Act.cellFromDecorHit = function (state, hit, hang) {
     return SA.Act.clampDecorCell(state, hit.payload.x, hit.payload.z, hang);
   }
   if (hit.kind === 'wall_cell') {
-    var xz = SA.Pile.floorCellInsideWall(state, hit.payload);
+    /* Use the column the finger was really over, not the panel's start. */
+    var pay = hit.payload;
+    if (hit.at) pay = { side: pay.side, col: SA.Act.wallColAt(hit, hit.at[0], hit.at[1], state), uid: pay.uid };
+    var xz = SA.Pile.floorCellInsideWall(state, pay);
     return xz ? SA.Act.clampDecorCell(state, xz.x, xz.z, hang) : null;
   }
   return null;
+};
+
+/* WHERE ALONG THE WALL DID THE FINGER LAND?
+   A full-side wall is registered as ONE pick quad carrying the panel's START
+   column - which for a full side is always zero. So every drop resolved
+   through a wall came back as column zero, and everything the player aimed at
+   a wall ended up in the same corner: plaques piled at N:0, and floor pieces
+   pinned to the back-left cell whatever part of the wall they were dropped on.
+   That is the reported "things are still getting sucked into the back wall
+   even though I place them to the left or right".
+   The quad is [topStart, topEnd, bottomEnd, bottomStart], so projecting the
+   touch point onto the bottom edge gives how far along that wall it really
+   was. Screen geometry only - correct at any camera angle or zoom. */
+SA.Act.wallColAt = function (hit, sx, sy, state) {
+  var base = (hit && hit.payload && hit.payload.col) | 0;
+  if (!hit || !hit.quad || hit.quad.length < 4) return base;
+  var a = hit.quad[3], b = hit.quad[2];          /* bottom start -> bottom end */
+  var vx = b.sx - a.sx, vy = b.sy - a.sy;
+  var len2 = vx * vx + vy * vy;
+  if (!len2) return base;
+  var t = ((sx - a.sx) * vx + (sy - a.sy) * vy) / len2;
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  var span = SA.State.wallPanelSpan
+    ? SA.State.wallPanelSpan(state, hit.payload.side, hit.payload.uid)
+    : null;
+  var w = span && span.w ? span.w : 1;
+  var len = state ? SA.State.wallLength(state, hit.payload.side) : base + w;
+  return Math.max(0, Math.min(len - 1, Math.round(base + t * w)));
 };
 
 /* WHICH WALL IS THE FINGER NEAREST?
@@ -17788,6 +19015,21 @@ SA.Act.nearestWallMount = function (state, x, z) {
     { side: 'W', dist: x, col: Math.round(d - 1 - z) },
     { side: 'E', dist: w - 1 - x, col: Math.round(z) }
   ];
+  /* A WALL YOU CAN ACTUALLY SEE.
+     Decoration on a wall is drawn on that wall's INSIDE face, and from any
+     camera two of the four walls are showing you their backs. Mounting on the
+     nearest wall alone put seven drops out of nine on a wall the player is
+     looking at from behind - so the plaque was placed, was scored, and was
+     invisible. Reported as "if I place plaque, bronze candle holder etc on
+     wall they just disappear". Prefer a wall whose inside is facing us; only
+     fall back to raw distance if somehow none is. */
+  if (SA.Scene && SA.Scene.wallIsFar) {
+    var cxm = w / 2, czm = d / 2;
+    var seen = cands.filter(function (c) {
+      return SA.Scene.wallIsFar(c.side, state.footprint, cxm, czm);
+    });
+    if (seen.length) cands = seen;
+  }
   cands.sort(function (a, b) { return a.dist - b.dist; });
   var pick = cands[0];
   var len = SA.State.wallLength(state, pick.side);
@@ -17805,10 +19047,17 @@ SA.Act.coerceDecorHit = function (piece, hit, state) {
   if (mount === 'wall') {
     /* Aimed straight at a wall: take that wall and that column. */
     if (hit.kind === 'wall_cell' && hit.payload && hit.payload.side != null) {
-      return {
-        kind: 'decor_wall', quad: hit.quad,
-        payload: { side: hit.payload.side, col: hit.payload.col | 0 }
-      };
+      var aimedCol = hit.at
+        ? SA.Act.wallColAt(hit, hit.at[0], hit.at[1], state)
+        : (hit.payload.col | 0);
+      /* Only honour the wall they aimed at if its inside is facing us. */
+      var visible = !SA.Scene || !SA.Scene.wallIsFar ||
+        SA.Scene.wallIsFar(hit.payload.side, state.footprint,
+          state.footprint.w / 2, state.footprint.d / 2);
+      if (visible) {
+        return { kind: 'decor_wall', quad: hit.quad,
+          payload: { side: hit.payload.side, col: aimedCol } };
+      }
     }
     var fxz = SA.Act.cellFromDecorHit(state, hit, false);
     if (!fxz) return hit;
@@ -17819,6 +19068,22 @@ SA.Act.coerceDecorHit = function (piece, hit, state) {
   var xz = SA.Act.cellFromDecorHit(state, hit, !!entry.hang);
   if (!xz) return hit;
   var ox = hit.payload && hit.payload.ox, oz = hit.payload && hit.payload.oz;
+  /* ON THE TABLE, IF THERE IS A TABLE THERE.
+     A kiddush cup, a votive, a bowl of fruit, the cloth itself - let go of one
+     over a table's top and it goes on the table, at the height of the top and
+     at the spot on it the finger was over. Let go of it on bare floor and it
+     stands on the floor, which is still a thing a person might want. */
+  if (!entry.hang && SA.Mat.decorSitsOnTable(entry) && SA.State.surfaceAt) {
+    var px = xz.x + (ox != null ? ox : 0.5);
+    var pz = xz.z + (oz != null ? oz : 0.5);
+    var surf = SA.State.surfaceAt(state, px, pz);
+    if (surf) {
+      return {
+        kind: 'decor_surface', quad: hit.quad,
+        payload: { uid: surf.host.uid, tx: surf.tx, tz: surf.tz }
+      };
+    }
+  }
   return {
     kind: entry.hang ? 'schach_cell' : 'floor_cell',
     payload: { x: xz.x, z: xz.z, ox: ox, oz: oz },
@@ -17853,8 +19118,15 @@ SA.Act.decorHitFromPointer = function (piece, state, sx, sy) {
   if (SA.Mat.decorIsWallMount(entry)) {
     var onWall = SA.Pick.hitTestKind(sx, sy, 'wall_cell', 8);
     if (onWall && onWall.payload && onWall.payload.side != null) {
-      return { kind: 'decor_wall',
-        payload: { side: onWall.payload.side, col: onWall.payload.col | 0 } };
+      var aimedHit = SA.Pile.aimed(onWall, sx, sy);
+      var vis = !SA.Scene.wallIsFar ||
+        SA.Scene.wallIsFar(onWall.payload.side, state.footprint,
+          state.footprint.w / 2, state.footprint.d / 2);
+      if (vis) {
+        return { kind: 'decor_wall',
+          payload: { side: onWall.payload.side,
+            col: SA.Act.wallColAt(aimedHit, sx, sy, state) } };
+      }
     }
     var fcell = SA.Act.decorCellFromPointer(state, sx, sy, false);
     if (!fcell) return null;
@@ -17876,12 +19148,17 @@ SA.Act.placeDecor = function (st, x, z) {
      must not be the one place a plaque still lands on the floor. */
   if (SA.Mat.decorIsWallMount(mat)) {
     var mnt = SA.Act.nearestWallMount(st, x, z);
-    var mCol = mnt && SA.State.nearestWallCol(st, mnt.side, mnt.col);
+    var mCol = mnt && ((SA.Scene.nearestShownWallCol
+      && SA.Scene.nearestShownWallCol(st, mnt.side, mnt.col)));
+    if (mnt && mCol == null) mCol = SA.State.nearestWallCol(st, mnt.side, mnt.col);
     if (mnt && mCol != null) {
       var wcell = SA.State.wallMountCell(st, mnt.side, mCol);
       SA.Undo.mark();
       SA.State.placeDecor(st, mat, wcell.x, wcell.z, { wallSide: mnt.side, wallCol: mCol });
       SA.Progress.onAction('place_decor', mat.id);
+      /* It went on the inside face of a far wall, which from out here is
+         behind a solid near wall. Step in so the player sees it land. */
+      if (!SA.Camera.inside && SA.Camera.snapInside) SA.Camera.snapInside(st);
       SA.Save.markDirty();
     }
     return;
@@ -18608,7 +19885,7 @@ SA.Halacha.evaluateSchach = function (state, issues, measurements) {
           issues.push({ severity: 'tip', code: 'avir_ok_lavud', anchor: { x: comp.anchor.x, z: comp.anchor.z },
             en: 'A gap under three tefachim is nullified into the schach around it (lavud).', cardId: 'sk_lavud' });
         }
-      } else if (comp.splits && comp.spanThickness >= SA.Rule.AVIR) {
+      } else if (comp.splits && comp.spanThickness >= SA.Rule.PASUL_MIDDLE) {
         /* SPLITTING IS ONLY FATAL IF NEITHER HALF CAN STAND ALONE.
            A three-tefach channel down the middle of a twenty-foot sukkah leaves
            two eight-by-twenty rooms, each with three of the four walls and its
@@ -18616,6 +19893,11 @@ SA.Halacha.evaluateSchach = function (state, issues, measurements) {
            This used to be pasul on geometry alone, so cutting a walkway through
            a big roof failed a build that halacha is perfectly happy with. */
         var halves = saSplitHalves(w, d, cls, comp);
+        /* THREE IS NOT FOUR. The sukkah-splitting pesul of OC 632:2 is a gap of
+           FOUR tefachim; three is only past lavud. A three-tefach channel was
+           being called "splitting the sukkah in two" and painting the whole
+           build pasul - which is why a perfectly ordinary roof with a hand's
+           breadth of sky in it read as a failure. */
         var bothStand = halves.length >= 2 && (measurements.fullWallCount || 0) >= 4 &&
           halves.every(function (hf) { return saPatchWidth(hf) >= SA.Rule.FLOOR_MIN; });
         if (bothStand) {
@@ -18768,7 +20050,7 @@ SA.Halacha.schachRoofIfSettled = function (state) {
 
 /* Snapshot of what can hold schach right now (roof settled onto the walls
    when that is allowed). */
-SA.Halacha.schachSupportSnap = function (state) {
+SA.Halacha.schachSupportSnap = function (state, assumeEntry) {
   var sidesUp = 0, s;
   for (s = 0; s < SA.WALL_SIDES.length; s++) {
     if (SA.State.wallReach(state, SA.WALL_SIDES[s]) > 0) sidesUp++;
@@ -18777,7 +20059,7 @@ SA.Halacha.schachSupportSnap = function (state) {
   var saved = state.roofHeight;
   state.roofHeight = plan.useRoof;
   var tops = SA.Halacha.wallCarries(state);
-  var sup = SA.Halacha.frameSupport(state);
+  var sup = SA.Halacha.frameSupport(state, assumeEntry);
   state.roofHeight = saved;
   var nCarry = 0;
   for (s = 0; s < SA.WALL_SIDES.length; s++) {
@@ -18852,15 +20134,22 @@ SA.Halacha.schachRectSupported = function (held, x0, z0, cw, cd, rigid) {
 /* Three carrying sides (or two plus a landed slat / rigid covering) can
    hold the whole roof plane. One drop then fills the pad - no wall-top
    ribbons. 0–1 walls still refuse. */
+/* IS THE WHOLE ROOF READY FOR ONE DROP?
+   This used to be "three walls are up" - which is how a rolled mat came to
+   lie across twelve feet of open room with nothing under it. Standing walls
+   hold the EDGES; what holds the middle is the frame. So the honest question
+   is whether every cell of the plane is actually borne (p12 frameSupport),
+   which is the same question the finished roof is judged by. Stiff bamboo and
+   slats are their own frame and still only need a bearing to reach from. */
 SA.Halacha.schachRoofReady = function (snap, rigid) {
   if (!snap) return false;
-  if (snap.nCarry >= 3) return true;
-  if (snap.nCarry >= 2 && (rigid || snap.landed >= 1)) return true;
-  return false;
+  if (snap.nCarry < 2 && !snap.landed) return false;
+  if (rigid && snap.nCarry >= 2) return true;
+  return !!(snap.sup && snap.sup.allHeld);
 };
 
 SA.Halacha.schachWouldRest = function (state, x0, z0, cw, cd, matEntry) {
-  var snap = SA.Halacha.schachSupportSnap(state);
+  var snap = SA.Halacha.schachSupportSnap(state, matEntry);
   var settleRoof = snap.settleRoof;
   if (snap.sidesUp === 0) {
     return { ok: false, reason: SA.State.untiedSoftWallCount(state) ? 'untied' : 'no_wall', settleRoof: null };
@@ -18923,7 +20212,7 @@ SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
   var w = state.footprint.w, d = state.footprint.d;
   var wantCw = Math.max(1, Math.min(w, cw));
   var wantCd = Math.max(1, Math.min(d, cd));
-  var snap = SA.Halacha.schachSupportSnap(state);
+  var snap = SA.Halacha.schachSupportSnap(state, matEntry);
   var settleRoof = snap.settleRoof;
   if (snap.sidesUp === 0) {
     return {
@@ -18968,19 +20257,37 @@ SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
   var seedCap = Math.min(36, near.length);
   for (i = 0; i < seedCap; i++) seeds.push([near[i].x, near[i].z]);
 
-  var best = null, bestArea = 0, bestDist = Infinity;
+  /* WHERE THE FINGER IS, IF THAT WORKS AT ALL.
+     This used to take the LARGEST patch anywhere on the roof, so on a half
+     framed roof every drop landed back in the same big band no matter where
+     the player aimed - four different aims, one answer, and no way to tell
+     why. A patch that actually covers the spot under the finger wins outright
+     now; only when nothing there can be held does it fall back to the biggest
+     patch it can find, and the caller is told it moved. */
+  function saCovers(g, px, pz) {
+    return g && px >= g.x && px < g.x + g.cw && pz >= g.z && pz < g.z + g.cd;
+  }
+  var best = null, bestArea = 0, bestDist = Infinity, bestOnFinger = false;
   for (i = 0; i < seeds.length; i++) {
     var grown = SA.Halacha.schachGrowOnSupport(
       held, seeds[i][0], seeds[i][1], wantCw, wantCd, w, d, rigid);
     if (!grown) continue;
     var area = grown.cw * grown.cd;
     var gDist = Math.abs(grown.x + (grown.cw >> 1) - hx) + Math.abs(grown.z + (grown.cd >> 1) - hz);
-    /* Prefer a much larger patch even a little farther away - that is the
-       difference between a wall-top ribbon and a real armful on the poles. */
-    if (area > bestArea + 4 || (area >= bestArea && gDist < bestDist) ||
-        (area > bestArea && gDist <= bestDist + 10)) {
+    var onFinger = saCovers(grown, hx, hz);
+    var take;
+    if (onFinger !== bestOnFinger) take = onFinger;
+    else if (onFinger) take = area > bestArea;
+    else {
+      /* Prefer a much larger patch even a little farther away - that is the
+         difference between a wall-top ribbon and a real armful on the poles. */
+      take = area > bestArea + 4 || (area >= bestArea && gDist < bestDist) ||
+        (area > bestArea && gDist <= bestDist + 10);
+    }
+    if (take) {
       bestArea = area;
       bestDist = gDist;
+      bestOnFinger = onFinger;
       best = grown;
     }
   }
@@ -18995,7 +20302,12 @@ SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
   return {
     ok: true, reason: null,
     x: best.x, z: best.z, cw: best.cw, cd: best.cd,
-    settleRoof: settleRoof, fitted: best.cw < wantCw || best.cd < wantCd
+    settleRoof: settleRoof,
+    fitted: best.cw < wantCw || best.cd < wantCd,
+    /* False when the frame could not hold anything where the player aimed and
+       the covering had to go somewhere else - the one case that needs saying
+       out loud (p17). */
+    onAim: bestOnFinger
   };
 };
 
@@ -19117,7 +20429,19 @@ SA.Halacha.beamDropLayoutAt = function (state, alongZ, hitX, hitZ, carries) {
     key = bx + ',' + bz + ',' + bcw + ',' + bcd;
     if (seen[key]) return;
     seen[key] = 1;
-    cands.push({ x: bx, z: bz, cw: bcw, cd: bcd });
+    /* DOES THIS POLE DO ANYTHING?
+       A stick laid flat along the top of a wall is carried perfectly well and
+       holds up precisely nothing - every cell under it was already solid. It
+       was still a legal "full span" candidate, so with three walls up the
+       unturned card always matched that useless ledger, the orientation never
+       flipped, and the player watched pole after pole land along the back wall
+       until they put up a fourth. A pole has to BRIDGE: cover roof that had
+       nothing over it. */
+    var gain = 0;
+    for (var gx = bx; gx < bx + bcw; gx++) {
+      for (var gz = bz; gz < bz + bcd; gz++) if (!solid[gx + '_' + gz]) gain++;
+    }
+    cands.push({ x: bx, z: bz, cw: bcw, cd: bcd, gain: gain });
   }
 
   if (alongZ) {
@@ -19164,20 +20488,26 @@ SA.Halacha.beamDropLayoutAt = function (state, alongZ, hitX, hitZ, carries) {
   var hx = hitX | 0, hz = hitZ | 0;
   /* Prefer a full wall-to-wall member (w×1 or 1×d) over a short ledger
      under the finger. Three carrying walls should get slats that span. */
-  var fulls = [];
+  var fulls = [], bridges = [], fullBridges = [];
   for (i = 0; i < cands.length; i++) {
-    if ((cands[i].cw === w && cands[i].cd === 1) || (cands[i].cw === 1 && cands[i].cd === d)) {
-      fulls.push(cands[i]);
+    var isFull = (cands[i].cw === w && cands[i].cd === 1) || (cands[i].cw === 1 && cands[i].cd === d);
+    if (isFull) fulls.push(cands[i]);
+    if (cands[i].gain > 0) {
+      bridges.push(cands[i]);
+      if (isFull) fullBridges.push(cands[i]);
     }
   }
-  var pool = fulls.length ? fulls : cands;
+  /* Wall to wall AND actually holding something up, first. */
+  var pool = fullBridges.length ? fullBridges
+    : (bridges.length ? bridges : (fulls.length ? fulls : cands));
   var best = pool[0], bestScore = Infinity;
   for (i = 0; i < pool.length; i++) {
     var c = pool[i];
     var dist = Math.abs(c.x + (c.cw >> 1) - hx) + Math.abs(c.z + (c.cd >> 1) - hz);
     if (dist < bestScore) { bestScore = dist; best = c; }
   }
-  return { ok: true, reason: null, x: best.x, z: best.z, cw: best.cw, cd: best.cd };
+  return { ok: true, reason: null, x: best.x, z: best.z, cw: best.cw, cd: best.cd,
+    bridges: best.gain > 0 };
 };
 
 /* Where a dragged pole should actually land. Catalog sticks are often shorter
@@ -19211,8 +20541,16 @@ SA.Halacha.beamDropLayout = function (state, alongZ, hitX, hitZ) {
   }
 
   var primary = attempt(!!alongZ);
-  if (primary.ok) return primary;
+  if (primary.ok && primary.bridges) return primary;
   var flipped = attempt(!alongZ);
+  /* Turn the stick round rather than lay it uselessly along a wall top. This
+     is what "poles should not need rotating" comes down to: the card is held
+     one way, the roof wants the other, and the game knows which. */
+  if (flipped.ok && flipped.bridges) {
+    flipped.flipRot = true;
+    return flipped;
+  }
+  if (primary.ok) return primary;
   if (flipped.ok) {
     flipped.flipRot = true;
     return flipped;
@@ -19239,7 +20577,11 @@ SA.Halacha.beamDropLayout = function (state, alongZ, hitX, hitZ) {
    The support set is then spread by one cell, because floppy schach overhangs
    what it rests on: an armful with one end on a batten is held even though
    its far end is out over open room. */
-SA.Halacha.frameSupport = function (state) {
+/* `assumeEntry` - the covering the player is about to lay. An empty roof cell
+   has no material to ask "how far will this bridge", so a drop preview says
+   what is coming; the finished roof asks with nothing and each cell answers
+   for itself. */
+SA.Halacha.frameSupport = function (state, assumeEntry) {
   var w = state.footprint.w, d = state.footprint.d;
   var tops = SA.Halacha.wallTopSolid(state);
   var solid = tops.solid;
@@ -19250,11 +20592,13 @@ SA.Halacha.frameSupport = function (state) {
   var metalOf = {};
   var capped = {};
   var landedBeams = {};
+  var beamCarry = {};
   for (var i = 0; i < beams.length; i++) {
     var b = beams[i];
     if (!SA.Halacha.beamFullyCarried(solid, b.x, b.z, b.cw, b.cd)) continue;
     landedBeams[b.uid] = 1;
     var bEntry = SA.Mat.BEAM_BY_ID[b.matId];
+    beamCarry[b.uid] = SA.Mat.beamCarryTefachim(bEntry);
     var isMetal = !!(bEntry && bEntry.mekabelTumah);
     if (isMetal) { metalOf[b.uid] = bEntry; if (!anyMetal) anyMetal = bEntry; }
     for (var cx = b.x; cx < b.x + b.cw; cx++) {
@@ -19309,27 +20653,83 @@ SA.Halacha.frameSupport = function (state) {
     else if (uid === 'wall' && tops.metalTop[ck2]) metalCells[ck2] = 'wall';
   }
 
-  var held = {};
-  for (var k in solid) {
-    var p = k.split('_'), px = +p[0], pz = +p[1];
-    held[k] = 1;
-    held[(px - 1) + '_' + pz] = 1; held[(px + 1) + '_' + pz] = 1;
-    held[px + '_' + (pz - 1)] = 1; held[px + '_' + (pz + 1)] = 1;
+  /* WHAT THE COVERING WILL ACTUALLY CROSS.
+     Three standing walls used to hold the WHOLE roof plane, so a rolled mat
+     laid over twelve feet of open room was "supported" with nothing under it
+     and the poles in the heap had no job. A roof does not work like that: the
+     covering rests on members, and between two members it has to carry
+     itself. So for every cell we find the nearest thing under the roof to
+     each side and ask whether the covering there will bridge the gap - where
+     the answer is the smaller of what the covering can do (p08
+     schachSpanTefachim) and what the two members bearing it can do (p08
+     beamCarryTefachim). Weak sticks under a heavy mat means more of them,
+     which is exactly how a person lays a roof. */
+  var carryOf = {};                       /* how much each supporting cell holds */
+  for (var cc in solid) {
+    var cUid = carrier[cc];
+    if (cUid === 'wall') { carryOf[cc] = SA.Mat.WALL_CARRY_BAY; continue; }
+    if (cUid === 'schach') {
+      var cSch = null, cp = cc.split('_');
+      var cCell = state.schach[+cp[0]] && state.schach[+cp[0]][+cp[1]];
+      if (cCell) cSch = SA.Mat.SCHACH_BY_ID[cCell.matId];
+      carryOf[cc] = SA.Mat.schachSpanTefachim(cSch);
+      continue;
+    }
+    carryOf[cc] = beamCarry[cUid] || 10;
   }
-  /* Three carrying sides (or two plus a landed slat) hold the roof plane,
-     so a full-pad mat is not left floating after one drop. Corner booths
-     with only two walls still leave the open middle unsupported. */
-  var nCarry = 0, sideId;
-  for (sideId in tops.carries) if (tops.carries[sideId]) nCarry++;
-  var landedN = 0, lu;
-  for (lu in landedBeams) if (landedBeams[lu]) landedN++;
-  if (nCarry >= 3 || (nCarry >= 2 && landedN >= 1)) {
-    var fx, fz;
-    for (fx = 0; fx < w; fx++) {
-      for (fz = 0; fz < d; fz++) held[fx + '_' + fz] = 1;
+  function saSpanAt(px, pz) {
+    var sc = state.schach[px] && state.schach[px][pz];
+    if (sc) return SA.Mat.schachSpanTefachim(SA.Mat.SCHACH_BY_ID[sc.matId]);
+    return SA.Mat.schachSpanTefachim(assumeEntry || null);
+  }
+  var held = {};
+  /* One pass per axis. Along a line, remember the last support behind us and
+     the next support ahead, then every cell between them is held when the
+     clear gap fits. An eave with support on one side only is held for a short
+     overhang - a third of what it would span between two members. */
+  function saRunAxis(alongX) {
+    var outer = alongX ? d : w, inner = alongX ? w : d;
+    for (var o = 0; o < outer; o++) {
+      var prevI = -1, prevC = 0, i, k, nextI, nextC;
+      var nextIdx = new Array(inner), nextCap = new Array(inner);
+      nextI = -1; nextC = 0;
+      for (i = inner - 1; i >= 0; i--) {
+        k = alongX ? (i + '_' + o) : (o + '_' + i);
+        if (solid[k]) { nextI = i; nextC = carryOf[k] || 0; }
+        nextIdx[i] = nextI; nextCap[i] = nextC;
+      }
+      for (i = 0; i < inner; i++) {
+        k = alongX ? (i + '_' + o) : (o + '_' + i);
+        if (solid[k]) { held[k] = 1; prevI = i; prevC = carryOf[k] || 0; continue; }
+        var span = saSpanAt(alongX ? i : o, alongX ? o : i);
+        var ni = nextIdx[i], nc = nextCap[i];
+        if (prevI >= 0 && ni >= 0) {
+          /* Both members share the load, so the bay is what the PAIR will
+             carry, not what the weaker one would carry alone - otherwise one
+             thin stick anywhere in the frame drags the whole roof down to its
+             own reach. The covering's own span still caps it. */
+          var allow = Math.min(span, (prevC + nc) / 2);
+          if (ni - prevI - 1 <= allow) held[k] = 1;
+        } else if (prevI >= 0 || ni >= 0) {
+          /* cantilevered off one member only */
+          var oneCap = prevI >= 0 ? prevC : nc;
+          var reach = Math.max(1, Math.floor(Math.min(span, oneCap) / 3));
+          var away = prevI >= 0 ? (i - prevI) : (ni - i);
+          if (away <= reach) held[k] = 1;
+        }
+      }
+    }
+  }
+  saRunAxis(true);
+  saRunAxis(false);
+  var allHeld = true;
+  for (var ax = 0; ax < w && allHeld; ax++) {
+    for (var az = 0; az < d; az++) {
+      if (!held[ax + '_' + az]) { allHeld = false; break; }
     }
   }
   return {
+    allHeld: allHeld,
     held: held, solid: solid, landedBeams: landedBeams, metalCells: metalCells,
     reach: tops.reach, carries: tops.carries, anySide: tops.anySide,
     maxReach: tops.maxReach, anyMetal: anyMetal, metalCarriesWood: metalCarriesWood
@@ -20417,6 +21817,328 @@ function saWallIsFar(side, footprint, cx, cz) {
   return SA.Iso.depthKey(a.x, 0, a.z, cx, cz) < mid;
 }
 SA.Scene.wallIsFar = saWallIsFar;
+/* Where on the pad a wall column sits - QA reaches for this to check that a
+   plaque is where the picture shows it. */
+SA.Scene.wallCellWorldFor = saWallCellWorld;
+
+/* A CLOTH IS CUT TO THE TABLE IT IS LAID ON.
+   Drawn as an icon it was a rectangle floating over the table at whatever size
+   the art happened to be. A real cloth is the shape of the top plus a skirt
+   over the near edges, so that is what this draws: the four corners of THIS
+   table's top, projected live, the two edges that face the camera hanging down
+   by a fraction of the table's height, and the weave painted into the top in
+   its own flat space so a damask stays a damask at any camera angle.
+   Nothing about it is per-table - hand it a kids' table and you get a small
+   cloth, hand it the long dining table and you get a long one. */
+SA.Scene.drawTableCloth = function (ctx, state, dec, spot, entry, cx, cz) {
+  var style = SA.Mat.decorClothStyle(entry);
+  if (!style || !spot) return null;
+  var runner = SA.Mat.decorIsRunner(entry);
+  /* The cloth is the shape of the TOP, plus a little to hang over: a table is
+     long and shallow, and a cloth cut square to its width draped a foot over
+     both long sides like a bedsheet. A runner is a third of the depth and
+     runs down the middle. */
+  var deepT = SA.Mat.decorSurfaceDepth(spot.top);
+  var halfX = spot.top.span / 2 * (runner ? 1.00 : 1.07);
+  var halfZ = deepT / 2 * (runner ? 0.36 : 1.09);
+  var y = spot.y + 0.12;
+  var drop = Math.max(1.2, Math.min(spot.top.h * (style.drop || 0.36), spot.top.h - 1.2));
+  if (runner) drop = Math.min(drop, 2.6);
+  var mx = spot.x, mz = spot.z;
+  function P(dx, dz, dy) {
+    return SA.Iso.project(mx + dx, y + (dy || 0), mz + dz, cx, cz);
+  }
+  /* the four corners of the top, and the same four dropped by the skirt */
+  var C = [P(-halfX, -halfZ), P(halfX, -halfZ), P(halfX, halfZ), P(-halfX, halfZ)];
+  var L = [P(-halfX, -halfZ, -drop), P(halfX, -halfZ, -drop),
+    P(halfX, halfZ, -drop), P(-halfX, halfZ, -drop)];
+
+  var deep = SA.Mat.shadeColor(style.cloth, 0.74);
+  var lit = SA.Mat.shadeColor(style.cloth, 1.06);
+
+  /* THE SKIRT: only the two edges whose lower corners fall BELOW the top edge
+     on screen are facing us - the other two are round the back. */
+  var i;
+  for (i = 0; i < 4; i++) {
+    var a0 = C[i], a1 = C[(i + 1) % 4];
+    var b0 = L[i], b1 = L[(i + 1) % 4];
+    if ((b0.sy + b1.sy) / 2 <= (a0.sy + a1.sy) / 2 + 0.5) continue;
+    ctx.fillStyle = deep;
+    ctx.beginPath();
+    ctx.moveTo(a0.sx, a0.sy); ctx.lineTo(a1.sx, a1.sy);
+    ctx.lineTo(b1.sx, b1.sy); ctx.lineTo(b0.sx, b0.sy);
+    ctx.closePath(); ctx.fill();
+    /* FOLDS, or the skirt reads as the side of a box rather than cloth.
+       A few soft creases down the drop, and the light catching between them. */
+    ctx.save();
+    ctx.clip();
+    var folds = 5, fi, ft;
+    for (fi = 1; fi < folds; fi++) {
+      ft = fi / folds;
+      var fxA = a0.sx + (a1.sx - a0.sx) * ft, fyA = a0.sy + (a1.sy - a0.sy) * ft;
+      var fxB = b0.sx + (b1.sx - b0.sx) * ft, fyB = b0.sy + (b1.sy - b0.sy) * ft;
+      ctx.strokeStyle = fi % 2 ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.13)';
+      ctx.lineWidth = Math.max(1.4, Math.abs(b1.sx - b0.sx) * 0.030);
+      ctx.beginPath(); ctx.moveTo(fxA, fyA); ctx.lineTo(fxB, fyB); ctx.stroke();
+    }
+    /* the cloth is darker where it tucks under the table edge */
+    ctx.fillStyle = 'rgba(0,0,0,0.13)';
+    ctx.beginPath();
+    ctx.moveTo(a0.sx, a0.sy); ctx.lineTo(a1.sx, a1.sy);
+    ctx.lineTo(a1.sx + (b1.sx - a1.sx) * 0.26, a1.sy + (b1.sy - a1.sy) * 0.26);
+    ctx.lineTo(a0.sx + (b0.sx - a0.sx) * 0.26, a0.sy + (b0.sy - a0.sy) * 0.26);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    /* the hem along the bottom, and a fringe on the ones that have one */
+    ctx.strokeStyle = style.trim;
+    ctx.lineWidth = Math.max(1, Math.abs(b1.sx - b0.sx) * 0.022);
+    ctx.beginPath(); ctx.moveTo(b0.sx, b0.sy); ctx.lineTo(b1.sx, b1.sy); ctx.stroke();
+    if (style.fringe) {
+      var n = 14, t, fx, fy, k;
+      ctx.lineWidth = Math.max(0.8, ctx.lineWidth * 0.6);
+      for (k = 0; k <= n; k++) {
+        t = k / n;
+        fx = b0.sx + (b1.sx - b0.sx) * t;
+        fy = b0.sy + (b1.sy - b0.sy) * t;
+        ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy + ctx.lineWidth * 3.2); ctx.stroke();
+      }
+    }
+    /* a soft fold where the cloth turns the corner */
+    ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(a0.sx, a0.sy); ctx.lineTo(b0.sx, b0.sy); ctx.stroke();
+  }
+
+  /* THE TOP, and the weave painted into it. The pattern is drawn in the
+     table's own flat space (the same basis the rugs use), so it lies IN the
+     cloth rather than across the screen. */
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(C[0].sx, C[0].sy);
+  for (i = 1; i < 4; i++) ctx.lineTo(C[i].sx, C[i].sy);
+  ctx.closePath();
+  ctx.fillStyle = lit;
+  ctx.fill();
+  ctx.clip();
+  var O = P(0, 0);
+  var U = P(1, 0), V = P(0, 1);
+  ctx.translate(O.sx, O.sy);
+  ctx.transform(U.sx - O.sx, U.sy - O.sy, V.sx - O.sx, V.sy - O.sy, 0, 0);
+  SA.Scene.drawClothWeave(ctx, style, halfX, halfZ, runner);
+  ctx.restore();
+
+  /* the edge of the cloth where it turns over the table */
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(C[0].sx, C[0].sy);
+  for (i = 1; i < 4; i++) ctx.lineTo(C[i].sx, C[i].sy);
+  ctx.closePath(); ctx.stroke();
+
+  /* the tap target: the whole draped shape */
+  var all = C.concat(L);
+  var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  for (i = 0; i < all.length; i++) {
+    if (all[i].sx < minX) minX = all[i].sx;
+    if (all[i].sx > maxX) maxX = all[i].sx;
+    if (all[i].sy < minY) minY = all[i].sy;
+    if (all[i].sy > maxY) maxY = all[i].sy;
+  }
+  return [{ sx: minX, sy: minY }, { sx: maxX, sy: minY },
+    { sx: maxX, sy: maxY }, { sx: minX, sy: maxY }];
+};
+
+/* What makes each cloth that cloth. Drawn in TEFACHIM, inside the clipped top,
+   so a check is a real four-inch check whatever size the table is. */
+SA.Scene.drawClothWeave = function (ctx, style, halfX, halfZ, runner) {
+  var trim = style.trim, i, j;
+  var W = halfX * 2, D = halfZ * 2;
+  if (style.sheen) {
+    /* light falling across the linen */
+    ctx.fillStyle = 'rgba(255,255,255,' + style.sheen.toFixed(2) + ')';
+    ctx.beginPath();
+    ctx.moveTo(-halfX, -halfZ * 0.15); ctx.lineTo(-halfX * 0.2, -halfZ);
+    ctx.lineTo(halfX * 0.24, -halfZ); ctx.lineTo(-halfX, halfZ * 0.55);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.lineJoin = 'round';
+  if (style.weave === 'damask') {
+    /* a diaper of small linked diamonds, the way damask reads at a distance */
+    ctx.strokeStyle = SA.Mat.shadeColor(style.cloth, 0.90);
+    ctx.lineWidth = 0.22;
+    var step = 2.6;
+    for (i = -halfX; i <= halfX; i += step) {
+      for (j = -halfZ; j <= halfZ; j += step) {
+        ctx.beginPath();
+        ctx.moveTo(i, j - step * 0.42); ctx.lineTo(i + step * 0.42, j);
+        ctx.lineTo(i, j + step * 0.42); ctx.lineTo(i - step * 0.42, j);
+        ctx.closePath(); ctx.stroke();
+      }
+    }
+  } else if (style.weave === 'lace') {
+    /* scalloped lace all round the border, with an open ground inside it */
+    ctx.strokeStyle = trim; ctx.lineWidth = 0.2;
+    for (i = -halfX + 1.2; i <= halfX - 1.2; i += 2.0) {
+      for (j = -halfZ + 1.2; j <= halfZ - 1.2; j += 2.0) {
+        ctx.beginPath(); ctx.arc(i, j, 0.62, 0, 7); ctx.stroke();
+      }
+    }
+    ctx.fillStyle = trim;
+    var scal = 1.5, t;
+    for (t = -halfX; t <= halfX; t += scal) {
+      ctx.beginPath(); ctx.arc(t, -halfZ + 0.5, 0.62, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(t, halfZ - 0.5, 0.62, 0, 7); ctx.fill();
+    }
+    for (t = -halfZ; t <= halfZ; t += scal) {
+      ctx.beginPath(); ctx.arc(-halfX + 0.5, t, 0.62, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(halfX - 0.5, t, 0.62, 0, 7); ctx.fill();
+    }
+  } else if (style.weave === 'stripe') {
+    ctx.fillStyle = trim;
+    for (i = -halfZ + 1.0; i <= halfZ - 1.0; i += 3.4) {
+      ctx.fillRect(-halfX, i, W, 0.62);
+    }
+    ctx.fillRect(-halfX, -halfZ + 0.3, W, 0.9);
+    ctx.fillRect(-halfX, halfZ - 1.2, W, 0.9);
+  } else if (style.weave === 'check') {
+    ctx.fillStyle = trim;
+    ctx.globalAlpha = 0.62;
+    var c = 2.4;
+    for (i = -halfX; i <= halfX; i += c) ctx.fillRect(i, -halfZ, c * 0.5, D);
+    for (j = -halfZ; j <= halfZ; j += c) ctx.fillRect(-halfX, j, W, c * 0.5);
+    ctx.globalAlpha = 1;
+  } else if (style.weave === 'band') {
+    /* a broad gold band inside the hem, with a fine line inside that */
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 0.85;
+    ctx.strokeRect(-halfX + 1.3, -halfZ + 1.3, W - 2.6, D - 2.6);
+    ctx.lineWidth = 0.28;
+    ctx.strokeRect(-halfX + 2.5, -halfZ + 2.5, W - 5.0, D - 5.0);
+  } else if (style.weave === 'velvet') {
+    /* deep pile: soft dark pooling toward the edges rather than a pattern */
+    ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+    ctx.lineWidth = 1.0;
+    ctx.strokeRect(-halfX + 1.1, -halfZ + 1.1, W - 2.2, D - 2.2);
+    ctx.strokeStyle = trim; ctx.lineWidth = 0.5;
+    ctx.strokeRect(-halfX + 1.9, -halfZ + 1.9, W - 3.8, D - 3.8);
+  } else if (style.weave === 'vine' || style.weave === 'rimon') {
+    /* embroidery round the border - a running vine, or pomegranates */
+    ctx.strokeStyle = trim; ctx.lineWidth = 0.34;
+    ctx.strokeRect(-halfX + 1.5, -halfZ + 1.5, W - 3.0, D - 3.0);
+    var pts = [], gap = 3.2, t2;
+    for (t2 = -halfX + 2.2; t2 <= halfX - 2.2; t2 += gap) {
+      pts.push([t2, -halfZ + 1.5], [t2, halfZ - 1.5]);
+    }
+    for (t2 = -halfZ + 2.2; t2 <= halfZ - 2.2; t2 += gap) {
+      pts.push([-halfX + 1.5, t2], [halfX - 1.5, t2]);
+    }
+    for (i = 0; i < pts.length; i++) {
+      var px = pts[i][0], pz = pts[i][1];
+      if (style.weave === 'rimon') {
+        ctx.fillStyle = trim;
+        ctx.beginPath(); ctx.ellipse(px, pz, 0.62, 0.72, 0, 0, 7); ctx.fill();
+        ctx.strokeStyle = SA.Mat.shadeColor(trim, 0.7); ctx.lineWidth = 0.18;
+        ctx.beginPath(); ctx.moveTo(px, pz - 0.72); ctx.lineTo(px, pz - 1.25); ctx.stroke();
+        ctx.strokeStyle = trim;
+      } else {
+        ctx.strokeStyle = trim; ctx.lineWidth = 0.26;
+        ctx.beginPath();
+        ctx.moveTo(px - 0.7, pz); ctx.quadraticCurveTo(px, pz - 0.9, px + 0.7, pz);
+        ctx.quadraticCurveTo(px, pz + 0.9, px - 0.7, pz);
+        ctx.stroke();
+      }
+    }
+  } else {
+    /* plain linen: just a hemstitch inside the edge */
+    ctx.strokeStyle = trim; ctx.lineWidth = 0.28;
+    ctx.strokeRect(-halfX + 1.2, -halfZ + 1.2, W - 2.4, D - 2.4);
+  }
+};
+
+/* IS THE SCHACH IN THE WAY OF THIS SPOT?
+   Looking into the booth you are still looking THROUGH the roof: the schach
+   plane projects up and across the far walls, so the upper part of a far wall
+   sits behind the mat. A plaque hung at eye level was therefore correctly
+   placed, correctly drawn, and completely invisible - which is what "I put a
+   plaque on the wall and it just disappears" actually was, once the column
+   and the wall side were right.
+   Given a point in the room, this walks the sight line back to the roof plane
+   and asks whether there is schach on the cell it lands in. It works from the
+   projection itself (SA.Iso.project inverted), so it stays correct at any
+   camera rotation, tilt or zoom, and an open patch of roof correctly lets the
+   wall behind it show. */
+function saRoofCovers(state, wx, wY, wz, cx, cz) {
+  var H = state.roofHeight;
+  if (!(wY < H)) return false;
+  var tilt = SA.Iso.tiltNow();
+  if (!(tilt > 0.001)) return false;
+  var r = SA.Iso.rotate(wx, wz, cx, cz);
+  /* Same screen point, but up on the roof plane: sy holds v*tileH*tilt -
+     y*tileH*1.7 constant, sx holds (rx - rz) constant. */
+  var u = r.x - r.z;
+  var v = r.x + r.z + 1.7 * (H - wY) / tilt;
+  var rx = (u + v) / 2, rz = (v - u) / 2;
+  var t = SA.Iso.trig();
+  var dx = rx - cx, dz = rz - cz;
+  var x = cx + dx * t._cos + dz * t._sin;
+  var z = cz - dx * t._sin + dz * t._cos;
+  var ix = Math.floor(x), iz = Math.floor(z);
+  if (ix < 0 || iz < 0 || ix >= state.footprint.w || iz >= state.footprint.d) return false;
+  return !!(state.schach && state.schach[ix] && state.schach[ix][iz]);
+}
+SA.Scene.roofCovers = saRoofCovers;
+
+/* How far up its wall a decoration can actually be seen.
+   It wants to hang where its kind belongs (p09 decorWallHeight) or where the
+   player put it, but never so high that the schach eats it - so from the
+   height it wants, walk down until it is out from under the mat. */
+SA.Scene.wallDecorFrac = function (state, dec, entry, cx, cz) {
+  var H = state.roofHeight || 10;
+  var sizeT = SA.Mat.decorSizeTefachim(entry);
+  var lo = Math.min(0.9, (sizeT / 2 + 0.4) / H);
+  var hi = Math.max(lo, (H - sizeT / 2 - 0.4) / H);
+  var want = dec && dec.wallY != null ? dec.wallY : SA.Mat.decorWallHeight(entry);
+  var f = Math.max(lo, Math.min(hi, want));
+  var world = saWallCellWorld(dec.wallSide, dec.wallCol || 0, state.footprint);
+  /* Its middle is what has to be clear. Testing its top instead sent tall
+     things - a twenty-tefach mirror, a full-drop tapestry - all the way to
+     the skirting board and then gave up. */
+  for (var i = 0; i < 40 && f > lo; i++) {
+    if (!saRoofCovers(state, world.x, f * H, world.z, cx, cz)) return f;
+    f -= 0.025;
+  }
+  return Math.max(lo, f);
+};
+
+/* Is there anywhere on this column of this wall that the schach does not
+   cover? Deep in the corner the roof plane reaches all the way to the floor
+   and there is nothing to be done with that column. */
+SA.Scene.wallColShows = function (state, side, col) {
+  if (!SA.State.wallHasPanelAt(state, side, col)) return false;
+  var cx = state.footprint.w / 2, cz = state.footprint.d / 2;
+  if (!saWallIsFar(side, state.footprint, cx, cz)) return false;
+  var w = saWallCellWorld(side, col, state.footprint);
+  var H = state.roofHeight || 10;
+  for (var f = 0.75; f >= 0.1; f -= 0.05) {
+    if (!saRoofCovers(state, w.x, f * H, w.z, cx, cz)) return true;
+  }
+  return false;
+};
+
+/* The nearest column of this wall where a decoration would actually be seen -
+   standing, lit, and not behind the mat. Placement resolves through here so a
+   plaque is never parked somewhere it cannot be looked at. */
+SA.Scene.nearestShownWallCol = function (state, side, col) {
+  var len = SA.State.wallLength(state, side);
+  if (!len) return null;
+  var start = Math.max(0, Math.min(len - 1, col | 0));
+  for (var step = 0; step < len; step++) {
+    var a = start - step, b = start + step;
+    if (a >= 0 && SA.Scene.wallColShows(state, side, a)) return a;
+    if (b < len && SA.Scene.wallColShows(state, side, b)) return b;
+  }
+  return null;
+};
 
 
 function saWallSortDepth(side, col, w, row, footprint, cx, cz) {
@@ -21547,7 +23269,10 @@ SA.Scene.render = function (ctx, state, result) {
         if (!SA.State.wallHasPanelAt(state, wSide, wCol)) return;
         var wWorld = saWallCellWorld(wSide, wCol, state.footprint);
         var wSizeT = SA.Mat.decorSizeTefachim(dEntry5);
-        var wFrac = SA.Mat.decorWallHeight(dEntry5);
+        /* Where it wants to hang (its kind's height, or wherever the player
+           put it with the inspector's ▲ ▼), pulled down far enough that the
+           schach is not covering it. */
+        var wFrac = SA.Scene.wallDecorFrac(state, dec5, dEntry5, cx, cz);
         /* Sit it on the wall, never through the schach and never through the
            floor: half its own height of clearance top and bottom. */
         var wLo = wSizeT / 2 + 0.4;
@@ -21567,18 +23292,84 @@ SA.Scene.render = function (ctx, state, result) {
         /* Sorted just after the wall it is fixed to, so it paints on that face
            and still sits behind anything standing in the room. */
         var wDepth = saWallSortDepth(wSide, wCol, 1, 0, state.footprint, cx, cz) + 1;
+        /* LIE ON THE WALL, DON'T STICK TO THE SCREEN.
+           Drawn square to the viewport a plaque read as a sticker pasted over
+           the picture. The wall runs away from you at an angle, so the art is
+           sheared to run with it: one step along the wall on screen becomes
+           the art's own sideways direction, while up stays up. Taken from the
+           projection itself, so it follows the camera. */
+        var wRun = saWallCellWorld(wSide, wCol + 1, state.footprint);
+        var wRunPt = SA.Iso.project(wRun.x, wY, wRun.z, cx, cz);
+        var wUx = wRunPt.sx - wPt.sx, wUy = wRunPt.sy - wPt.sy;
+        var wUlen = Math.sqrt(wUx * wUx + wUy * wUy) || 1;
+        wUx /= wUlen; wUy /= wUlen;
+        /* Always let the art read left-to-right, whichever way the columns
+           happen to be numbered on this side. */
+        if (wUx < 0) { wUx = -wUx; wUy = -wUy; }
         jobs.push({ layer: 1, depth: wDepth, draw: function () {
           SA.FX.withPop(ctx, wQuad, dec5.placedAt, function () {
             ctx.save();
+            ctx.translate(wPt.sx, wPt.sy);
+            ctx.transform(wUx, wUy, 0, 1, 0, 0);
             /* the shadow it throws on the wall behind it */
-            ctx.fillStyle = 'rgba(0,0,0,0.20)';
+            ctx.fillStyle = 'rgba(0,0,0,0.18)';
             ctx.beginPath();
-            ctx.ellipse(wPt.sx + wHalf * 0.10, wPt.sy + wHalf * 0.12, wHalf * 0.62, wHalf * 0.62, 0, 0, 7);
+            ctx.ellipse(wHalf * 0.12, wHalf * 0.14, wHalf * 0.70, wHalf * 0.62, 0, 0, 7);
             ctx.fill();
+            if (dec5.flip) ctx.scale(-1, 1);
+            SA.Draw.decorIconAt(ctx, 0, 0, wHalf * 2, dEntry5, false);
             ctx.restore();
-            SA.Draw.decorIconAt(ctx, wPt.sx, wPt.sy, wHalf * 2, dEntry5, false);
           });
           SA.Pick.add('decor_item', { uid: dec5.uid }, wQuad);
+        } });
+        return;
+      }
+      /* ON A TABLE. Its spot is the host's spot plus where on the top it was
+         put down, at the height of that top - and it sorts just in front of
+         the table so the cup is on the cloth, not inside the leg. */
+      if (dec5.onUid) {
+        var spot5 = SA.State.surfaceSpot(state, dec5);
+        if (!spot5) return;
+        var tSize = SA.Mat.decorSizeTefachim(dEntry5);
+        var tFlat = SA.Mat.decorFlatSpan ? SA.Mat.decorFlatSpan(dEntry5) : 0;
+        var tCloth = SA.Mat.decorIsCloth(dEntry5);
+        var tY = spot5.y + (tCloth ? 0.15 : tSize / 2);
+        var tPt = SA.Iso.project(spot5.x, tY, spot5.z, cx, cz);
+        var tPx = SA.Iso.pxPerTefachY();
+        var tHalf = tCloth
+          ? Math.max(8, tPx * spot5.top.span * 0.5)
+          : Math.max(6, tPx * (tFlat > 0 ? tFlat : tSize) * 0.5);
+        var tQuad = [
+          { sx: tPt.sx - tHalf, sy: tPt.sy - tHalf }, { sx: tPt.sx + tHalf, sy: tPt.sy - tHalf },
+          { sx: tPt.sx + tHalf, sy: tPt.sy + tHalf }, { sx: tPt.sx - tHalf, sy: tPt.sy + tHalf }
+        ];
+        var tDepth = SA.Iso.depthKey(spot5.x, 0, spot5.z, cx, cz) +
+          (tCloth ? 0.86 : 0.90);
+        /* Same layer as the furniture it is standing on. It used to be layer 3
+           - "room contents", the one that paints over the roof - so a kiddush
+           becher on a table was drawn on top of the near wall when you looked
+           from outside. Its depth already puts it just in front of its table. */
+        jobs.push({ layer: null, depth: tDepth, draw: function () {
+          var picked = null;
+          SA.FX.withPop(ctx, tQuad, dec5.placedAt, function () {
+            /* A CLOTH IS CUT TO THE TABLE, not drawn at its own size. Every
+               cloth in the game goes through one painter that measures the top
+               it is lying on, so the same cloth fits the kids' table and the
+               long dining table with nothing for the player to set. */
+            if (tCloth && SA.Scene.drawTableCloth) {
+              picked = SA.Scene.drawTableCloth(ctx, state, dec5, spot5, dEntry5, cx, cz);
+              return;
+            }
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.18)';
+            ctx.beginPath();
+            ctx.ellipse(tPt.sx, tPt.sy + tHalf * 0.58, tHalf * 0.62, tHalf * 0.22, 0, 0, 7);
+            ctx.fill();
+            ctx.restore();
+            SA.Draw.decorIconAt(ctx, tPt.sx, tPt.sy, tHalf * 2, dEntry5,
+              tFlat > 0, !!dec5.flip);
+          });
+          SA.Pick.add('decor_item', { uid: dec5.uid }, picked || tQuad);
         } });
         return;
       }
@@ -21590,9 +23381,22 @@ SA.Scene.render = function (ctx, state, result) {
          pin just in front of their cell. Hang fruit (Look Inside only) sorts
          in the room at hang height — never behind the schach (peek-through
          “on the roof”) and never as a roof sticker. */
+      /* A RUG IS PART OF THE FLOOR.
+         Reported: "things going underneath a carpet... obvi the carpet should
+         be lowest". Two things were wrong. It sat in the same layer as the
+         furniture, so whichever was placed LAST won a depth tie and a carpet
+         dropped after a chair was painted over the chair. And it was sorted by
+         its middle while covering fifteen tefachim of floor, so anything
+         standing on the far half of it sorted behind it.
+         So: flat things get the floor's own layer, under everything that
+         stands on them, and are sorted by their FAR corner so nothing on the
+         rug can ever fall behind it. */
+      var flatSpanEarly = SA.Mat.decorFlatSpan ? SA.Mat.decorFlatSpan(dEntry5) : 0;
       var depth5 = dec5.hang
         ? SA.Iso.depthKey(anc.x, y5, anc.z, cx, cz) + 0.4
-        : SA.Iso.depthKey(anc.x, 0, anc.z, cx, cz) + 0.85;
+        : (flatSpanEarly > 0
+          ? SA.Iso.depthKey(anc.x - flatSpanEarly / 2, 0, anc.z - flatSpanEarly / 2, cx, cz)
+          : SA.Iso.depthKey(anc.x, 0, anc.z, cx, cz) + 0.85);
       /* Ornament size in WORLD terms, from the real height of the thing
          (p09 decorSizeTefachim). Every decoration used to be drawn at the
          same fallback of 2.4 tefachim - seven inches - so a director's chair
@@ -21603,10 +23407,34 @@ SA.Scene.render = function (ctx, state, result) {
          sized by their floor span across instead, and the tap target is the
          wide low box they actually occupy. */
       var flatSpan5 = SA.Mat.decorFlatSpan ? SA.Mat.decorFlatSpan(dEntry5) : 0;
-      var half, halfW, halfH;
+      var half, halfW, halfH, flatM = null;
       if (flatSpan5 > 0) {
-        halfW = Math.max(10, flatSpan5 * SA.Iso.tileW * (SA.Camera.zoom || 1) * 0.5);
-        halfH = Math.max(6, halfW * 0.42);
+        /* LIE IN THE FLOOR, NOT ON THE SCREEN.
+           A pool, a rug, a picnic blanket is painted as an isometric diamond
+           with the projection baked into the art at a fixed 11:7 - and the real
+           floor is nothing like 11:7. It changes with the camera's tilt and it
+           turns when the camera turns, so the pool sat on the packed earth at
+           its own angle like a tablet somebody dropped. Reported, exactly, as
+           "swimming pool doesn't really fit properly".
+           So the baked diamond is mapped onto the REAL one: take where a tefach
+           of world x and a tefach of world z actually go on screen, and send the
+           art's own two axes there. Correct at any rotation, tilt or zoom, and
+           the pool now sits in the floor the way the floorboards do. */
+        var fU = SA.Iso.project(anc.x + 1, 0, anc.z, cx, cz);
+        var fV = SA.Iso.project(anc.x, 0, anc.z + 1, cx, cz);
+        var fO = SA.Iso.project(anc.x, 0, anc.z, cx, cz);
+        var fux = fU.sx - fO.sx, fuy = fU.sy - fO.sy;
+        var fvx = fV.sx - fO.sx, fvy = fV.sy - fO.sy;
+        var fnb = SA.Draw.decorNativeBox(dEntry5);
+        var fw = Math.max(0.5, fnb.w), fh = Math.max(0.5, fnb.h);
+        flatM = {
+          a: (fux - fvx) * flatSpan5 / fw, b: (fuy - fvy) * flatSpan5 / fw,
+          c: (fux + fvx) * flatSpan5 / fh, d: (fuy + fvy) * flatSpan5 / fh,
+          cx: fnb.cx, cy: fnb.cy
+        };
+        /* Tap target: the box the sheared art really covers. */
+        halfW = Math.max(10, (Math.abs(flatM.a) * fw + Math.abs(flatM.c) * fh) * 0.5);
+        halfH = Math.max(6, (Math.abs(flatM.b) * fw + Math.abs(flatM.d) * fh) * 0.5);
         half = halfH;
       } else {
         half = Math.max(7, SA.Iso.pxPerTefachY() * SA.Mat.decorSizeTefachim(dEntry5) * 0.5);
@@ -21619,7 +23447,8 @@ SA.Scene.render = function (ctx, state, result) {
       var tie5 = dec5.hang ? SA.Iso.project(anc.x, state.roofHeight, anc.z, cx, cz) : null;
       /* Floor furniture keeps the ordinary layer - a bench belongs in the
          depth sort with the walls around it. Only hanging things move. */
-      jobs.push({ layer: dec5.hang ? roomLayer : null, depth: depth5, draw: function () {
+      jobs.push({ layer: dec5.hang ? roomLayer : (flatSpan5 > 0 ? 0.42 : null),
+        depth: depth5, draw: function () {
         if (dec5.hang) { ctx.save(); SA.Scene.clipBooth(ctx, boothClip); }
         if (tie5) SA.Scene.drawHangString(ctx, tie5, pt5, half);
         SA.FX.withPop(ctx, iconQuad, dec5.placedAt, function () {
@@ -21632,8 +23461,16 @@ SA.Scene.render = function (ctx, state, result) {
             ctx.fill();
           }
           ctx.restore();
-          SA.Draw.decorIconAt(ctx, pt5.sx, pt5.sy, flatSpan5 ? halfW * 2 : half * 2,
-            dEntry5, !!flatSpan5);
+          if (flatM) {
+            ctx.save();
+            ctx.translate(pt5.sx, pt5.sy);
+            ctx.transform(flatM.a, flatM.b, flatM.c, flatM.d, 0, 0);
+            if (dec5.flip) ctx.scale(-1, 1);
+            SA.Draw.decorIcon(ctx, -flatM.cx, -flatM.cy, 1, dEntry5);
+            ctx.restore();
+          } else {
+            SA.Draw.decorIconAt(ctx, pt5.sx, pt5.sy, half * 2, dEntry5, false, !!dec5.flip);
+          }
         });
         if (dec5.hang) ctx.restore();
         SA.Pick.add('decor_item', { uid: dec5.uid }, iconQuad);
@@ -21999,6 +23836,63 @@ SA.Scene.drawSnapPreview = function (ctx, state, cx, cz) {
     var occ = SA.State.wallSpanOccupancy(state, pv.side, pv.col, pv.w);
     if (occ > 0) SA.Draw.poly(ctx, q, 'rgba(224,150,60,0.22)', null);
   } else if (pv.kind === 'schach' || pv.kind === 'beam') {
+    /* WHERE THE REST OF THE POLES GO.
+       A roof is spaced, not scattered: while a pole is in the air the bay
+       lines are drawn faintly across the plane so the player can see the
+       three or four places it wants one rather than guessing and finding out
+       from a mat that lands as a ribbon. Only the lines that are still
+       empty are drawn - the frame ticks itself off as it goes up. */
+    /* WHICH GAP IS THE PROBLEM.
+       Holding covering, the roof shows the bays it will NOT cross - a soft red
+       wash over exactly the cells that have nothing under them for THIS
+       material. Without it a player laid three poles, aimed at the middle,
+       watched the mat land somewhere else, and got told at the end that a bare
+       strip was splitting the sukkah in two. Now the strip is visible while
+       there is still something to do about it. */
+    if (pv.kind === 'schach' && drag && drag.piece) {
+      var covEntry = SA.Pile.entryOf(drag.piece);
+      var covSup = SA.Halacha.frameSupport(state, covEntry);
+      if (!covSup.allHeld) {
+        ctx.save();
+        var badFill = 'rgba(226,102,84,' + (0.20 + pulse * 0.14).toFixed(3) + ')';
+        for (var gx = 0; gx < state.footprint.w; gx++) {
+          for (var gz = 0; gz < state.footprint.d; gz++) {
+            if (covSup.held[gx + '_' + gz]) continue;
+            if (state.schach[gx] && state.schach[gx][gz]) continue;
+            SA.Draw.poly(ctx, saQuadSchach(gx, gz, state.roofHeight, cx, cz), badFill, null);
+          }
+        }
+        ctx.restore();
+      }
+    }
+    if (pv.kind === 'beam' && pv.ok !== false) {
+      var bayStep = SA.State.roofBayStep(state, null, null);
+      var alongX = pv.cw >= pv.cd;
+      var bayAxis = alongX ? state.footprint.d : state.footprint.w;
+      var bayCross = alongX ? state.footprint.w : state.footprint.d;
+      var baySup = SA.Halacha.frameSupport(state);
+      ctx.save();
+      ctx.setLineDash([5, 6]);
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = 'rgba(255,236,178,0.42)';
+      for (var bi = bayStep; bi < bayAxis - 1; bi += bayStep) {
+        var hasOne = false, bc;
+        for (bc = 0; bc < bayCross; bc++) {
+          if (baySup.solid[(alongX ? bc : bi) + '_' + (alongX ? bi : bc)]) { hasOne = true; break; }
+        }
+        if (hasOne) continue;
+        if (Math.abs(bi - (alongX ? pv.z : pv.x)) < 2) continue;
+        var bA = SA.Iso.project(alongX ? 0 : bi + 0.5, state.roofHeight,
+          alongX ? bi + 0.5 : 0, cx, cz);
+        var bB = SA.Iso.project(alongX ? state.footprint.w : bi + 0.5, state.roofHeight,
+          alongX ? bi + 0.5 : state.footprint.d, cx, cz);
+        ctx.beginPath();
+        ctx.moveTo(bA.sx, bA.sy);
+        ctx.lineTo(bB.sx, bB.sy);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     for (var x = pv.x; x < pv.x + pv.cw; x++) {
       for (var z = pv.z; z < pv.z + pv.cd; z++) {
         SA.Draw.poly(ctx, saQuadSchach(x, z, state.roofHeight, cx, cz), fill, edge, 1.4);
@@ -22481,6 +24375,7 @@ SA.Game.startFreeBuild = function (fresh) {
   SA.Game.modalCard = null;
   SA.Game.selectedPanel = null;
   SA.Game.selectedDecor = null;
+  SA.Game.selectedBeam = null;
   SA.Pile.reset();
   SA.Pile.setShelfTab('wall');
   SA.Undo.clear();
@@ -23386,6 +25281,7 @@ SA.UI.renderBuild = function (ctx, result) {
   var trayTop = h - safe.b - SA.UI.TRAY_H;
   if (!SA.Game.winTour && SA.Game.selectedPanel) SA.UI.renderPanelInspector(ctx, trayTop);
   if (!SA.Game.winTour && SA.Game.selectedDecor) SA.UI.renderDecorInspector(ctx, trayTop);
+  else if (!SA.Game.winTour && SA.Game.selectedBeam) SA.UI.renderBeamInspector(ctx, trayTop);
   /* Goal met: keep the booth open for decorations until they tap Done. */
   var showFinish = !SA.Game.winTour && SA.Scramble.run && SA.Scramble.run.goalMet &&
     SA.Scramble.run.status === 'building';
@@ -23952,29 +25848,108 @@ SA.UI.renderPanelInspector = function (ctx, trayTop) {
   SA.UI.btn(ctx, w - 100, barY + 5, 80, barH - 10, 'ERASE', 'sb_panel_erase', {});
 };
 
+/* MOVE IT AFTER YOU PUT IT DOWN.
+   Dropping is a guess: the room is drawn in isometric, a big part of what you
+   are looking at is wall, and the pixel under your finger is often not the
+   floor you meant. Until now the only correction available was to erase the
+   thing and try again, which is why placement felt like it was magnetised to
+   wherever the game decided. Tap any decoration and nudge it - along the floor,
+   along the wall it hangs on, up and down, or flip it to face the other way. */
 SA.UI.renderDecorInspector = function (ctx, trayTop) {
   var dec = null;
   for (var i = 0; i < SA.Game.state.decor.length; i++) if (SA.Game.state.decor[i].uid === SA.Game.selectedDecor) dec = SA.Game.state.decor[i];
   if (!dec) { SA.Game.selectedDecor = null; return; }
   var w = SA.View.w;
   var barY = trayTop - 60, barH = 46;
+  var entry = SA.Mat.DECOR_BY_ID[dec.matId];
   SA.UI.panel(ctx, 12, barY, w - 24, barH);
-  if (dec.hang) {
-    SA.UI.btn(ctx, 20, barY + 5, 50, barH - 10, '-', 'sb_dec_less', {});
-    /* A bare "{n} tefachim" beside two arrows never said what the number
-       measured or why a bigger one is a problem - hanging fruit lower than four
-       tefachim from the schach is the din the level teaches. */
-    SA.Draw.text(ctx, SA.Lang.fmt('{n} tefachim', { n: dec.clearance }), 133, barY + barH / 2 - 8, { size: 13, color: '#fff' });
-    /* FOUR IS FINE. The engine flags only MORE than four tefachim (OC 627:4 -
-       "within four" is within), and this label said "keep under 4" and turned
-       the number red at exactly four: the game told the player off for a
-       decoration it was perfectly happy with. */
-    SA.Draw.text(ctx, 'below the schach (four or less)', 133, barY + barH / 2 + 9,
-      { size: 9.5, color: dec.clearance > SA.Rule.DECOR_CLEARANCE
-        ? 'rgba(230,120,100,0.95)' : 'rgba(255,255,255,0.6)' });
-    SA.UI.btn(ctx, 188, barY + 5, 50, barH - 10, '+', 'sb_dec_more', {});
+
+  var bw = 40, bh = barH - 10, by = barY + 5, x = 20;
+  var onWall = !!dec.wallSide;
+  /* Four arrows. On the floor they walk it around the pad; on a wall they slide
+     it along and raise or lower it; hanging, they move the tie point. */
+  SA.UI.btn(ctx, x, by, bw, bh, '\u25c0', 'sb_dec_left', {}); x += bw + 4;
+  SA.UI.btn(ctx, x, by, bw, bh, '\u25b6', 'sb_dec_right', {}); x += bw + 4;
+  SA.UI.btn(ctx, x, by, bw, bh, '\u25b2', 'sb_dec_up', {}); x += bw + 4;
+  SA.UI.btn(ctx, x, by, bw, bh, '\u25bc', 'sb_dec_down', {}); x += bw + 8;
+
+  var eraseX = w - 92;
+  if (onWall) {
+    /* Which wall it hangs on, and a way to send it round to the next one. */
+    var sideName = SA.UI.WALL_SIDE_LABEL[dec.wallSide] || dec.wallSide;
+    if (x + 96 < eraseX - 8) {
+      SA.UI.btn(ctx, x, by, 92, bh, 'Next wall', 'sb_dec_wall', {});
+      x += 100;
+    }
+    if (x + 130 < eraseX - 8) {
+      SA.Draw.text(ctx, SA.Lang.t(sideName), x + 4, barY + barH / 2,
+        { size: 10.5, color: 'rgba(255,255,255,0.6)', align: 'left' });
+      x += 72;
+    }
+  } else if (dec.hang) {
+    if (x + 150 < eraseX - 8) {
+      SA.UI.btn(ctx, x, by, 34, bh, '\u2013', 'sb_dec_less', {});
+      SA.Draw.text(ctx, SA.Lang.fmt('{n} tefachim', { n: dec.clearance }), x + 82, barY + barH / 2 - 8,
+        { size: 12, color: '#fff' });
+      /* FOUR IS FINE. The engine flags only MORE than four tefachim (OC 627:4 -
+         "within four" is within), and this label said "keep under 4" and turned
+         the number red at exactly four. */
+      SA.Draw.text(ctx, 'below the schach (four or less)', x + 82, barY + barH / 2 + 8,
+        { size: 8.5, color: dec.clearance > SA.Rule.DECOR_CLEARANCE
+          ? 'rgba(230,120,100,0.95)' : 'rgba(255,255,255,0.6)' });
+      SA.UI.btn(ctx, x + 130, by, 34, bh, '+', 'sb_dec_more', {});
+      x += 172;
+    }
   }
-  SA.UI.btn(ctx, w - 100, barY + 5, 80, barH - 10, 'ERASE', 'sb_dec_erase', {});
+  /* TURN IT ROUND. A bench, a shtender, a sconce - all of them are drawn
+     facing one way, and half the time that is the wrong way for where it
+     ended up. Offered for everything that is not a garland strung between two
+     tie points, which has no front. */
+  if (!dec.hang && x + 46 < eraseX - 8) {
+    SA.UI.btn(ctx, x, by, 42, bh, '\u21c4', 'sb_dec_flip', {}, !!dec.flip);
+    x += 50;
+  }
+  SA.UI.btn(ctx, eraseX, by, 80, bh, 'ERASE', 'sb_dec_erase', {});
+};
+
+/* MOVE A SLAT AFTER YOU HAVE LAID IT.
+   A pole is one tefach wide, which is a two-pixel sliver on a phone - picking
+   one back up to shift it a foot was a lottery, so in practice the frame was
+   whatever the first drop happened to give you. Tap it and the same arrows the
+   furniture has slide it across its own run, one carrying line at a time. */
+SA.UI.renderBeamInspector = function (ctx, trayTop) {
+  var st = SA.Game.state;
+  var beam = SA.State.beamByUid(st, SA.Game.selectedBeam);
+  if (!beam) { SA.Game.selectedBeam = null; return; }
+  var w = SA.View.w;
+  var barY = trayTop - 60, barH = 46;
+  SA.UI.panel(ctx, 12, barY, w - 24, barH);
+  var bw = 40, bh = barH - 10, by = barY + 5, x = 20;
+  /* Only the two that mean anything for this member: a purlin slides ACROSS
+     its run, and sliding it along its own length would do nothing. Which pair
+     of arrows that is depends on where the camera is standing - across the run
+     is a diagonal, and the arrows have to point the way it will actually go. */
+  if (SA.State.beamArrowAxis(st, beam) === 'x') {
+    SA.UI.btn(ctx, x, by, bw, bh, '\u25c0', 'sb_beam_left', {}); x += bw + 4;
+    SA.UI.btn(ctx, x, by, bw, bh, '\u25b6', 'sb_beam_right', {}); x += bw + 8;
+  } else {
+    SA.UI.btn(ctx, x, by, bw, bh, '\u25b2', 'sb_beam_up', {}); x += bw + 4;
+    SA.UI.btn(ctx, x, by, bw, bh, '\u25bc', 'sb_beam_down', {}); x += bw + 8;
+  }
+  var eraseX = w - 92;
+  if (x + 48 < eraseX - 8) {
+    SA.UI.btn(ctx, x, by, 42, bh, '\u21c4', 'sb_beam_turn', {});
+    x += 50;
+  }
+  var bEnt = SA.Mat.BEAM_BY_ID[beam.matId];
+  if (bEnt && x + 150 < eraseX - 8) {
+    SA.Draw.text(ctx, SA.Lang.t(bEnt.en), x + 4, barY + barH / 2 - 7,
+      { size: 11, color: 'rgba(255,255,255,0.85)', align: 'left', weight: '600' });
+    SA.Draw.text(ctx, SA.Lang.fmt('holds a bay of {n} tefachim',
+      { n: SA.Mat.beamCarryTefachim(bEnt) }), x + 4, barY + barH / 2 + 7,
+      { size: 9.5, color: 'rgba(255,255,255,0.55)', align: 'left' });
+  }
+  SA.UI.btn(ctx, eraseX, by, 80, bh, 'ERASE', 'sb_beam_erase', {});
 };
 
 /* ---------------------------------------------- 17f. MATERIAL AVAILABILITY */
@@ -24979,16 +26954,52 @@ SA.UI.onBuildTap = function (hit) {
   }
   if (hit.kind === 'wall_cell') { SA.UI.onWallCellTap(st, hit.payload); return; }
   if (hit.kind === 'schach_cell') { SA.UI.onSchachCellTap(st, hit.payload); return; }
-  if (hit.kind === 'floor_cell') { SA.Game.selectedPanel = null; SA.Game.selectedDecor = null; return; }
+  if (hit.kind === 'floor_cell') {
+    SA.Game.selectedPanel = null; SA.Game.selectedDecor = null; SA.Game.selectedBeam = null; return;
+  }
   if (hit.kind === 'decor_item') {
     if (SA.Tool.category === 'erase') { SA.Undo.mark(); SA.State.removeDecor(st, hit.payload.uid); SA.Save.markDirty(); return; }
-    SA.Game.selectedDecor = hit.payload.uid; SA.Game.selectedPanel = null; return;
+    SA.Game.selectedDecor = hit.payload.uid;
+    SA.Game.selectedPanel = null; SA.Game.selectedBeam = null; return;
   }
   /* A frame member is only ever taken back, never inspected - there is nothing
      to set on a pole. The schach lying on it is what gets tapped otherwise, so
      the beam is reachable only with the eraser armed. */
   if (hit.kind === 'beam_item') {
-    if (SA.Tool.category === 'erase') { SA.Undo.mark(); SA.State.removeBeam(st, hit.payload.uid); SA.Save.markDirty(); }
+    if (SA.Tool.category === 'erase') { SA.Undo.mark(); SA.State.removeBeam(st, hit.payload.uid); SA.Save.markDirty(); return; }
+    SA.Game.selectedBeam = hit.payload.uid;
+    SA.Game.selectedDecor = null; SA.Game.selectedPanel = null;
+    return;
+  }
+  if (hit.kind === 'sb_beam_up' || hit.kind === 'sb_beam_down' ||
+      hit.kind === 'sb_beam_left' || hit.kind === 'sb_beam_right') {
+    var mb = SA.State.beamByUid(st, SA.Game.selectedBeam);
+    if (mb) {
+      SA.Undo.mark();
+      if (!SA.State.nudgeBeam(st, mb, hit.kind.replace('sb_beam_', ''))) {
+        SA.Scramble.toast(SA.Lang.t(
+          'There is nothing further over for this pole to rest on.'), 'sk_maamid', 'bad');
+      }
+      SA.Save.markDirty();
+    }
+    return;
+  }
+  if (hit.kind === 'sb_beam_turn') {
+    var tb = SA.State.beamByUid(st, SA.Game.selectedBeam);
+    if (tb) {
+      SA.Undo.mark();
+      if (!SA.State.turnBeam(st, tb)) {
+        SA.Scramble.toast(SA.Lang.t(
+          'Turned the other way this pole has nothing to reach across to.'), 'sk_maamid', 'bad');
+      }
+      SA.Save.markDirty();
+    }
+    return;
+  }
+  if (hit.kind === 'sb_beam_erase') {
+    SA.Undo.mark();
+    SA.State.removeBeam(st, SA.Game.selectedBeam);
+    SA.Game.selectedBeam = null; SA.Save.markDirty();
     return;
   }
   if (hit.kind === 'issue_marker') {
@@ -25071,6 +27082,33 @@ SA.UI.onBuildTap = function (hit) {
       SA.State.setDecorClearance(st, dec.uid, dec.clearance + (hit.kind === 'sb_dec_more' ? 1 : -1));
     }
     SA.Save.markDirty();
+    return;
+  }
+  /* THE NUDGE. Screen left/right is the (x-z) diagonal in this projection and
+     screen up/down is (x+z), so the arrows move the thing the way it looks
+     like they should rather than along the world axes - pressing left on an
+     isometric floor has to send it left on the screen. */
+  if (hit.kind === 'sb_dec_left' || hit.kind === 'sb_dec_right' ||
+      hit.kind === 'sb_dec_up' || hit.kind === 'sb_dec_down') {
+    var mv = null;
+    for (var mi = 0; mi < st.decor.length; mi++) if (st.decor[mi].uid === SA.Game.selectedDecor) mv = st.decor[mi];
+    if (mv) {
+      SA.Undo.mark();
+      SA.State.nudgeDecor(st, mv, hit.kind.replace('sb_dec_', ''));
+      SA.Save.markDirty();
+    }
+    return;
+  }
+  if (hit.kind === 'sb_dec_wall') {
+    var wv = null;
+    for (var wi = 0; wi < st.decor.length; wi++) if (st.decor[wi].uid === SA.Game.selectedDecor) wv = st.decor[wi];
+    if (wv) { SA.Undo.mark(); SA.State.moveDecorToNextWall(st, wv); SA.Save.markDirty(); }
+    return;
+  }
+  if (hit.kind === 'sb_dec_flip') {
+    var fv = null;
+    for (var fi = 0; fi < st.decor.length; fi++) if (st.decor[fi].uid === SA.Game.selectedDecor) fv = st.decor[fi];
+    if (fv) { SA.Undo.mark(); fv.flip = !fv.flip; SA.State.touch(st); SA.Save.markDirty(); }
     return;
   }
   if (hit.kind === 'sb_dec_erase') {
@@ -25218,6 +27256,36 @@ SA.UI.commitDrop = function (piece, preview) {
     SA.Audio.play(SA.Audio.forPiece(piece, SA.Pile.entryOf(piece)));
     SA.Audio.buzz(10);
     if (!piece.infinite) SA.Pile.armed = null;
+    /* THE COVERING ONLY WENT ON WHERE THE FRAME REACHES.
+       A mat card is the whole pad, and on a framed roof one drop covers the
+       whole pad. On a half-framed one it lands as a band, and without being
+       told why that reads as the game shrinking the player's piece. Say the
+       number: this covering crosses so many tefachim, so it wants so many
+       poles across. Once per run. */
+    if (preview.kind === 'schach' && SA.Game.state) {
+      var covSt = SA.Game.state;
+      var covArea = (preview.cw || 0) * (preview.cd || 0);
+      var padArea = covSt.footprint.w * covSt.footprint.d;
+      var covEnt = SA.Pile.entryOf(piece);
+      var covSpan = SA.Mat.schachSpanTefachim(covEnt);
+      /* IT DID NOT GO WHERE THEY AIMED, AND THEY DESERVE TO KNOW WHY.
+         The bay under the finger is wider than this covering will cross, so it
+         has gone to the nearest bay that will hold it. Said every time, not
+         once a run - it is about THIS spot, and the player is about to try the
+         same spot again. */
+      if (preview.onAim === false) {
+        SA.Scramble.toast(SA.Lang.fmt(
+          'Not there yet - the gap you aimed at is wider than {s} tefachim, which is as far as this covering will reach on its own. Put another pole across the middle of it and try again.',
+          { s: covSpan }), 'sk_maamid', 'bad');
+      } else if (covArea > 0 && covArea < padArea * 0.75) {
+        var covPoles = SA.State.polesWanted(covSt, covEnt);
+        if (covPoles > 0) {
+          SA.Scramble.teachOnce('frame_bays', SA.Lang.fmt(
+            'This covering will not cross more than {s} tefachim on its own, so it landed where the frame reaches. Lay {n} poles across the roof and the next armful covers the lot.',
+            { s: covSpan, n: covPoles }), 'sk_maamid');
+        }
+      }
+    }
     /* Keep the booth planted in the clear band after a tall wall lands - but
        in the view the player chose. snapFit here forced Look Inside off on
        every single drop, so arranging decorations inside the sukkah was
@@ -25270,7 +27338,7 @@ SA.UI.onWallCellTap = function (st, payload) {
   var entry = panel ? SA.State.materialById(panel.matId) : null;
   if (entry && (entry.matKind === 'animal' || entry.swaysInWind)) {
     SA.Game.selectedPanel = { side: payload.side, uid: payload.uid };
-    SA.Game.selectedDecor = null;
+    SA.Game.selectedDecor = null; SA.Game.selectedBeam = null;
   }
 };
 
@@ -27321,12 +29389,21 @@ SA.Pile.makeDecorPiece = function (entry) {
    The tail (a second lamp, a plaque, a second garland) only lands on the bigger
    heaps of the later levels, which is also when the guests start expecting a
    room rather than a booth. */
-SA.Pile.DECOR_KIT = ['seat', 'table', 'light', 'hang', 'seat', 'sign', 'soft', 'light', 'hang'];
+/* Somewhere to sit, something to put it on, and something to PUT on it: a
+   cloth and a couple of things that stand on a table, so a laid table is
+   always reachable from the deal rather than a lucky roll. */
+SA.Pile.DECOR_KIT = ['seat', 'table', 'seat', 'cloth', 'top', 'light', 'hang',
+  'sign', 'top', 'soft', 'light', 'hang'];
 SA.Pile.decorRole = function (e) {
   if (!e || !SA.Guests) return 'other';
   var s = e.id.replace(/^dec_/, '');
   if (SA.Guests.SEATS[s]) return 'seat';
+  /* A "table" for the deal is somewhere to EAT - which is also always a top
+     you can stand something on (every SA.Guests.TABLES id is in
+     SA.Mat.DECOR_SURFACE). A bookshelf is a surface but not a table. */
   if (SA.Guests.TABLES[s]) return 'table';
+  if (SA.Mat.decorIsCloth(e)) return 'cloth';
+  if (SA.Mat.decorSitsOnTable(e)) return 'top';
   if (SA.Guests.SOFT[s]) return 'soft';
   if (e.category === 'light') return 'light';
   if (e.category === 'sign') return 'sign';
@@ -27441,8 +29518,16 @@ SA.Pile.roll = function (cfg, state, seed) {
 
   /* Frame: a few full-length wooden beams (count boards, not tefachim).
      With full-side walls, 2–3 spans cover the pad for schach. */
+  /* ENOUGH POLES TO ACTUALLY FRAME THE PAD.
+     The roof rests on a frame now (p12 frameSupport), and a twelve-foot booth
+     under a rolled mat wants three poles across - leafy covering wants five.
+     Dealing a flat four meant a heap that could not roof its own sukkah. Deal
+     what the pad needs plus a couple spare, so there is room to waste one. */
+  var polesFor = SA.Mat.schachPolesNeeded
+    ? SA.Mat.schachPolesNeeded({ tex: 'mat' }, Math.min(state.footprint.w, state.footprint.d), null)
+    : 3;
   var beamNeed = backyard
-    ? Math.max(2, Math.min(4, Math.round(2.5 * (cfg.beamSlack || 1))))
+    ? Math.max(6, Math.min(11, polesFor + 4 + Math.round(2 * ((cfg.beamSlack || 1) - 1))))
     : Math.max(2, Math.min(5, Math.ceil(longSide / 10) + 1));
   /* Only WOOD counts toward that need. Schach may not be laid straight onto
      metal (p12, MB 629:22): the steel pipe is there to be used as a frame with
@@ -27500,7 +29585,17 @@ SA.Pile.roll = function (cfg, state, seed) {
       schachHave += fsP.cw * fsP.cd;
     }
   }
-  while (schachHave < schachNeed && guard++ < (backyard ? 8 : 400)) {
+  /* A COVERING CARD IS NO LONGER A WHOLE ROOF.
+     Each card used to land as the entire pad the moment three walls were up.
+     Now it lands on the frame, so a heap that dealt "one roof's worth plus a
+     quarter" can run out with a third of the sky still open. Deal enough cards
+     that a player who lays their first mat before the poles are all across is
+     not stranded. */
+  var schachCards = 0;
+  for (var scq = 0; scq < out.length; scq++) if (out[scq].kind === 'schach') schachCards++;
+  var minCards = backyard ? 4 : 2;
+  while ((schachHave < schachNeed || schachCards < minCards) &&
+         guard++ < (backyard ? 10 : 400)) {
     var st2 = saPileTier(rnd, weights, pools.schach);
     var sEntry = saPilePick(rnd, pools.schach[st2]);
     if (!sEntry) break;
@@ -27512,6 +29607,7 @@ SA.Pile.roll = function (cfg, state, seed) {
       sp.cd = state.footprint.d;
     }
     out.push(sp);
+    schachCards++;
     schachHave += sp.cw * sp.cd;
   }
 
@@ -27541,7 +29637,7 @@ SA.Pile.roll = function (cfg, state, seed) {
   /* Always leave at least five free picks. A proportional kit ate the whole
      small deal and left nothing to actually decorate with, so the sukkah came
      out furnished and completely undressed. */
-  var kitSlots = Math.min(kit.length, Math.max(3, decorCount - 4));
+  var kitSlots = Math.min(kit.length, Math.max(6, decorCount - 3));
   for (var dc = 0; dc < decorCount; dc++) {
     var dt = saPileTier(rnd, weights, pools.decor);
     var dEntry = null;
@@ -27792,13 +29888,20 @@ SA.Pile.hitForPiece = function (x, y, piece, state) {
   var entry = SA.Pile.entryOf(piece);
   if (piece.kind === 'decor' && entry) {
     var roof = SA.Pick.hitTestKind(x, y, 'schach_cell', 10);
-    if (roof) return SA.Pile.coerceDecorHit(piece, roof, state);
+    if (roof) return SA.Pile.coerceDecorHit(piece, SA.Pile.aimed(roof, x, y), state);
     var floor = SA.Pick.hitTestKind(x, y, 'floor_cell', 10);
-    if (floor) return SA.Pile.coerceDecorHit(piece, floor, state);
+    if (floor) return SA.Pile.coerceDecorHit(piece, SA.Pile.aimed(floor, x, y), state);
     var wall = SA.Pick.hitTestKind(x, y, 'wall_cell', 10);
-    if (wall) return SA.Pile.coerceDecorHit(piece, wall, state);
+    if (wall) return SA.Pile.coerceDecorHit(piece, SA.Pile.aimed(wall, x, y), state);
   }
   return null;
+};
+
+/* Carry the touch point along with the hit. A wall quad covers a whole side,
+   so "which wall" is not enough to know where along it the finger was. */
+SA.Pile.aimed = function (hit, x, y) {
+  if (!hit) return hit;
+  return { kind: hit.kind, payload: hit.payload, quad: hit.quad, at: [x, y] };
 };
 
 /* Turns a raw scene hit into exactly the cells this piece would occupy,
@@ -27833,21 +29936,52 @@ SA.Pile.previewFor = function (piece, hit, state) {
     /* A wall-mounted thing lands ON a wall, not on a cell of floor - and only
        where a wall is actually standing. Hanging a plaque in mid-air on an
        open side is the same nonsense as tying fruit to the sky. */
+    /* Standing on a table: keep hold of which table and where on its top. */
+    if (hit.kind === 'decor_surface') {
+      var host = SA.State.decorByUid(state, hit.payload.uid);
+      if (!host) return { kind: 'decor', mount: 'surface', ok: false, reason: 'no_table_there' };
+      var hEnt = SA.Mat.DECOR_BY_ID[host.matId];
+      var hTop = SA.Mat.decorSurfaceTop(hEnt);
+      if (!hTop) return { kind: 'decor', mount: 'surface', ok: false, reason: 'no_table_there' };
+      /* Keep it on the top, not hanging off the edge. */
+      var limX = Math.max(0.4, hTop.span / 2 - 0.8);
+      var limZ = Math.max(0.4, SA.Mat.decorSurfaceDepth(hTop) / 2 - 0.6);
+      return {
+        kind: 'decor', mount: 'surface', ok: true,
+        onUid: host.uid,
+        tx: Math.max(-limX, Math.min(limX, hit.payload.tx || 0)),
+        tz: Math.max(-limZ, Math.min(limZ, hit.payload.tz || 0))
+      };
+    }
     if (hit.kind === 'decor_wall') {
       var wSideP = hit.payload.side;
-      var wColP = SA.State.nearestWallCol(state, wSideP, hit.payload.col | 0);
+      var wColP = (SA.Scene.nearestShownWallCol
+        && SA.Scene.nearestShownWallCol(state, wSideP, hit.payload.col | 0));
+      if (wColP == null) wColP = SA.State.nearestWallCol(state, wSideP, hit.payload.col | 0);
       if (wColP == null) {
         /* Nothing on that side at all - try any side that does have a wall
            before giving up, so a plaque is never refused in a booth that has
            walls somewhere. */
-        for (var wsI = 0; wsI < SA.WALL_SIDES.length && wColP == null; wsI++) {
-          var alt = SA.WALL_SIDES[wsI];
-          var altCol = SA.State.nearestWallCol(state, alt,
-            (SA.State.wallLength(state, alt) / 2) | 0);
-          if (altCol != null) { wSideP = alt; wColP = altCol; }
+        /* Twice: the walls you can see first, and only then the rest, so a
+           fallback never parks a plaque on the back of a near wall where it
+           reads as having been swallowed. */
+        for (var pass = 0; pass < 2 && wColP == null; pass++) {
+          for (var wsI = 0; wsI < SA.WALL_SIDES.length && wColP == null; wsI++) {
+            var alt = SA.WALL_SIDES[wsI];
+            var altFar = !SA.Scene.wallIsFar ||
+              SA.Scene.wallIsFar(alt, state.footprint,
+                state.footprint.w / 2, state.footprint.d / 2);
+            if (pass === 0 ? !altFar : altFar) continue;
+            var mid = (SA.State.wallLength(state, alt) / 2) | 0;
+            var altCol = (SA.Scene.nearestShownWallCol
+              && SA.Scene.nearestShownWallCol(state, alt, mid));
+            if (altCol == null) altCol = SA.State.nearestWallCol(state, alt, mid);
+            if (altCol != null) { wSideP = alt; wColP = altCol; }
+          }
         }
       }
       if (wColP == null) return { kind: 'decor', mount: 'wall', ok: false, reason: 'no_wall_there' };
+      /* fallthrough below */
       return { kind: 'decor', mount: 'wall', ok: true, wallSide: wSideP, wallCol: wColP };
     }
     var dcell = SA.Act.clampDecorCell(state, hit.payload.x, hit.payload.z, !!entry.hang);
@@ -27987,10 +30121,12 @@ SA.Pile.place = function (piece, preview, state) {
        mat is painted at forty-six while the boards stop at ten. */
     if (preview.settleRoof != null) SA.Pile.settleRoofTo(state, preview.settleRoof);
     if (preview.flipRot) piece.rot = piece.rot ? 0 : 1;
-    /* Poles first. The engine already treats the plane as carried once the
-       walls are up; without this the player saw the mat floating over twelve
-       feet of open room with nothing under it. */
-    if (SA.State.ensureRoofFrame) SA.State.ensureRoofFrame(state);
+    /* NO FREE FRAME. This used to quietly lay a whole set of poles the first
+       time the player dropped a mat, which is why the poles in the heap had
+       no job and the covering appeared to rest on twelve feet of open room.
+       A roof is poles first, then covering: the drop preview refuses schach
+       that has nothing under it and says how many poles it wants. The one-tap
+       FILL still frames itself (p10 fillSchach) - that is what "fill" means. */
     /* One dropped object = one group, so the whole patch is painted as a single
        piece of material lying at its own angle (p16) rather than as cw x cd
        identical squares. */
@@ -28024,37 +30160,61 @@ SA.Pile.place = function (piece, preview, state) {
     if (SA.Scramble.active()) SA.Scramble.teachOnPlace(piece, beamEntry, preview);
   } else {
     SA.Tool.category = 'decor';
-    if (preview.mount === 'wall') {
-      /* A plaque goes ON the wall. Its floor cell is the one just inside that
-         wall, so anything that still walks the decor list by x/z (the guests'
-         tally, the eraser) finds it where it looks like it is. */
-      var wc = SA.State.wallMountCell(state, preview.wallSide, preview.wallCol);
-      SA.State.placeDecor(state, entry, wc.x, wc.z,
-        { wallSide: preview.wallSide, wallCol: preview.wallCol });
+    if (preview.mount === 'surface') {
+      var hostD = SA.State.decorByUid(state, preview.onUid);
+      var hx = hostD ? hostD.x : 0, hz = hostD ? hostD.z : 0;
+      SA.State.placeDecor(state, entry, hx, hz, {
+        onUid: preview.onUid, tx: preview.tx, tz: preview.tz, flip: piece.flip
+      });
       SA.Progress.onAction('place_decor', piece.matId);
       if (SA.Scramble.active()) SA.Scramble.teachOnPlace(piece, entry, preview);
       if (!piece.infinite) SA.Pile.remove(piece.uid);
       SA.Save.markDirty();
       return true;
     }
+    if (preview.mount === 'wall') {
+      /* A plaque goes ON the wall. Its floor cell is the one just inside that
+         wall, so anything that still walks the decor list by x/z (the guests'
+         tally, the eraser) finds it where it looks like it is. */
+      var wc = SA.State.wallMountCell(state, preview.wallSide, preview.wallCol);
+      SA.State.placeDecor(state, entry, wc.x, wc.z,
+        { wallSide: preview.wallSide, wallCol: preview.wallCol,
+          /* A piece lifted off the wall and put back keeps how it was turned
+             and how high it was hung - re-aiming it must not undo the work. */
+          flip: piece.flip, wallY: piece.wallY });
+      SA.Progress.onAction('place_decor', piece.matId);
+      if (SA.Scramble.active()) SA.Scramble.teachOnPlace(piece, entry, preview);
+      /* It is on the inside face of a far wall - from out here that is behind
+         a solid near wall, so step in and show the player where it went. */
+      if (!SA.Camera.inside && SA.Camera.snapInside) {
+        if (SA.Scramble.active() && SA.Scramble.run) SA.Scramble.run.shownInside = true;
+        SA.Camera.snapInside(state);
+      }
+      if (!piece.infinite) SA.Pile.remove(piece.uid);
+      SA.Save.markDirty();
+      return true;
+    }
     var dcell = SA.Act.clampDecorCell(state, preview.x, preview.z, !!entry.hang);
-    var dopts = { ox: preview.ox, oz: preview.oz };
+    var dopts = { ox: preview.ox, oz: preview.oz, flip: piece.flip };
     if (preview.garland && preview.x0 != null) {
       dopts = { x0: preview.x0, z0: preview.z0, x1: preview.x1, z1: preview.z1 };
       dcell = { x: preview.x, z: preview.z };
     }
     SA.State.placeDecor(state, entry, dcell.x, dcell.z, dopts);
     SA.Progress.onAction('place_decor', piece.matId);
-    /* Hang décor lives under the schach — jump into Look Inside so chili /
-       fruit never appear as a sticker on the roof. */
-    /* Hanging something from OUTSIDE puts it under a roof that hides it, so
-       the first time in a run the camera steps in to show the player where it
-       went - once. Doing it on every drop fought whatever they were doing, and
-       doing it while they are already inside re-snapped the room out from
-       under them mid-arrangement. */
-    if (entry.hang && !SA.Camera.inside && SA.Camera.snapInside &&
-        SA.Scramble.active() && SA.Scramble.run && !SA.Scramble.run.shownInside) {
-      SA.Scramble.run.shownInside = true;
+    /* THINGS INSIDE THE BOOTH CANNOT BE SEEN FROM OUTSIDE IT.
+       From the outside view nothing is cut away (SA.Scene.cutawaySides
+       returns nothing unless you are inside or mid-drag), so a plaque on the
+       far wall is behind a solid near wall and hang fruit is under the
+       schach. Reported as "I place a plaque and it just disappears" - it was
+       there, the player simply had no line of sight to it. So placing
+       anything that lives on a wall or hangs from the roof steps the camera
+       in to the room it went into. Floor pieces are left alone: a chair is
+       big enough to read from outside and snapping the camera on every chair
+       fought the player. */
+    if ((entry.hang || SA.Mat.decorIsWallMount(entry)) &&
+        !SA.Camera.inside && SA.Camera.snapInside) {
+      if (SA.Scramble.active() && SA.Scramble.run) SA.Scramble.run.shownInside = true;
       SA.Camera.snapInside(state);
     }
     if (SA.Scramble.active()) SA.Scramble.teachOnPlace(piece, entry, preview);
@@ -28285,6 +30445,10 @@ SA.Pile.pickUp = function (hit, state) {
     var dEntry = SA.State.materialById(decor.matId);
     if (!dEntry) return null;
     piece = SA.Pile.makeDecorPiece(dEntry);
+    /* Lifting something to re-aim it must not throw away how it was turned or
+       how high it hung - the player set those on purpose. */
+    piece.flip = decor.flip;
+    piece.wallY = decor.wallY;
   }
   if (!piece) return null;
   piece.carried = true;
@@ -28728,8 +30892,22 @@ SA.Scramble = {
 /* Four nights + four days = eight phases, night first (the clock opens the
    moment Yom Kippur ends). */
 SA.Scramble.PHASES = 8;
-SA.Scramble.TOAST_MS = 3200;
-SA.Scramble.TOAST_TEACH_MS = 7000;
+/* LONG ENOUGH TO READ.
+   Reported: "the message disappears within like a second which is nowhere
+   near enough time to read". Two things were wrong: the holds were short, and
+   a following toast REPLACED a live one with a fresh clock, so a sentence
+   could be swapped out mid-read. Adults read prose at roughly fifteen
+   characters a second and a game screen is not a book, so the hold is worked
+   out from the length of the line with a floor under it. */
+SA.Scramble.TOAST_MS = 5200;
+SA.Scramble.TOAST_TEACH_MS = 11000;
+SA.Scramble.TOAST_PER_CHAR_MS = 62;
+SA.Scramble.TOAST_MAX_MS = 20000;
+SA.Scramble.toastHoldFor = function (text, tone) {
+  var base = tone === 'bad' ? SA.Scramble.TOAST_TEACH_MS : SA.Scramble.TOAST_MS;
+  var read = 900 + String(text || '').length * SA.Scramble.TOAST_PER_CHAR_MS;
+  return Math.min(SA.Scramble.TOAST_MAX_MS, Math.max(base, read));
+};
 
 SA.Scramble.active = function () {
   return SA.Game.screen === 'build' && SA.Game.mode === 'scramble' && !!SA.Scramble.run;
@@ -28790,7 +30968,10 @@ SA.Scramble.OVERRIDE = {
   metal_poles: { forcedTraps: ['sch_metal_poles', 'sch_sheet_metal'], forcedBeams: ['beam_steel_pipe', 'beam_steel_pipe'] },
   /* Both of these are decoration-flavoured levels whose third etrog is "light
      it and dress it", and both were dealing the smallest heaps in the game. */
-  fruit_too_low: { forcedTraps: ['sch_fruit'], decorCount: 13, forcedDecor: ['dec_grape_clusters'] },
+  /* Its third etrog is "light it and dress it", and the deal now spends a few
+     cards on a cloth and the things that stand on a table - so the free picks
+     it decorates with have to come back. */
+  fruit_too_low: { forcedTraps: ['sch_fruit'], decorCount: 17, forcedDecor: ['dec_grape_clusters'] },
   under_the_tree: { schachSlack: 0.95 },
   /* Starts below ten tefachim: raise the roof with the height control onto
      walls that are already ten+ (heap is cut to at least ten). */
@@ -28808,8 +30989,12 @@ SA.Scramble.OVERRIDE = {
   },
   /* These two sit at the far end of the ladder, and their own overrides were
      dealing MORE plain lumber than the default curve does by then. */
-  sukkah_on_a_boat: { fullSideWalls: true, tierWeights: [0, 0.12, 0.88], decorCount: 14 },
-  the_balcony: { fullSideWalls: true, tierWeights: [0, 0.15, 0.85], decorCount: 10 },
+  /* Its third etrog is "light it and dress it" and the boat deals a small
+     heap, so it needs the cards to actually dress with. */
+  sukkah_on_a_boat: { fullSideWalls: true, tierWeights: [0, 0.12, 0.88], decorCount: 20 },
+  /* Ten cards no longer reaches its hachnasas-orchim etrog now that a few of
+     them go on laying the table. */
+  the_balcony: { fullSideWalls: true, tierWeights: [0, 0.15, 0.85], decorCount: 15 },
   walls_before_schach: { fullSideWalls: true }
 };
 
@@ -28843,7 +31028,11 @@ SA.Scramble.config = function (level, index) {
     /* Room for the kit (SA.Pile.DECOR_KIT) AND a handful of free choices.
        At six, the guaranteed seating and table left almost nothing to actually
        decorate with. */
-    decorCount: 9 + Math.min(9, Math.floor(index / 2)),
+    /* Three more than before across the board: the standard kit now spends
+       three of its slots on a cloth and the things that stand on a table
+       (p23 DECOR_KIT), and those came straight out of the free picks the
+       player decorates with. */
+    decorCount: 12 + Math.min(9, Math.floor(index / 2)),
     animalChance: Math.min(0.8, 0.25 + index * 0.03),
     allowElephant: index >= 4,
     /* Backyard kit with spare — a few walls, beams, schach patches, decor —
@@ -29141,12 +31330,16 @@ SA.Scramble.toast = function (text, cardId, tone, holdMs) {
   SA.Scramble._spoke = true;
   var now = SA.FX.now();
   tone = tone || 'info';
-  var hold = holdMs || (tone === 'bad' ? SA.Scramble.TOAST_TEACH_MS : SA.Scramble.TOAST_MS);
+  var hold = holdMs || SA.Scramble.toastHoldFor(text, tone);
   /* Phone: one toast, not a stack. A new line replaces the last live one
-     unless a refusal (bad) has to stay until they read it. */
+     unless a refusal (bad) has to stay until they read it - and never in the
+     first couple of seconds of a line nobody has finished reading yet. */
   if (tone !== 'bad' && SA.Scramble.toasts.length) {
     var last = SA.Scramble.toasts[SA.Scramble.toasts.length - 1];
-    if (now - last.born < (last.holdMs || SA.Scramble.TOAST_MS) && last.tone !== 'bad') {
+    var age = now - last.born;
+    if (last.tone === 'bad' && age < (last.holdMs || SA.Scramble.TOAST_TEACH_MS)) return;
+    if (age < 1800 && last.text !== text) return;
+    if (age < (last.holdMs || SA.Scramble.TOAST_MS)) {
       last.text = text;
       last.cardId = cardId || null;
       last.tone = tone;
@@ -29721,14 +31914,20 @@ SA.Guests.SEATS = {
   director_chair: 1, velvet_chairs: 2, rocking_chair: 1, kids_stool: 1,
   metal_folding_chair: 1, bistro_set: 2, beanbag: 1, hammock: 1,
   velvet_divan: 2, gold_throne: 1, leather_club_chair: 1, massage_chair: 1,
-  bed: 1, crate_stand: 1
+  bed: 1, crate_stand: 1,
+  long_bench: 3, dining_chairs: 2, garden_chairs: 2, high_chair: 1,
+  folding_stools: 2
 };
 SA.Guests.TABLES = {
   table: 1, folding_table: 1, side_table: 1, plastic_folding_table: 1,
   crate_table: 1, teak_table: 1, marble_side_table: 1, wood_picnic_table: 1,
-  bistro_set: 1, marble_console: 1, serving_cart: 1, cake_stand: 1,
-  challah_board: 1, kiddush_set: 1
+  bistro_set: 1, marble_console: 1, serving_cart: 1, private_chef_cart: 1,
+  storage_chest: 1, crate_stand: 1, billiard_table: 1,
+  long_dining_table: 1, round_table: 1, kids_table: 1, sideboard: 1
 };
+/* A challah board and a kiddush set are what goes ON a table, not a table -
+   counting them as "somewhere to eat" meant a heap could deal the becher and
+   nothing to stand it on. */
 /* Things that make a room feel lived in rather than merely furnished. */
 SA.Guests.SOFT = {
   carpet_rug: 1, small_rug: 1, cushions: 1, throw_pillows: 1, floor_mat: 1,
@@ -29739,7 +31938,8 @@ SA.Guests.SOFT = {
 
 SA.Guests.tally = function (state) {
   var t = { seats: 0, tables: 0, soft: 0, lights: 0, chains: 0, fruit: 0,
-    judaica: 0, green: 0, luxury: 0, total: 0, cats: {}, ids: {} };
+    judaica: 0, green: 0, luxury: 0, total: 0, cats: {}, ids: {},
+    onTable: 0, laid: 0, cloth: 0, tableLights: 0, setTable: 0 };
   if (!state || !state.decor) return t;
   for (var i = 0; i < state.decor.length; i++) {
     var d = state.decor[i];
@@ -29758,7 +31958,19 @@ SA.Guests.tally = function (state) {
     if (e.category === 'sign') t.judaica++;
     if (e.category === 'misc') t.green++;
     if (e.category === 'luxury') t.luxury++;
+    /* A TABLE, AND A TABLE THAT IS LAID.
+       Standing things on a table is a thing you can do now (p09 surfaces), so
+       it is a thing the guests notice. `laid` counts what is actually ON a
+       top; `cloth` is the cloth over it. A bare board and a set table are not
+       the same sukkah and should not score the same. */
+    if (d.onUid) {
+      t.onTable++;
+      if (SA.Mat.decorIsCloth(e)) t.cloth++;
+      else t.laid++;
+      if (e.category === 'light') t.tableLights++;
+    }
   }
+  t.setTable = (t.cloth > 0 ? 1 : 0) + Math.min(3, t.laid);
   return t;
 };
 
@@ -29799,8 +32011,13 @@ SA.Guests.rate = function (state, result, level) {
      a sukkah, the fourth does not. */
   var seatRoom = SA.Guests.roomFor(state);
   var seated = Math.min(t.seats, seatRoom * 2);
-  var comfort = saPct(seated / Math.max(2, seatRoom) * 0.55 +
-    Math.min(t.tables, 2) / 2 * 0.28 + Math.min(t.soft, 3) / 3 * 0.17);
+  /* A LAID TABLE IS THE POINT OF A TABLE.
+     Somewhere to sit, something to put the food on - and something actually
+     ON it. A cloth, the licht, the kiddush becher and a bowl of fruit is what
+     turns a shed with furniture in it into somewhere you eat Yom Tov. */
+  var comfort = saPct(seated / Math.max(2, seatRoom) * 0.48 +
+    Math.min(t.tables, 2) / 2 * 0.24 + Math.min(t.soft, 3) / 3 * 0.14 +
+    Math.min(t.setTable, 4) / 4 * 0.14);
 
   /* SIMCHA - light, colour and the smell of Yom Tov. Variety counts for real:
      six lanterns and nothing else is a lit shed. */
@@ -29821,9 +32038,10 @@ SA.Guests.rate = function (state, result, level) {
      room, a table to eat at, and walls enough to feel like somewhere. */
   var walls = m.fullWallCount || 0;
   var orchim = saPct(
-    Math.min(seated, seatRoom) / seatRoom * 0.5 +
-    (t.tables > 0 ? 0.25 : 0) +
-    Math.min(walls, 4) / 4 * 0.25);
+    Math.min(seated, seatRoom) / seatRoom * 0.42 +
+    (t.tables > 0 ? 0.20 : 0) +
+    (t.laid > 0 ? 0.15 : 0) +
+    Math.min(walls, 4) / 4 * 0.23);
 
   /* Halacha is half the mark. A gorgeous pasul sukkah is not a good sukkah. */
   var total = Math.round(shade * 0.34 + comfort * 0.22 + simcha * 0.22 + orchim * 0.22);
@@ -29864,6 +32082,12 @@ SA.Guests.LINES = [
     en: 'Very nice. Very nice. Who did you have to know to get this?' },
   { who: 'bubby', good: true, w: 65, test: function (s, r, t) { return t.judaica >= 1 && t.soft >= 1; },
     en: 'A plaque on the wall and a cloth on the table. Exactly right.' },
+  { who: 'bubby', good: true, w: 92, test: function (s, r, t) { return t.cloth >= 1 && t.laid >= 3; },
+    en: 'The table is laid already. Sit down, sit down, we are only waiting on you.' },
+  { who: 'guest', good: true, w: 78, test: function (s, r, t) { return t.tableLights >= 1 && t.cloth >= 1; },
+    en: 'Licht on a white cloth. I could be in my own mother\'s sukkah.' },
+  { who: 'uncle', good: false, w: 44, test: function (s, r, t) { return t.tables >= 1 && t.laid === 0; },
+    en: 'Nice table. Nothing on it, though - where is the becher?' },
   { who: 'kids', good: true, w: 60, test: function (s, r, t) { return !!(t.ids.hammock || t.ids.beanbag || t.ids.board_games); },
     en: 'Can we sleep out here? Please?' },
   { who: 'guest', good: true, w: 55, test: function (s, r, t, sc) { return sc.simcha >= 60; },
@@ -29998,6 +32222,12 @@ SA.Guests.gradeFor = function (level, state, result, secondsLeft, duration) {
 };
 
 SA.Lang.add({
+  'The table is laid already. Sit down, sit down, we are only waiting on you.':
+    'השולחן כבר ערוך. שבו, שבו, מחכים רק לכם.',
+  'Licht on a white cloth. I could be in my own mother\'s sukkah.':
+    'נרות על מפה לבנה. כאילו אני בסוכה של אמא שלי.',
+  'Nice table. Nothing on it, though - where is the becher?':
+    'שולחן יפה. רק שאין עליו כלום - איפה הכוס?',
   'Your neighbour': 'השכן שלכם',
   'The kids': 'הילדים',
   'Your uncle': 'הדוד שלכם',
