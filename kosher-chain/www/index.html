@@ -587,10 +587,41 @@ var Haptics = {
 /* ================================================================= sound
    Tiny WebAudio bleeper. iOS will not make a sound until a real touch has
    resumed the context, so unlock() runs on the first pointerdown. */
+/* Hub SOUND / MUSIC / BUZZ live in Mitzvah Dash. Same WebView origin, so
+   this page can read the shared key (or the Dash profile as a fallback). */
+var PlayAudio = {
+  KEY: 'mitzmode.play.audio.v1',
+  DASH_KEY: 'mitzvahdash.profile.v1',
+  read: function () {
+    var o = { sound: true, music: true, haptics: true };
+    function take(src) {
+      if (!src || typeof src !== 'object') return false;
+      o.sound = src.sound !== false;
+      o.music = src.music !== false;
+      o.haptics = src.haptics !== false;
+      return true;
+    }
+    try {
+      if (take(JSON.parse(localStorage.getItem(PlayAudio.KEY) || 'null'))) return o;
+    } catch (e) {}
+    try {
+      var dash = JSON.parse(localStorage.getItem(PlayAudio.DASH_KEY) || 'null');
+      take(dash && dash.opts);
+    } catch (e) {}
+    return o;
+  },
+  apply: function () {
+    var o = PlayAudio.read();
+    Sound.muted = !o.sound;
+    Haptics.on = !!o.haptics;
+  }
+};
+
 var Sound = {
   ctx: null, master: null, ready: false, muted: false,
 
   unlock: function () {
+    if (Sound.muted) return;
     if (Sound.ready) {
       if (Sound.ctx && Sound.ctx.state === 'suspended') Sound.ctx.resume();
       return;
@@ -6040,6 +6071,7 @@ var Game = {
   },
 
   boot: function () {
+    PlayAudio.apply();
     Lang.boot();
     Nusach.boot();
     Progress.load();
@@ -6061,7 +6093,8 @@ var Game = {
         if (s instanceof Play && !s.over) Game.pause(s);
       } else {
         Game.last = 0;
-        if (Sound.ctx && Sound.ctx.state === 'suspended') Sound.ctx.resume();
+        PlayAudio.apply();
+        if (!Sound.muted && Sound.ctx && Sound.ctx.state === 'suspended') Sound.ctx.resume();
       }
     });
 
@@ -6104,6 +6137,7 @@ window.KC = {
   plateSide: plateSide, foodByName: foodByName,
   /* the icon builder paints the same food art the game uses */
   paintFood: paintFood, PAL: PAL, Draw: Draw,
+  PlayAudio: PlayAudio, Sound: Sound, Haptics: Haptics,
   /* Play tab pause: leave a live table paused instead of mid-drag */
   pause: function () {
     var s = Game.screen;
