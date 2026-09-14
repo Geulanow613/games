@@ -174,9 +174,10 @@ var Profile = {
       if (d.badges && d.badges.b_boss) base.jellyZilla = true;
     }
     Profile.data = base;
+    PlayAudio.publish();
     return base;
   },
-  save: function () { try { Store.write(CFG.SAVE_KEY, JSON.stringify(Profile.data)); } catch (e) {} },
+  save: function () { try { Store.write(CFG.SAVE_KEY, JSON.stringify(Profile.data)); } catch (e) {} PlayAudio.publish(); },
   addPoints: function (n) { Profile.data.mitzvahPoints += Math.max(0, Math.floor(n)); Profile.save(); },
   reached: function (game) {
     var r = Profile.data && Profile.data.reached;
@@ -226,6 +227,23 @@ var Profile = {
     Profile.data.jellyZilla = true;
     Profile.save();
     return true;
+  }
+};
+
+/* Shared SOUND / MUSIC / BUZZ for every Play-tab game on this WebView origin.
+   Camp Kosh and Sukkah Scramble have no own toggles — they read this key. */
+var PlayAudio = {
+  KEY: 'mitzmode.play.audio.v1',
+  publish: function () {
+    try {
+      var o = Profile.data && Profile.data.opts;
+      if (!o) return;
+      Store.write(PlayAudio.KEY, JSON.stringify({
+        sound: o.sound !== false,
+        music: o.music !== false,
+        haptics: o.haptics !== false
+      }));
+    } catch (e) {}
   }
 };
 

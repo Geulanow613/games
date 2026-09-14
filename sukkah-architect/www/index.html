@@ -35463,10 +35463,13 @@ SA.Audio = {
   ctx: null,
   master: null,
   enabled: true,
+  hapticsEnabled: true,
   _noise: null,
   _last: {},          // name -> last play time, for the repeat throttle
   _voices: 0,
   STORE_KEY: 'sukkah_sound_v1',
+  PLAY_KEY: 'mitzmode.play.audio.v1',
+  DASH_KEY: 'mitzvahdash.profile.v1',
   _menuWant: false,     // title screen asked for BGM (may wait for unlock)
   _menuPlaying: false,
   _menuGain: null,
@@ -35476,14 +35479,43 @@ SA.Audio = {
 
 SA.Audio.MAX_VOICES = 10;
 
+SA.Audio.readHub = function () {
+  var o = { sound: true, music: true, haptics: true };
+  function take(src) {
+    if (!src || typeof src !== 'object') return false;
+    o.sound = src.sound !== false;
+    o.music = src.music !== false;
+    o.haptics = src.haptics !== false;
+    return true;
+  }
+  try {
+    if (take(JSON.parse(localStorage.getItem(SA.Audio.PLAY_KEY) || 'null'))) return o;
+  } catch (e) {}
+  try {
+    var dash = JSON.parse(localStorage.getItem(SA.Audio.DASH_KEY) || 'null');
+    take(dash && dash.opts);
+  } catch (e) {}
+  return o;
+};
+
 SA.Audio.load = function () {
+  SA.Audio.enabled = true;
+  SA.Audio.hapticsEnabled = true;
   try {
     var raw = localStorage.getItem(SA.Audio.STORE_KEY);
     if (raw === '0') SA.Audio.enabled = false;
   } catch (e) {}
+  try {
+    var hub = SA.Audio.readHub();
+    if (!hub.sound) SA.Audio.enabled = false;
+    if (!hub.haptics) SA.Audio.hapticsEnabled = false;
+  } catch (e) {}
 };
 
 SA.Audio.setEnabled = function (on) {
+  try {
+    if (on && !SA.Audio.readHub().sound) on = false;
+  } catch (e) {}
   SA.Audio.enabled = !!on;
   try { localStorage.setItem(SA.Audio.STORE_KEY, on ? '1' : '0'); } catch (e) {}
   /* Turning it back on is itself worth a sound - otherwise the button gives no
@@ -35748,7 +35780,7 @@ SA.Audio.forPiece = function (piece, entry) {
    has no vibrate API and simply returns undefined). Tied to the same switch as
    sound, because "quiet" means "stop poking me" too. */
 SA.Audio.buzz = function (ms) {
-  if (!SA.Audio.enabled) return;
+  if (!SA.Audio.enabled || !SA.Audio.hapticsEnabled) return;
   try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {}
 };
 
