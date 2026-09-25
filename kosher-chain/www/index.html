@@ -177,7 +177,7 @@ var HE = {
   'Loop the chain back onto itself to sweep the whole board of that food.':
     'סגור את השרשרת על עצמה וכל המאכל הזה נעלם מהלוח.',
   'WASH, RINSE and BENTCH are free. Bentching ends the meal and starts a new one.':
-    'נטילה, שתייה ובנטשן בחינם. בנטשן מסיים את הסעודה ומתחיל סעודה חדשה.',
+    'נטילה, שתייה וברכת המזון בחינם. ברכת המזון מסיימת את הסעודה ומתחילה סעודה חדשה.',
   'Drag through what goes together': 'גרור דרך מה שהולך ביחד',
   'MORE GAMES': 'עוד משחקים',
 
@@ -226,6 +226,7 @@ var HE = {
   /* the dining hall */
   'SIMCHA': 'שמחה',
   'DAY': 'יום',
+  'SIX WEEKS OF CAMP': 'שישה שבועות בקעמפ',
   'WEEK': 'שבוע',
   'WEEK 1': 'שבוע 1',
   'WEEK 2': 'שבוע 2',
@@ -251,10 +252,10 @@ var HE = {
   'Fish and dairy, yum! Thanks, Rema!': 'דגים וחלבי, טעים! תודה רמ״א!',
 
   /* the meal, and the sitting of boys eating it */
-  'BENTCH': 'בנטשן',
+  'BENTCH': 'ברכת המזון',
   'KASHRUS': 'כשרות',
   'SCHEDULE': 'לוח זמנים',
-  'BENTCHED - NEW MEAL': 'בנטשו - סעודה חדשה',
+  'BENTCHED - NEW MEAL': 'בירכו ברכת המזון - סעודה חדשה',
   'Bentch first - milchig needs its own meal': 'קודם מבנטשים - חלבי צריך סעודה משלו',
   'Fleishig meal - bentch to start a milchig one': 'סעודה בשרית - תבנטש כדי להתחיל חלבית',
   'Nothing has been eaten yet': 'עוד לא אכלו כלום',
@@ -2023,7 +2024,7 @@ var TEACH = {
   bentch: {
     title: 'Bentch first',
     body: 'Milchig is not served at a fleishig meal at all, even once the six hours are up - the bread on that table belongs to the fleishig meal. The boys bentch, the table is cleared, and then a new meal can be milchig.',
-    source: 'Shulchan Aruch, Yoreh Deah 89:4',
+    source: 'Shulchan Aruch, Yoreh Deah 89:1',
     note: 'BENTCH is free, but it only helps once the six hours are done.'
   },
   rinse: {
@@ -2126,9 +2127,9 @@ var HE_TEACH = {
   'Bentch first': 'קודם מבנטשים',
   'Milchig is not served at a fleishig meal at all, even once the six hours are up - the bread on that table belongs to the fleishig meal. The boys bentch, the table is cleared, and then a new meal can be milchig.':
     'חלבי לא מגישים בסעודה בשרית בכלל, גם כששש השעות נגמרו - הלחם שעל השולחן הוא חלק מהסעודה הבשרית. הבחורים מבנטשים, מפנים את השולחן, ואז סעודה חדשה יכולה להיות חלבית.',
-  'Shulchan Aruch, Yoreh Deah 89:4': 'שולחן ערוך, יורה דעה פ״ט ד׳',
+  'Shulchan Aruch, Yoreh Deah 89:1': 'שולחן ערוך, יורה דעה פ״ט א׳',
   'BENTCH is free, but it only helps once the six hours are done.':
-    'בנטשן בחינם, אבל זה עוזר רק כששש השעות נגמרו.',
+    'ברכת המזון בחינם, אבל היא עוזרת רק כששש השעות נגמרו.',
   'After milchig': 'אחרי חלבי',
   'Milchig before fleishig is quicker, because milk leaves no taste behind: rinse your mouth, wash your hands, and eat something pareve first. Many families also wait half an hour or an hour.':
     'מחלבי לבשרי זה מהר יותר, כי חלב לא משאיר טעם: שוטפים את הפה, נוטלים ידיים, ואוכלים משהו פרווה. הרבה משפחות גם מחכות חצי שעה או שעה.',
@@ -2829,7 +2830,7 @@ Play.prototype.serve = function () {
     for (i = 0; i < this.board.cells.length; i++) {
       tile = this.board.cells[i];
       if (!tile || tile.covered) continue;
-      if (tile.f.cat === this.loopSide || seen[tile.id]) cleared.push(tile);
+      if (seen[tile.id] || (tile.f.cat === this.loopSide && plateAccepts(this.plate, tile.f).ok)) cleared.push(tile);
     }
   } else {
     for (i = 0; i < this.chain.length; i++) cleared.push(this.chain[i].tile);
@@ -3145,6 +3146,7 @@ Play.prototype.withFreeActions = function (fn) {
 Play.prototype.freeHintWhy = function () {
   if (this.mealAte > 0 && this.mealSide === 'meat') return 'Bentch first - milchig needs its own meal';
   if (!this.washed) return 'Wash your hands before challah';
+  if (this.needWash || this.needPareve) return 'After milchig: wash, drink, then something pareve';
   if (this.needDrink) return 'Rinse between fish and meat';
   if (this.needFishDrink) return 'Rinse between meat and fish';
   if (this.needDairyRinse) return 'Rinse between fish and dairy';
