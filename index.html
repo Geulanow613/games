@@ -311,6 +311,8 @@ var Lang = {
     if (m) return m[1] + ' מתוך ' + m[2] + ' עדיין דולקים - המצווה התקיימה.';
     m = /^(\d+)\/(\d+) badges$/.exec(s);
     if (m) return m[1] + '/' + m[2] + ' אותות';
+    m = /^(\d+) \/ (\d+) badges  •  (\d+) \/ (\d+) cards read$/.exec(s);
+    if (m) return m[1] + ' / ' + m[2] + ' אותות  •  ' + m[3] + ' / ' + m[4] + ' כרטיסים נקראו';
     m = /^(\d+) \/ (\d+) badges/.exec(s);
     if (m) return m[1] + ' / ' + m[2] + ' אותות' + s.slice(m[0].length);
     m = /^(.*) MP$/.exec(s);
@@ -358,19 +360,44 @@ var Lang = {
     if (m) return 'האש כבתה +' + m[1];
     m = /^STREET COMPLETE \+(\d+)$/.exec(s);
     if (m) return 'הרחוב הושלם +' + m[1];
+    m = /^SCORE\s+(.*)$/.exec(s);
+    if (m) return 'ניקוד  ' + m[1];
+    m = /^(\d+)\/(\d+) burning$/.exec(s);
+    if (m) return m[1] + '/' + m[2] + ' דולקים';
+    m = /^TAP x(\d+)$/.exec(s);
+    if (m) return 'לחצו ×' + m[1];
+    m = /^HELPED (\d+)\/(\d+)$/.exec(s);
+    if (m) return 'עזרתם ' + m[1] + '/' + m[2];
+    m = /^STREAK x(\d+)( !)?$/.exec(s);
+    if (m) return 'רצף x' + m[1] + (m[2] || '');
+    m = /^RELOAD (\d+)s$/.exec(s);
+    if (m) return 'מילוי ' + m[1] + 'ש׳';
+    m = /^([←→]) strong$/.exec(s);
+    if (m) return m[1] + ' חזק';
+    m = /^SWIPE x(\d+)$/.exec(s);
+    if (m) return 'החליקו ×' + m[1];
+    m = /^(\d+) to shul$/.exec(s);
+    if (m) return 'עוד ' + m[1] + ' עד בית הכנסת';
+    m = /^x([\d.]+) mitzvah multiplier$/.exec(s);
+    if (m) return 'x' + m[1] + ' מכפיל מצווה';
+    m = /^Night (\d+) ran out with every light dark$/.exec(s);
+    if (m) return 'לילה ' + m[1] + ' נגמר וכל הנרות כבו';
+    m = /^Time ran out - (\d+) of (\d+) coins landed$/.exec(s);
+    if (m) return 'הזמן נגמר - ' + m[1] + ' מתוך ' + m[2] + ' מטבעות הגיעו';
     return s;
   },
   he: {
     'MITZVAH': 'מצווה',
     'DASH': 'דאש',
-    'Six arcade minigames. Real halacha.': 'שש משחקים. הלכה אמיתית.',
-    'Seven arcade minigames. Real halacha.': 'שבע משחקים. הלכה אמיתית.',
+    'Six arcade minigames. Real halacha.': 'שישה משחקים. הלכה אמיתית.',
+    'Seven arcade minigames. Real halacha.': 'שבעה משחקים. הלכה אמיתית.',
     'Eight arcade minigames. Real halacha.': 'שמונה משחקים. הלכה אמיתית.',
     'Camp Kosh': 'קעמפ כשר',
     'Feed the boys, keep it kosher': 'תאכיל את הבחורים, תשמור על כשרות',
     'Sukkah Scramble': 'מרוץ הסוכה',
     'Build it kosher, piece by piece': 'בנה אותה כשרה, חלק אחר חלק',
     'HALACHA GALLERY': 'גלריית ההלכה',
+    'CONTINUE': 'המשיכו',
     'BACK': 'חזרה',
     'PLAY': 'שחק',
     'BACK TO MENU': 'לתפריט',
@@ -411,7 +438,7 @@ var Lang = {
     'Chabad': 'חב״ד',
     'Halacha cards appear as you progress.': 'כרטיס הלכה בסוף כל שלב.',
     'When you say the first line of Shema - Hear Israel, Hashem is our God, Hashem is One - lots of kids (and grown-ups) cover their eyes with a hand. It shuts out the room for a second so you can really mean the words. The mitzvah is saying Shema with your heart in it. Covering your eyes is the trick that helps you get there.': 'כשאומרים את השורה הראשונה של שמע - שמע ישראל, ה׳ אלוקינו, ה׳ אחד - הרבה ילדים (וגם גדולים) מכסים את העיניים ביד. זה סוגר את החדר לשנייה כדי באמת להתכוון למילים. המצווה היא לומר שמע עם הלב. כיסוי העיניים הוא הטריק שעוזר להגיע לשם.',
-    'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday. After midday it is a makeup, not the morning tefillah. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year. Families also argue about when that clock STARTS - sunrise, or a bit earlier at dawn - so two shuls on the same street can post different times. Follow yours.': 'לכתחילה אומרים שמונה עשרה של שחרית עד סוף השעה הרביעית של היום. מי שפספס עדיין יכול להתפלל עד חצות. אחרי חצות זו תשלומין, לא תפילת הבוקר. ו״שעה״ כאן אינה שישים דקות: מחלקים את האור לשניים-עשר חלקים שווים, והזמן זז כל השנה. משפחות גם חולקות מתי השעון מתחיל - בזריחה, או קצת קודם בשחר - אז שני בתי כנסת באותו רחוב יכולים לפרסם זמנים שונים. לכו לפי שלכם.',
+    'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday - and you still have the reward of prayer, but not the reward of davening on time. After chatzos you do not say the morning Shemoneh Esrei. The makeup is a second Shemoneh Esrei at Mincha. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year. Families also argue about when that clock STARTS - sunrise, or a bit earlier at dawn - so two shuls on the same street can post different times. Follow yours.': 'הזמן הטוב לשמונה עשרה של שחרית הוא עד סוף השעה הרביעית. מי שפספס עדיין יכול להתפלל עד חצות, ויש לו שכר תפילה, אבל לא שכר של תפילה בזמנה. אחרי חצות לא אומרים שמונה עשרה של בוקר. התשלומין הם שמונה עשרה שנייה במנחה. ו״שעה״ כאן אינה שישים דקות: מחלקים את האור לשנים-עשר חלקים שווים, והזמן זז כל השנה. משפחות גם חולקות מתי השעון מתחיל, בזריחה או קצת קודם בעלות השחר. לכו לפי שלכם.',
     'the ideal last time for morning Shemoneh Esrei': 'הזמן האידיאלי האחרון לשמונה עשרה של שחרית',
     '"Hear Israel" - the first line of Shema': '״שמע ישראל״ - השורה הראשונה של שמע',
     'meaning the words, not just saying them': 'להתכוון למילים, לא רק להגיד אותן',
@@ -919,6 +946,26 @@ var Lang = {
     'DELIVERY': 'משלוח',
     'HARD': 'קשה',
     'GENTLE': 'עדין',
+    'drag me': 'תגררו אותי',
+    'TAP TO CARRY': 'לחצו כדי לסחוב',
+    'LEFT TO BURN': 'נשאר לדלוק',
+    'DOUBLE POINTS!': 'נקודות כפולות!',
+    'PULL BACK TO THROW   -   DOWN LOBS UP': 'משכו אחורה לזריקה  -  למטה זה עולה',
+    'PUSHKA': 'קופה',
+    'BEIS KNESSES': 'בית כנסת',
+    'BUS': 'אוטובוס',
+    'TAXI': 'מונית',
+    'MATZAH': 'מצה',
+    'WIND': 'רוח',
+    'still': 'שקט',
+    'HAND': 'יד',
+    'TRAY': 'מגש',
+    'A coin?': 'מטבע?',
+    'Drop it in!': 'תכניסו!',
+    'For EVERYBODY!': 'לכולם!',
+    'catching breath': 'מתאוששים',
+    'PURIM': 'פורים',
+    'TOSS HIM THE GOLD!': 'תזרקו לו את הזהב!',
     'WIND!': 'רוח!',
     'CART': 'עגלה',
     'SACK': 'שק',
@@ -1028,7 +1075,7 @@ var Lang = {
     'Ben Azzai said: run to an easy mitzvah the same way you run to a hard one, because one mitzvah pulls the next one along behind it. And do not do it for the prize - the reward for a mitzvah IS the mitzvah.': 'בן עזאי אמר: רצים למצווה קלה כמו לקשה, כי מצווה אחת מושכת את הבאה אחריה. ואל תעשו בשביל הפרס - השכר של מצווה הוא המצווה.',
     'The Torah does not say "give some money". It says open your hand and give him dei machsoro - enough for what HE is missing. Not a fixed amount. What this person is short of. The Gemara pushes it to an extreme: someone who used to be rich and is now embarrassed to walk everywhere might need a horse - so you get him a horse.': 'התורה לא אומרת ״תנו קצת כסף״. היא אומרת לפתוח את היד ולתת די מחסורו - מה שהוא חסר. לא סכום קבוע. מה שחסר לאדם הזה. הגמרא דוחפת לקיצון: מי שהיה עשיר ועכשיו מתבייש ללכת ברגל אולי צריך סוס - אז משיגים לו סוס.',
     'Tzedakah is measured by what it does to the person getting it. A coin that lands in the dirt and has to be picked up in front of a street full of people has taken more from him than it gave. Get it into his hand.': 'צדקה נמדדת במה שהיא עושה למי שמקבל. מטבע שנפל לבוץ וצריך להרים מול רחוב מלא אנשים לקח ממנו יותר ממה שנתן. תכניסו ליד.',
-    'Rambam lists eight levels of giving, worst to best. Near the very top: the giver does not know who got it, and the receiver does not know who gave it. In the Beis HaMikdash there was a room for exactly this - the Chamber of Secrets. Quiet people put money in. Poor people from good families took money out. Nobody ever saw anybody.': 'הרמב״ם מונה שמונה מדרגות של נתינה, מהגרוע לטוב. קרוב לראש: הנותן לא יודע מי קיבל, והמקבל לא יודע מי נתן. בבית המקדש היה חדר בדיוק לזה - לשכת חשאים. אנשים שקטים שמו כסף. עניים ממשפחות טובות לקחו. אף אחד לא ראה אף אחד.',
+    'Rambam lists eight levels of giving, best first, then down. The highest: a job, a loan, or a partnership, so he does not have to ask again. Next: the giver does not know who got it, and the receiver does not know who gave it. In the Beis HaMikdash there was a room for exactly this - the Chamber of Secrets. Quiet people put money in. Poor people from good families took money out. Nobody ever saw anybody.': 'הרמב״ם מונה שמונה מדרגות, מהגבוהה ולמטה. הכי למעלה: עבודה, הלוואה או שותפות, כדי שלא יצטרך לבקש שוב. אחר כך: הנותן לא יודע מי קיבל, והמקבל לא יודע מי נתן. בבית המקדש היה חדר לזה, לשכת חשאים. שקטים שמו כסף. עניים ממשפחות טובות לקחו. אף אחד לא ראה אף אחד.',
     'You cannot help everybody, so there is an order. Your own poor relatives come before other poor people. The poor of your own city come before the poor of somewhere else. This is not playing favourites - it is the opposite. If everyone is equally your job, then nobody actually is.': 'אי אפשר לעזור לכולם, אז יש סדר. העניים של המשפחה לפני עניים אחרים. עניי העיר לפני עניי מקום אחר. זה לא משחק מועדפים - זה ההפך. אם כולם באותה מידה התפקיד שלכם, אז אף אחד לא באמת.',
     'On Rambam\'s ladder, giving before someone asks ranks higher than giving after. Think about why. By the time a person has put his hand out and said the words, something has already been taken from him - and your money does not give that part back.': 'בסולם של הרמב״ם, לתת לפני שמבקשים זה גבוה יותר מאחרי. תחשבו למה. עד שאדם הוציא יד ואמר את המילים, כבר לקחו ממנו משהו - והכסף שלכם לא מחזיר את החלק הזה.',
     'The highest of the eight levels is not a gift at all. It is a loan, a job, a partnership - a hand under someone\'s arm before he falls. Anything that ends with him not needing to ask again. Giving him money helps today. Giving him work means there is no tomorrow to worry about.': 'המדרגה הכי גבוהה משמונה היא בכלל לא מתנה. זה הלוואה, עבודה, שותפות - יד מתחת לזרוע לפני שנופל. כל דבר שנגמר בזה שהוא לא צריך לבקש שוב. כסף עוזר היום. עבודה אומרת שאין מחר לדאוג ממנו.',
@@ -1037,13 +1084,15 @@ var Lang = {
     'Someone asks and your pockets are genuinely empty. You still do not walk past. Rambam says: settle him with words. And the Gemara counts it up - give a coin and you get six blessings, speak kindly to him and you get eleven. The one thing you may never do is nothing.': 'מישהו מבקש והכיסים באמת ריקים. עדיין לא עוברים ליד. הרמב״ם אומר: פייסו בדברים. והגמרא סופרת - מטבע אחד זה שש ברכות, מילה טובה זה אחת עשרה. הדבר היחיד שאסור זה כלום.',
     'Normally you can look into a claim before handing over money (though never before handing over food). On Purim that stops completely: whoever puts out a hand, you give, no questions asked. Two gifts to two poor people is the actual obligation - and Rambam says this is the better place to spend your Purim money than on the party.': 'רגיל אפשר לבדוק טענה לפני שנותנים כסף (אבל אף פעם לא לפני שנותנים אוכל). בפורים זה נעצר לגמרי: מי שמושיט יד, נותנים, בלי שאלות. שתי מתנות לשני עניים זה החיוב - והרמב״ם אומר שזה המקום הטוב יותר לכסף של פורים מאשר המסיבה.',
     'The usual measure is a tenth of what you earn. A fifth is the generous upper limit for most people - so someone who is giving today does not end up needing to receive tomorrow. Very wealthy people, or someone writing a will, can go past that. Ask if you are not sure.': 'המידה הרגילה היא עשירית ממה שמרוויחים. חומש זה הגבול הנדיב למעלה לרוב האנשים - כדי שמי שנותן היום לא יצטרך לקבל מחר. עשירים מאוד, או מי שכותב צוואה, יכולים לעבור את זה. תשאל אם לא בטוח.',
-    'Here is a question worth asking: is tzedaka money for ANYBODY? No. The Torah says achicha ha\'evyon - your brother who is in need. That is who the money is for. The man strolling past in the fine coat with a silver-topped stick is not asking you for anything and is not short of anything, and a coin thrown at him is simply a coin you no longer have for the person who is. How do you tell? Usually you do not have to work very hard: the one who needs it is the one with his hand out.': 'שאלה ששווה לשאול: כסף צדקה זה לכל אחד? לא. התורה אומרת אחיך האביון - האח שצריך. זה למי הכסף. האיש שטייל במעיל יפה עם מקל כסף לא מבקש כלום ולא חסר לו כלום, ומטבע שנזרק עליו הוא פשוט מטבע שכבר אין למי שכן צריך. איך יודעים? בדרך כלל לא צריך לעבוד קשה: מי שצריך זה מי עם היד בחוץ.',
+    'Here is a question worth asking: is tzedaka for ANYBODY? No. The Torah says achicha ha\'evyon - your brother who is in need. The man strolling past in the fine coat with a silver-topped stick is not short of anything, and a coin thrown at him is a coin you no longer have for the person who is. If someone you do not know says he is hungry, you feed him right away. You do not check first. If he asks for clothes, you may check, unless you already know him.': 'שאלה ששווה לשאול: צדקה זה לכל אחד? לא. התורה אומרת אחיך האביון, האח שחסר לו. האיש במעיל היפה עם מקל הכסף לא חסר לו כלום, ומטבע שנזרק עליו הוא מטבע שכבר אין למי שכן צריך. מי שלא מכירים אותו ואומר שהוא רעב, מאכילים אותו מיד. לא בודקים קודם. אם הוא מבקש בגדים, מותר לבדוק, אלא אם כבר מכירים אותו.',
     'So really you were finished the second you lit. Mitzvah Dash does not roll like that - here you fight for every last flame until the clock runs out.': 'אז בעצם סיימתם בשנייה שהדלקתם. מצווה דאש לא עובד ככה - פה נלחמים על כל להבה עד שהשעון נגמר.',
-    'Purim is the one day this changes - everyone who asks gets something, no checking needed. Every other day, look for the hand.': 'בפורים זה משתנה - כל מי שמושיט יד מקבל, בלי לבדוק. בכל יום אחר, מחפשים את היד.',
+    'Purim is different. Everyone who puts out a hand gets something, no checking. The hungry-or-clothes rule is for the rest of the year.': 'בפורים זה אחרת. כל מי שמושיט יד מקבל, בלי לבדוק. הכלל של רעב או בגדים הוא לשאר השנה.',
 
     /* badges + matzah route titles (name fields go through Draw → Lang.t) */
     'Thirty Minutes': 'שלושים דקות',
     'Wind Shield': 'מגן רוח',
+    'Keep every light burning for a full night in Menorah Keeper.': 'החזיקו כל נר דולק לילה שלם בשומר המנורה.',
+    'Block 10 wind gusts with a swipe.': 'חסמו 10 משבי רוח בהחלקה.',
     'Mashgiach': 'משגיח',
     'Mehadrin': 'מהדרין',
     'BAKERY RUN': 'ריצת מאפייה',
@@ -2183,13 +2232,13 @@ var Halacha = {
     /* ---- Zmanim / Shul Crossing ---------------------------------------- */
     { id:'s1', game:'shul', icon:'clock', title:'The Morning Deadline',
       hebrew:'סוֹף זְמַן תְּפִלָּה',
-      body:'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday. After midday it is a makeup, not the morning tefillah. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year. Families also argue about when that clock STARTS - sunrise, or a bit earlier at dawn - so two shuls on the same street can post different times. Follow yours.',
+      body:'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday - and you still have the reward of prayer, but not the reward of davening on time. After chatzos you do not say the morning Shemoneh Esrei. The makeup is a second Shemoneh Esrei at Mincha. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year. Families also argue about when that clock STARTS - sunrise, or a bit earlier at dawn - so two shuls on the same street can post different times. Follow yours.',
       terms:[['Sof zman tefillah','the ideal last time for morning Shemoneh Esrei'],
              ['Chatzos','halachic midday'],
              ['Shacharis','the morning prayers'],
              ['Shemoneh Esrei','the central standing prayer, said quietly'],
              ['Sha\'ah zmanis','a "halachic hour" - one twelfth of the daylight, not sixty minutes']],
-      source:'Berachos 26a; OC 89:1' },
+      source:'Berachos 26a; OC 89:1; OC 108:1' },
     { id:'s2', game:'shul', icon:'people', title:'Cover Your Eyes',
       hebrew:'שְׁמַע יִשְׂרָאֵל',
       body:'When you say the first line of Shema - Hear Israel, Hashem is our God, Hashem is One - lots of kids (and grown-ups) cover their eyes with a hand. It shuts out the room for a second so you can really mean the words. The mitzvah is saying Shema with your heart in it. Covering your eyes is the trick that helps you get there.',
@@ -2362,7 +2411,7 @@ var Halacha = {
       source:'Tehillim 74:21; Rambam Matnos Aniyim 10:4-5' },
     { id:'t3', game:'tzedaka', icon:'seter', title:'So Neither One Knows',
       hebrew:'מַתָּן בַּסֵּתֶר',
-      body:'Rambam lists eight levels of giving, worst to best. Near the very top: the giver does not know who got it, and the receiver does not know who gave it. In the Beis HaMikdash there was a room for exactly this - the Chamber of Secrets. Quiet people put money in. Poor people from good families took money out. Nobody ever saw anybody.',
+      body:'Rambam lists eight levels of giving, best first, then down. The highest: a job, a loan, or a partnership, so he does not have to ask again. Next: the giver does not know who got it, and the receiver does not know who gave it. In the Beis HaMikdash there was a room for exactly this - the Chamber of Secrets. Quiet people put money in. Poor people from good families took money out. Nobody ever saw anybody.',
       terms:[['Matan b\'seter','giving in secret'],
              ['Lishkas chasha\'im','"the Chamber of the Secret Ones" - that room in the Temple']],
       source:'Rambam Matnos Aniyim 10:7-9; Shekalim 5:6; Bava Basra 10b' },
@@ -2418,12 +2467,12 @@ var Halacha = {
 
     { id:'t13', game:'tzedaka', icon:'people', title:'Money for Somebody Who Needs It',
       hebrew:'אָחִיךָ הָאֶבְיוֹן',
-      body:'Here is a question worth asking: is tzedaka money for ANYBODY? No. The Torah says achicha ha\'evyon - your brother who is in need. That is who the money is for. The man strolling past in the fine coat with a silver-topped stick is not asking you for anything and is not short of anything, and a coin thrown at him is simply a coin you no longer have for the person who is. How do you tell? Usually you do not have to work very hard: the one who needs it is the one with his hand out.',
+      body:'Here is a question worth asking: is tzedaka for ANYBODY? No. The Torah says achicha ha\'evyon - your brother who is in need. The man strolling past in the fine coat with a silver-topped stick is not short of anything, and a coin thrown at him is a coin you no longer have for the person who is. If someone you do not know says he is hungry, you feed him right away. You do not check first. If he asks for clothes, you may check, unless you already know him.',
       terms:[['Evyon','somebody who really has nothing - the neediest word the Torah uses'],
              ['Ani','a poor person - the one tzedaka money is meant for'],
              ['Tzedakah','giving to someone in need; the word means "justice", not "charity"']],
-      note:'Purim is the one day this changes - everyone who asks gets something, no checking needed. Every other day, look for the hand.',
-      source:'Devarim 15:7-8; Rambam Hilchos Matnos Aniyim 7:1-2' }
+      note:'Purim is different. Everyone who puts out a hand gets something, no checking. The hungry-or-clothes rule is for the rest of the year.',
+      source:'Devarim 15:7-8; Rambam Hilchos Matnos Aniyim 7:6; Bava Basra 9a' }
   ],
 
   badges: [
@@ -3252,8 +3301,9 @@ var GAMES = [
   { id:'kitchen', name:'Kitchen Match',  tag:'Make a kosher plate',       icon:'leaf',  color:'#5ee0c0', hidden: true },
   { id:'matzah',  name:'Matzah Havoc',   tag:'Twelve-route dash',         icon:'truck', color:'#ff8a6b' },
   { id:'tzedaka', name:'Tzedaka Blast',  tag:'Into their hands',          icon:'coin',  color:'#c9adff' },
-  /* hidden from the menu for now — code kept; may bring it back later */
-  { id:'sukkah',  name:'Sukkah Scramble', tag:'Grab some stuff. Beat the clock. Build it kosher.', icon:'sukkah', color:'#d1975a', external: true, hidden: true }
+  /* own engine - the Play tab host swaps HTML; standalone opens the sibling.
+     Wide leftover tile under the six arcade pairs. */
+  { id:'sukkah',  name:'Sukkah Scramble', tag:'', icon:'sukkah', color:'#d1975a', external: true }
 ];
 /* what the Play tab grid actually shows */
 var VISIBLE_GAMES = GAMES.filter(function (g) { return !g.hidden; });
@@ -3338,7 +3388,7 @@ var Screens = {
         size: 64, color: C.cream, align: 'center', weight: '900',
         stroke: 'rgba(0,0,0,.6)', strokeW: 8, shadow: 'rgba(120,200,255,.4)', shadowBlur: 24
       });
-      Draw.text(ctx, 'Six arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
+      Draw.text(ctx, 'Seven arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
         size: 22, color: 'rgba(255,255,255,.72)', align: 'center', weight: '600'
       });
 
@@ -3393,20 +3443,30 @@ var Screens = {
     if (b.wide) {
       var mid = y + h / 2;
       Icons.draw(ctx, g.icon, x + 76, mid, 64, g.color);
-      Draw.textFit(ctx, g.name, x + 132, mid - 10, w - 320,
-        { size: 26, color: C.cream, weight: '900' });
-      Draw.textFit(ctx, g.tag, x + 132, mid + 20, w - 320,
-        { size: 18, color: 'rgba(255,255,255,.55)', weight: '600' });
+      if (g.tag) {
+        Draw.textFit(ctx, g.name, x + 132, mid - 10, w - 320,
+          { size: 26, color: C.cream, weight: '900' });
+        Draw.textFit(ctx, g.tag, x + 132, mid + 20, w - 320,
+          { size: 18, color: 'rgba(255,255,255,.55)', weight: '600' });
+      } else {
+        Draw.textFit(ctx, g.name, x + 132, mid, w - 320,
+          { size: 26, color: C.cream, weight: '900' });
+      }
       Draw.panel(ctx, x + w - 186, mid - 21, 160, 42, { fill: 'rgba(0,0,0,.4)', radius: 12 });
       Draw.text(ctx, 'BEST  ' + fmt(best), x + w - 106, mid, {
         size: 20, color: best > 0 ? C.gold : 'rgba(255,255,255,.4)', align: 'center', weight: '800'
       });
     } else {
       Icons.draw(ctx, g.icon, x + w / 2, y + h * 0.30, Math.min(56, h * 0.38), g.color);
-      Draw.textFit(ctx, g.name, x + w / 2, y + h * 0.58, w - 28,
-        { size: 22, color: C.cream, align: 'center', weight: '900' });
-      Draw.textFit(ctx, g.tag, x + w / 2, y + h * 0.72, w - 28,
-        { size: 15, color: 'rgba(255,255,255,.55)', align: 'center', weight: '600' });
+      if (g.tag) {
+        Draw.textFit(ctx, g.name, x + w / 2, y + h * 0.58, w - 28,
+          { size: 22, color: C.cream, align: 'center', weight: '900' });
+        Draw.textFit(ctx, g.tag, x + w / 2, y + h * 0.72, w - 28,
+          { size: 15, color: 'rgba(255,255,255,.55)', align: 'center', weight: '600' });
+      } else {
+        Draw.textFit(ctx, g.name, x + w / 2, y + h * 0.64, w - 28,
+          { size: 22, color: C.cream, align: 'center', weight: '900' });
+      }
       Draw.panel(ctx, x + 22, y + h - 42, w - 44, 30, { fill: 'rgba(0,0,0,.4)', radius: 10 });
       Draw.text(ctx, 'BEST  ' + fmt(best), x + w / 2, y + h - 27, {
         size: 16, color: best > 0 ? C.gold : 'rgba(255,255,255,.4)', align: 'center', weight: '800'
@@ -3578,14 +3638,14 @@ var Screens = {
           var hd = g.headers[h];
           var hy = hd.y - g.scroll + 10;
           if (hy > -40 && hy < CFG.H + 40) {
-            Draw.text(ctx, hd.text.toUpperCase(), 40, hy, {
+            Draw.text(ctx, Lang.t(hd.text).toUpperCase(), 40, hy, {
               size: 22, color: C.teal, weight: '900'
             });
             ctx.save();
             ctx.strokeStyle = 'rgba(53,214,196,.28)';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(40 + Draw.measure(ctx, hd.text.toUpperCase(), 22, '900') + 16, hy);
+            ctx.moveTo(40 + Draw.measure(ctx, Lang.t(hd.text).toUpperCase(), 22, '900') + 16, hy);
             ctx.lineTo(CFG.W - 40, hy);
             ctx.stroke();
             ctx.restore();
@@ -3928,7 +3988,7 @@ Screens.renderIntro = function (ctx) {
   });
   Icons.draw(ctx, meta ? meta.icon : 'rosette', CFG.W / 2, topY + 84, 74, accent);
   Draw.textFit(ctx, s.name, CFG.W / 2, topY + 154, w - 72, { size: 36, color: C.cream, align: 'center', weight: '900' });
-  Draw.text(ctx, meta ? meta.tag.toUpperCase() : '', CFG.W / 2, topY + 190,
+  Draw.text(ctx, meta ? Lang.t(meta.tag).toUpperCase() : '', CFG.W / 2, topY + 190,
     { size: 19, color: 'rgba(255,255,255,.5)', align: 'center', weight: '800' });
   ctx.save();
   ctx.strokeStyle = 'rgba(255,255,255,.12)';
@@ -3951,7 +4011,7 @@ Screens.renderIntro = function (ctx) {
   }
   Screens.drawNusachPicker(ctx, L, accent);
   if (L.chap) {
-    var open = Profile.reached(L.chap.key);
+    var open = Math.min(L.chap.count, Profile.reached(L.chap.key));
     Draw.text(ctx, L.chap.word + 'S  -  ' + open + ' OF ' + L.chap.count + ' OPEN',
       CFG.W / 2, L.chapY - 20, { size: 18, color: 'rgba(255,255,255,.55)', align: 'center', weight: '800' });
     for (var q = 0; q < L.chap.count; q++) {
@@ -4044,7 +4104,7 @@ Screens.popupLayout = function (ctx, card) {
   if (card.terms && card.terms.length) {
     termsH = 14;
     for (ti = 0; ti < card.terms.length; ti++) {
-      termsH += Draw.paraHeight(ctx, card.terms[ti][0] + ' - ' + card.terms[ti][1],
+      termsH += Draw.paraHeight(ctx, Lang.t(card.terms[ti][0]) + ' - ' + Lang.t(card.terms[ti][1]),
         bodyW - 30, { size: 20, lineHeight: 27, weight: '700' }) + 6;
     }
     termsH += 14;
@@ -4095,7 +4155,7 @@ Screens.renderPopupScroll = function (ctx, card, L, scroll) {
     ctx.restore();
     var wy2 = ty + 9;
     for (ti = 0; ti < card.terms.length; ti++) {
-      var lab = card.terms[ti][0];
+      var lab = Lang.t(card.terms[ti][0]);
       var labW = Draw.measure(ctx, lab, 20, '900') + 8;
       Draw.text(ctx, lab, x + 62, wy2 + 12, { size: 20, color: '#1f6a5c', weight: '900' });
       wy2 = Draw.para(ctx, '\u2014 ' + Lang.t(card.terms[ti][1]), x + 62 + labW, wy2, bodyW - 46 - labW, {
@@ -5702,7 +5762,7 @@ MenorahKeeper.prototype.completeNight = function () {
   if (grade.key === 'mehadrin' && this.night >= 3) this.award('b_mehadrin');
   if (this.cleanNight) this.award('b_30min');
   /* you kept this night - the next one is yours to jump straight to */
-  if (Profile.unlockLevel('menorah', this.night + 1) && this.night + 1 <= MenorahKeeper.NIGHTS) {
+  if (this.night + 1 <= MenorahKeeper.NIGHTS && Profile.unlockLevel('menorah', this.night + 1)) {
     FX.text(CFG.W / 2, 596, 'NIGHT ' + (this.night + 1) + ' UNLOCKED', C.teal, 28);
   }
   this.night++;
@@ -9450,13 +9510,13 @@ KosherSort.prototype.sortItem = function (item, dir) {
 };
 
 KosherSort.prototype.showHint = function (food) {
-  this.hint = { text: food.name + ': ' + food.hint, t: 0, life: 3.2 };
+  this.hint = { text: Lang.t(food.name) + ': ' + Lang.t(food.hint), t: 0, life: 3.2 };
 };
 
 KosherSort.prototype.levelUp = function () {
   var self = this;
   if (this.level >= 5) this.award('b_mash');
-  if (Profile.unlockLevel('kosher', this.level + 1) && this.level + 1 <= KosherSort.SHIFTS) {
+  if (this.level + 1 <= KosherSort.SHIFTS && Profile.unlockLevel('kosher', this.level + 1)) {
     FX.text(CFG.W / 2, 540, 'SHIFT ' + (this.level + 1) + ' UNLOCKED', C.teal, 28, 3);
   }
   if (this.level >= KosherSort.SHIFTS) {
@@ -9572,7 +9632,9 @@ KosherSort.prototype.update = function (dt) {
       this.items.splice(i, 1);
       this.missed++;
       if (it.covered) {
-        this.hint = { text: 'You never looked under that lid - it was ' + it.food.name + '. ' + it.food.hint, t: 0, life: 3.4 };
+        this.hint = { text: Lang.id() === 'he'
+          ? 'לא הצצתם מתחת למכסה - זה היה ' + Lang.t(it.food.name) + '. ' + Lang.t(it.food.hint)
+          : 'You never looked under that lid - it was ' + it.food.name + '. ' + it.food.hint, t: 0, life: 3.4 };
         this.damage('Left covered to the end', it.x, KosherSort.END - 40);
       } else {
         this.showHint(it.food);
@@ -10824,7 +10886,7 @@ KitchenMatch.prototype.shiftUp = function () {
   Sound.sfx('levelup'); Haptics.win();
   FX.flash(C.green, 0.35);
   FX.text(CFG.W / 2, 620, 'SHIFT ' + this.level + '  +' + bonus, C.green, 36);
-  if (Profile.unlockLevel('kitchen', this.level + 1) && this.level + 1 <= KitchenMatch.SHIFTS) {
+  if (this.level + 1 <= KitchenMatch.SHIFTS && Profile.unlockLevel('kitchen', this.level + 1)) {
     FX.text(CFG.W / 2, 540, 'SHIFT ' + (this.level + 1) + ' UNLOCKED', C.teal, 28, 3);
   }
   if (this.level >= KitchenMatch.SHIFTS) {
@@ -11869,7 +11931,7 @@ MatzahHavoc.prototype.deliver = function () {
   FX.flash(C.gold, 0.45);
   FX.text(CFG.W / 2, 560, 'DELIVERED!  +' + bonus, C.gold, 40, 3);
   for (var i = 0; i < 30; i++) FX.burst(rand(100, 620), rand(400, 800), { n: 1, color: pick([C.gold, C.cream]), spdMax: 320 });
-  if (Profile.unlockLevel('matzah', this.level + 1) && this.level + 1 <= MatzahHavoc.ROUTES) {
+  if (this.level + 1 <= MatzahHavoc.ROUTES && Profile.unlockLevel('matzah', this.level + 1)) {
     FX.text(CFG.W / 2, 500, 'ROUTE ' + (this.level + 1) + ' UNLOCKED', C.teal, 28, 3);
   }
   if (this.level >= MatzahHavoc.ROUTES) {
@@ -13503,7 +13565,7 @@ TzedakaBlast.prototype.closeStreet = function () {
     return;
   } else {
     /* walked it - the next street is yours to jump to whenever you like */
-    if (Profile.unlockLevel('tzedaka', this.level + 1) && this.level + 1 <= TzedakaBlast.STREETS) {
+    if (this.level + 1 <= TzedakaBlast.STREETS && Profile.unlockLevel('tzedaka', this.level + 1)) {
       FX.text(CFG.W / 2, 560, 'STREET ' + (this.level + 1) + ' UNLOCKED', C.teal, 30);
     }
     var bonus = 400 + this.served * 60 + Math.round(this.score * 0.05);
