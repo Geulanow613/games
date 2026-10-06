@@ -157,7 +157,7 @@ SA.Rule = {
   AMAH_TEFACHIM: SA_AMAH,
   WALL_MIN_HEIGHT: 10,          // OC 633:8
   WALL_MIN_FULL_LEN: 7,         // OC 634:1 / 630:2
-  THIRD_WALL_PERP: 1,           // OC 630:2 - afilu tefach: one tefach really is enough
+  THIRD_WALL_PERP: 1,           // OC 630:2 - shorter than 4, within lavud, only with a tzurat ha-petach. A 4-tefach wall needs no tzurat.
   THIRD_WALL_PARALLEL: 5,       // OC 630:3 (just over 4 tefachim)
   LAVUD: 3,                     // OC 630:1,10 - strictly LESS than this bridges
   GROUND_GAP_MAX: 3,            // OC 630:9-10
@@ -27348,6 +27348,10 @@ SA.Halacha.evaluateWalls = function (state, issues, measurements) {
   var thirdWallOk = false;
   var thirdWallStranded = false;   // something IS on a third side, just not by a live corner
   var thirdFullJoins = false;      // 7-tefach third that actually meets a full wall
+  /* A solid third wall of 4 tefachim on an L is the wall. Tzurat ha-petach is
+     the other path: a shorter piece set within 3, which is not yet 4 tefachim
+     of wall. Parallel walls (OC 630:3) still want the doorway form. */
+  var thirdFourOk = false;
   var tzuratPlan = null;
   /* Parallel pair uses the 4+ tefach third (OC 630:3), even if the stub also
      happens to meet one parallel at a corner. Pure L-shape uses the tefach. */
@@ -27381,10 +27385,11 @@ SA.Halacha.evaluateWalls = function (state, issues, measurements) {
         if (nearEnd && full[next] && reachesCorner(next, false)) joinsFull = true;
         if (joinsFull) {
           thirdWallOk = true;
+          if (run.len >= 4) thirdFourOk = true;
           if (run.len >= SA.Rule.WALL_MIN_FULL_LEN) thirdFullJoins = true;
-          if (!tzuratPlan) {
-            /* Wire lintel across the open third side: from the small wall to
-               the far end (tzuras hapesach, OC 630:2-3). */
+          /* Doorway form only when this piece is not itself a 4-tefach wall,
+             or the two full walls are parallel (OC 630:3). */
+          if ((hasParallelPair || run.len < 4) && !tzuratPlan) {
             var fromC = nearStart ? run.start : 0;
             var toC = nearStart ? (len - 1) : (run.start + run.len - 1);
             tzuratPlan = {
@@ -27400,13 +27405,15 @@ SA.Halacha.evaluateWalls = function (state, issues, measurements) {
   }
   /* A full seven-tefach third that is butted into a full wall (elephant on the
      west corner of south, east and west already up) is three walls meeting.
-     Tzurat ha-petach is only the stub trick (a tefach, or 4+ on parallels). */
+     On an L, four tefachim of third wall is enough by itself. Tzurat ha-petach
+     is only the short piece within three, or the parallel-wall case (OC 630:3). */
   if (!threeConnected && thirdFullJoins && fullCount >= 3) threeConnected = true;
-  var minimalWalls = !threeConnected && (hasCornerPair || hasParallelPair) && thirdWallOk;
+  var solidFour = !hasParallelPair && thirdFourOk;
+  var minimalWalls = !threeConnected && !solidFour && (hasCornerPair || hasParallelPair) && thirdWallOk;
   var hasTzurat = !!(state.tzuratHapetach && tzuratPlan &&
     state.tzuratHapetach.side === tzuratPlan.side);
-  var wallsOk = threeConnected || (minimalWalls && hasTzurat);
-  if (!threeConnected && !minimalWalls) {
+  var wallsOk = threeConnected || solidFour || (minimalWalls && hasTzurat);
+  if (!threeConnected && !minimalWalls && !solidFour) {
     /* Name the ONE thing that is actually missing. A single catch-all sentence
        for every wall failure left the player re-reading the whole rule and
        guessing which half of it they had already satisfied - two walls up and a
@@ -27426,20 +27433,21 @@ SA.Halacha.evaluateWalls = function (state, issues, measurements) {
     } else if (thirdWallStranded) {
       wallIssue = 'The third wall has to sit within three tefachim of a corner that one of the full walls already reaches - not out in the middle, and not at the empty far corner (OC 630:2).';
     } else if (hasParallelPair) {
-      wallIssue = 'Two walls face each other - the third side needs a little over four tefachim of wall at one end (OC 630:3).';
+      wallIssue = 'Two walls face each other. Put a little over four tefachim of wall within three tefachim of one end — lavud brings that side to seven — and close across with a tzurat ha-petach (OC 630:3).';
     } else if (hasCornerPair) {
-      wallIssue = 'Two full walls meet - now add a third wall of even one tefach, right against one of their far corners (OC 630:2).';
+      wallIssue = 'Two full walls meet. Add a third wall of four tefachim within three tefachim of the open end of a full wall — not at the empty far corner. That four-tefach wall does not need a tzurat ha-petach. A shorter piece in that same spot works only with a tzurat ha-petach (OC 630:2).';
     } else {
-      wallIssue = 'Two walls face each other - the third side needs a little over four tefachim of wall at one end (OC 630:3).';
+      wallIssue = 'Two walls face each other. Put a little over four tefachim of wall within three tefachim of one end — lavud brings that side to seven — and close across with a tzurat ha-petach (OC 630:3).';
     }
     issues.push({ severity: 'incomplete', code: 'walls_incomplete', en: wallIssue, cardId: 'sk_two_walls' });
   } else if (minimalWalls && !hasTzurat) {
-    /* The tefach third wall alone is not enough - OC 630:2-3 wants a tzuras
-       hapesach (doorway form) across the open side. Three full meeting walls
-       skip this entirely (Rema). */
+    /* Shorter than four tefachim, or two parallel walls. A four-tefach wall
+       on an L already counted above and never reaches this branch. */
     issues.push({
       severity: 'incomplete', code: 'tzurat_hapetach_needed',
-      en: 'The small third wall needs a tzurat ha-petach - a doorway form with a wire across the open side - because a one-tefach wall does not close the sukkah by itself (Shulchan Aruch OC 630:2). Tap below to add it.',
+      en: hasParallelPair
+        ? 'The four-tefach piece is within three of the wall. Two facing walls still need a tzurat ha-petach across that side (OC 630:3). Tap Add a tzurat ha-petach.'
+        : 'This piece is within three tefachim of the corner, and it is shorter than four. Tap Add a tzurat ha-petach so that side counts (OC 630:2).',
       cardId: 'sk_two_walls',
       anchor: tzuratPlan ? { side: tzuratPlan.side, col: tzuratPlan.fromCol } : null
     });
@@ -29013,13 +29021,17 @@ SA.Lang.add({
     'הקיר השלישי צריך לשבת בתוך שלושה טפחים מפינה שאחד הקירות המלאים כבר מגיע אליה - לא באמצע, ולא בפינה הריקה הרחוקה (או"ח תרל,ב).',
   'These walls do not meet at the corners. Each full wall has to come within three tefachim of the next so lavud joins them (OC 630:1).':
     'הקירות האלה אינם נפגשים בפינות. כל קיר מלא צריך להגיע לתוך שלושה טפחים מהבא כדי שלבוד יחבר ביניהם (או"ח תרל,א).',
-  'Two full walls meet - now add a third wall of even one tefach, right against one of their far corners (OC 630:2).': 'שני קירות מלאים נפגשים - כעת הוסיפו קיר שלישי של אפילו טפח אחד, סמוך לאחת הפינות הרחוקות שלהם (או"ח תרל,ב).',
-  'The small third wall needs a tzurat ha-petach - a doorway form with a wire across the open side - because a one-tefach wall does not close the sukkah by itself (Shulchan Aruch OC 630:2). Tap below to add it.':
-    'הקיר השלישי הקטן צריך צורת הפתח - צורת פתח עם חוט לרוחב הצד הפתוח - כי קיר של טפח אחד אינו סוגר את הסוכה לבדו (שולחן ערוך או"ח תרל,ב). לחצו למטה כדי להוסיף.',
+  'Two full walls meet. Add a third wall of four tefachim at a far corner — that wall does not need a tzurat ha-petach. A shorter piece within three tefachim of that corner works only if you add a tzurat ha-petach (OC 630:2).':
+    'שני קירות מלאים נפגשים. הוסיפו קיר שלישי של ארבעה טפחים בפינה רחוקה — הקיר הזה אינו צריך צורת הפתח. קטע קצר יותר בתוך שלושה טפחים מהפינה כשר רק אם מוסיפים צורת הפתח (או"ח תרל,ב).',
+  'This piece is within three tefachim of the corner, and it is shorter than four. Tap Add a tzurat ha-petach so that side counts (OC 630:2).':
+    'הקטע הזה בתוך שלושה טפחים מהפינה, והוא קצר מארבעה. הקישו על הוסיפו צורת הפתח כדי שהצד ייחשב (או"ח תרל,ב).',
+  'The four-tefach piece is within three of the wall. Two facing walls still need a tzurat ha-petach across that side (OC 630:3). Tap Add a tzurat ha-petach.':
+    'הקטע של ארבעה טפחים בתוך שלושה מהקיר. שני קירות זה מול זה עדיין צריכים צורת הפתח לרוחב הצד (או"ח תרל,ג). הקישו על הוסיפו צורת הפתח.',
   'Add a tzurat ha-petach': 'הוסיפו צורת הפתח',
   'Tzurat ha-petach is up - the doorway form closes the third wall (OC 630:2).':
     'צורת הפתח עומדת - צורת הפתח סוגרת את הקיר השלישי (או"ח תרל,ב).',
-  'Two walls face each other - the third side needs a little over four tefachim of wall at one end (OC 630:3).': 'שני קירות עומדים זה מול זה - הצד השלישי צריך מעט יותר מארבעה טפחים של קיר בקצה אחד (או"ח תרל,ג).',
+  'Two walls face each other. Put a little over four tefachim of wall within three tefachim of one end — lavud brings that side to seven — and close across with a tzurat ha-petach (OC 630:3).':
+    'שני קירות עומדים זה מול זה. הניחו מעט יותר מארבעה טפחים של קיר בתוך שלושה טפחים מקצה אחד — לבוד מביא את הצד לשבעה — וסגרו לרוחב בצורת הפתח (או"ח תרל,ג).',
   'Nothing is shading the floor yet - kosher schach has to shade at least half of it (tzilata merubah, OC 631:1).': 'עדיין אין צל על הרצפה. סכך כשר צריך להצל לפחות על חצי ממנה (צילתה מרובה מחמתה, או"ח תרלא,א).',
   'Every cell is covered, but this covering is too thin on its own - it shades {p} percent. Lay something denser across what is up there (OC 631:1).':
     'כל שטח הגג מכוסה, אבל הסיכוך הזה דק מדי בפני עצמו - הוא מצל על {p} אחוזים. הניחו משהו צפוף יותר מעל מה שכבר שם (או"ח תרלא,א).',
@@ -29153,7 +29165,7 @@ SA.Overlay.twentyAmosColor = 'rgba(230,80,60,0.55)';
 SA.Cards = [
   { id: 'sk_two_walls', game: 'sukkah', icon: 'wall', title: 'Two Walls and a Tefach',
     hebrew: 'שְׁתֵּי דְפָנוֹת כְּהִלְכָתָן וּשְׁלִישִׁית אֲפִלּוּ טֶפַח',
-    body: 'A kosher sukkah needs two full walls that meet at a corner, plus a third piece just over a tefach wide, set less than three tefachim from the end of one wall, at the corner. Lavud joins that piece to the wall, so the third side counts as a small wall of just over four tefachim, and you close the open side with a tzurat ha-petach (a doorway form - posts and a wire lintel). If the two full walls are parallel instead, the third piece must be just over four tefachim, set less than three tefachim from one of them, so lavud brings that side to seven, and you still close across with a tzurat ha-petach. Custom is to build three full walls and skip the tefach mechanism.',
+    body: 'A kosher sukkah needs two full walls that meet at a corner, plus a third wall of four tefachim at one far corner. That four-tefach wall is the wall — you do not add a tzurat ha-petach. The other path is a shorter piece set within three tefachim of that corner, and then a tzurat ha-petach (a doorway form — posts and a wire lintel) across the opening. If the two full walls are parallel instead, the third piece must be just over four tefachim, set less than three tefachim from one of them, so lavud brings that side to seven, and you still close across with a tzurat ha-petach. Custom is to build three full walls.',
     terms: [['Tefach', 'a handbreadth, about 8 cm'], ['Dofen', 'a wall'], ['Tzurat ha-petach', 'the form of a doorway: two posts and a lintel (often a wire)']],
     source: 'Sukkah 6b; Shulchan Aruch OC 630:2-3; Rema OC 630:1' },
 
@@ -29330,8 +29342,8 @@ SA.Lang.add({
   'Close to the Ground': 'קרוב לקרקע',
   'Some Surprising Sukkahs': 'כמה סוכות מפתיעות',
 
-  'A kosher sukkah needs two full walls that meet at a corner, plus a third piece just over a tefach wide, set less than three tefachim from the end of one wall, at the corner. Lavud joins that piece to the wall, so the third side counts as a small wall of just over four tefachim, and you close the open side with a tzurat ha-petach (a doorway form - posts and a wire lintel). If the two full walls are parallel instead, the third piece must be just over four tefachim, set less than three tefachim from one of them, so lavud brings that side to seven, and you still close across with a tzurat ha-petach. Custom is to build three full walls and skip the tefach mechanism.':
-    'סוכה כשרה צריכה שני קירות מלאים שנפגשים בפינה, ועוד חתיכה שלישית ברוחב של מעט יותר מטפח, במרחק של פחות משלושה טפחים מקצה אחד הקירות, בפינה. לבוד מחבר את החתיכה לקיר, והצד השלישי נחשב קיר קטן של מעט יותר מארבעה טפחים, וסוגרים את הצד הפתוח בצורת הפתח (עמודים ומשקוף של חוט). אם שני הקירות המלאים מקבילים, החתיכה השלישית צריכה להיות מעט יותר מארבעה טפחים, במרחק של פחות משלושה טפחים מאחד מהם, כך שלבוד מביא את הצד הזה לשבעה, וגם כאן סוגרים בצורת הפתח. המנהג הוא לבנות שלושה קירות מלאים ולא להסתמך על מנגנון הטפח.',
+  'A kosher sukkah needs two full walls that meet at a corner, plus a third wall of four tefachim at one far corner. That four-tefach wall is the wall — you do not add a tzurat ha-petach. The other path is a shorter piece set within three tefachim of that corner, and then a tzurat ha-petach (a doorway form — posts and a wire lintel) across the opening. If the two full walls are parallel instead, the third piece must be just over four tefachim, set less than three tefachim from one of them, so lavud brings that side to seven, and you still close across with a tzurat ha-petach. Custom is to build three full walls.':
+    'סוכה כשרה צריכה שני קירות מלאים שנפגשים בפינה, ועוד קיר שלישי של ארבעה טפחים בפינה רחוקה. קיר של ארבעה טפחים הוא הקיר — אין להוסיף עליו צורת הפתח. הדרך האחרת היא קטע קצר יותר בתוך שלושה טפחים מהפינה, ואז צורת הפתח (עמודים ומשקוף של חוט) לרוחב הפתח. אם שני הקירות המלאים מקבילים, החתיכה השלישית צריכה להיות מעט יותר מארבעה טפחים, במרחק של פחות משלושה טפחים מאחד מהם, כך שלבוד מביא את הצד לשבעה, ושם עדיין סוגרים בצורת הפתח. המנהג הוא לבנות שלושה קירות מלאים.',
   'Tzurat ha-petach': 'צורת הפתח',
   'the form of a doorway: two posts and a lintel (often a wire)': 'צורת פתח: שני עמודים ומשקוף (לרוב חוט)',
   'The inside of the sukkah, from the floor to the underside of the schach, must be at least ten tefachim. It may not be taller than twenty amos - above that it reads as a permanent house, not a temporary sukkah.':
@@ -29553,9 +29565,9 @@ SA.Levels = [
     brief: { have: 'a pad that is exactly seven by seven tefachim', teach: 'the smallest a sukkah floor can be',
       do: 'Build three walls and kosher schach on this pad. This size is the lesson — it is as small as a sukkah can be.' } },
   { id: 'slats_and_lavud', title: 'Slats and Lavud', site: 'pine_forest', footprint: { w: 10, d: 10 },
-    hint: 'Only posts. Space them under three tefachim apart — lavud treats those gaps as solid wall.', goal: { type: 'kosher' }, cardId: 'sk_lavud',
-    brief: { have: 'posts, and no solid boards', teach: 'lavud — a gap under three tefachim counts as solid wall',
-      do: 'Stand the posts with less than three tefachim between them, on three sides, then roof it.' } },
+    hint: 'Two full walls, then ten posts. Space the posts under three tefachim apart — lavud treats those gaps as solid wall.', goal: { type: 'kosher' }, cardId: 'sk_lavud',
+    brief: { have: 'two full walls and ten posts', teach: 'lavud — a gap under three tefachim counts as solid wall',
+      do: 'Put up the two full walls. Stand the posts on another side with less than three tefachim between them, then roof it.' } },
   { id: 'windy_canvas', title: 'The Windy Canvas Wall', site: 'beach', footprint: { w: 8, d: 8 }, familyWhitelist: ['canvas'],
     hint: 'Canvas is on a frame — tap Tie so ordinary wind cannot open a gap.',
     goal: { type: 'kosher', requireTied: true }, cardId: 'sk_ruach',
@@ -29704,9 +29716,14 @@ SA.Lang.add({
     'בנו עם הקירות המלאים. הניחו עמודים עודפים במרחק של פחות משלושה טפחים — לבוד מתייחס לרווחים האלה כמלאים.',
   'Only posts. Space them under three tefachim apart — lavud treats those gaps as solid wall.':
     'רק עמודים. הניחו אותם במרחק של פחות משלושה טפחים — לבוד מתייחס לרווחים האלה כקיר.',
+  'Two full walls, then ten posts. Space the posts under three tefachim apart — lavud treats those gaps as solid wall.':
+    'שני קירות מלאים, ואז עשרה עמודים. הניחו את העמודים במרחק של פחות משלושה טפחים — לבוד מתייחס לרווחים האלה כקיר מלא.',
   'posts, and no solid boards': 'עמודים, ובלי לוחות מלאים',
+  'two full walls and ten posts': 'שני קירות מלאים ועשרה עמודים',
   'Stand the posts with less than three tefachim between them, on three sides, then roof it.':
     'העמידו את העמודים עם פחות משלושה טפחים ביניהם, בשלושה צדדים, ואז סככו.',
+  'Put up the two full walls. Stand the posts on another side with less than three tefachim between them, then roof it.':
+    'העמידו את שני הקירות המלאים. העמידו את העמודים בצד אחר עם פחות משלושה טפחים ביניהם, ואז סככו.',
   'A loose sheet is still standing, but it is not l\'chatchila until you tie it. Tap the sheet and press Tie.':
     'יריעה רפויה עדיין עומדת, אבל לכתחילה צריך לקשור אותה. הקישו על היריעה ולחצו על קשרו.',
   'Canvas is on a frame — tap Tie so ordinary wind cannot open a gap.':
@@ -34580,12 +34597,24 @@ SA.UI.TIE_BANNER_H = 52;
 SA.UI.needsTieBanner = function () {
   return !!(SA.Game.state && SA.State.finishJob(SA.Game.state));
 };
+/* The doorway form is not a tray piece. When the small third wall is up and
+   the sukkah is waiting on it, the button has to be on the build screen. */
+SA.UI.TZURAT_BANNER_H = 48;
+SA.UI.needsTzuratBanner = function () {
+  var res = SA.Game.lastResult;
+  if (!res || !res.issues || !res.measurements || !res.measurements.tzuratPlan) return false;
+  for (var i = 0; i < res.issues.length; i++) {
+    if (res.issues[i].code === 'tzurat_hapetach_needed') return true;
+  }
+  return false;
+};
 SA.UI.topReserve = function () {
   var safe = SA.View.safe;
   var h = safe.t + SA.UI.TOP_ROW_H +
     ((SA.Game.mode === 'scramble' || SA.Game.mode === 'free') ? SA.UI.CLOCK_BAND_H : 0);
   if (SA.Chain && SA.Chain.bandH) h += SA.Chain.bandH();
   if (SA.UI.needsTieBanner()) h += SA.UI.TIE_BANNER_H;
+  if (SA.UI.needsTzuratBanner()) h += SA.UI.TZURAT_BANNER_H;
   return h;
 };
 
@@ -34672,6 +34701,9 @@ SA.UI.renderBuild = function (ctx, result) {
   var hold = SA.Endless && SA.Endless.active && SA.Endless.active();
   if (!SA.Game.winTour && !hold && SA.UI.needsTieBanner()) {
     SA.UI.renderTieBanner(ctx, chainBot);
+  }
+  if (!SA.Game.winTour && !hold && SA.UI.needsTzuratBanner()) {
+    SA.UI.renderTzuratBanner(ctx, chainBot + (SA.UI.needsTieBanner() ? SA.UI.TIE_BANNER_H : 0));
   }
   if (!SA.Game.winTour && !hold) SA.UI.renderUndoRedo(ctx);
   SA.UI.renderToolStrip(ctx);
@@ -35311,6 +35343,35 @@ SA.UI.renderTieBanner = function (ctx, y) {
   SA.Pick.addRect('sb_tie_banner', {}, bx, y, bw, bh);
 };
 
+/* Gold bar under the clock, only while the small third wall is waiting on a
+   doorway form. Tapping it lays the wire lintel the halacha engine already
+   planned. Three full walls never show this. */
+SA.UI.renderTzuratBanner = function (ctx, y) {
+  var w = SA.View.w, safe = SA.View.safe;
+  var bx = safe.l + 8, bw = w - safe.l - safe.r - 16, bh = SA.UI.TZURAT_BANNER_H - 6;
+  var pulse = 0.5 + 0.5 * Math.sin(SA.FX.now() / 320);
+  SA.Draw.roundRect(ctx, bx, y, bw, bh, 12);
+  ctx.fillStyle = 'rgba(48, 34, 12, ' + (0.9 + pulse * 0.08).toFixed(2) + ')';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(240,217,138,' + (0.7 + pulse * 0.3).toFixed(2) + ')';
+  ctx.lineWidth = 1.6; ctx.stroke();
+  SA.Draw.text(ctx, SA.Lang.t('Add a tzurat ha-petach'), bx + bw / 2, y + bh / 2 + 0.5, {
+    size: 14, color: '#f0d98a', weight: '800'
+  });
+  SA.Pick.addRect('sb_add_tzurat', {}, bx, y, bw, bh);
+};
+
+SA.UI.addTzuratFromPlan = function () {
+  var st = SA.Game.state;
+  if (!st) return;
+  var plan = SA.Halacha.evaluate(st).measurements.tzuratPlan;
+  if (!plan) return;
+  SA.Undo.mark();
+  SA.State.setTzuratHapetach(st, plan);
+  SA.Save.markDirty();
+  SA.Game.modal = null;
+};
+
 SA.UI.toastWantsTie = function (toast) {
   if (!toast) return false;
   if (toast.cardId === 'sk_ruach') return true;
@@ -35719,7 +35780,8 @@ SA.Lang.add({
   'Drag a piece out of the pile onto the sukkah.': 'גררו חלק מהערמה אל הסוכה.',
   'Walls land on a wall, schach lands on the roof, furniture lands on the floor.': 'קירות על הקיר, סכך על הגג, רהיטים על הרצפה.',
   'The tray shows five pieces - tap \u2039 \u203a to look through everything else you have.': 'המגש מראה חמישה חלקים - הקישו \u2039 \u203a כדי לראות את כל השאר.',
-  'Two full walls plus a third of even one tefach, then cover at least half the roof - before Sukkot starts.': 'שני קירות מלאים ועוד קיר שלישי אפילו בטפח, ואז כסו לפחות חצי מהגג - לפני שסוכות מתחיל.',
+  'Two full walls, then a third wall of four tefachim — no tzurat ha-petach for that — or a shorter piece within three plus a tzurat ha-petach. Then cover at least half the roof, before Sukkot starts.':
+    'שני קירות מלאים, ואז קיר שלישי של ארבעה טפחים — בלי צורת הפתח — או קטע קצר יותר בתוך שלושה ועוד צורת הפתח. ואז כסו לפחות חצי מהגג, לפני שסוכות מתחיל.',
   'Turn a piece with the \u21bb chip on its card before you drag it.': 'סובבו חלק בעזרת הסמל \u21bb שעל הכרטיס לפני שאתם גוררים אותו.',
   'The pill at the top says KOSHER or NOT KOSHER YET - tap its ? to be told exactly what is missing.': 'הכפתור למעלה אומר כשר או עדיין לא כשר - הקישו על ה-? כדי לדעת בדיוק מה חסר.',
   'A kosher sukkah: three walls, then schach on top. Schach must be cut vegetation that is not a vessel and not disgusting.':
@@ -36916,7 +36978,19 @@ SA.UI.renderFailModal = function (ctx) {
   var pw = Math.min(360, w - 40);
   var showN = Math.min(3, blocking.length);
   var extra = blocking.length - showN;
-  var need = 96 + showN * 36 + (extra > 0 ? 18 : 0) + 108;
+  /* The two-wall rule does not fit in two lines. Size the card from the
+     wrapped text so "four tefachim / within three / tzurat ha-petach" is
+     actually on screen, not chopped after "one tefach". */
+  var wrapped = [];
+  var i, it, lines, listH = 0;
+  for (i = 0; i < showN; i++) {
+    lines = SA.UI.wrapText(ctx, SA.Lang.t(blocking[i].en), pw - 52, 12);
+    if (lines.length > 6) lines = lines.slice(0, 6);
+    wrapped.push(lines);
+    listH += lines.length * 15 + 10;
+  }
+  if (!wrapped.length) listH = 28;
+  var need = 70 + listH + (extra > 0 ? 18 : 0) + 108;
   var ph = Math.min(need, Math.max(220, h - safe.t - safe.b - 24));
   var px = (w - pw) / 2;
   var py = Math.max(safe.t + 8, h - safe.b - 12 - ph);
@@ -36934,14 +37008,13 @@ SA.UI.renderFailModal = function (ctx) {
       size: 13, color: 'rgba(255,255,255,0.8)'
     });
   }
-  var i, it, lines, l, color;
+  var l, color;
   for (i = 0; i < showN; i++) {
     it = blocking[i];
     color = it.severity === 'pasul' ? '#e05b46' : '#e0b23c';
     ctx.fillStyle = color;
     ctx.beginPath(); ctx.arc(px + 22, yy + 7, 4.5, 0, 7); ctx.fill();
-    lines = SA.UI.wrapText(ctx, SA.Lang.t(it.en), pw - 52, 12);
-    if (lines.length > 2) lines = lines.slice(0, 2);
+    lines = wrapped[i];
     for (l = 0; l < lines.length; l++) {
       SA.Draw.text(ctx, lines[l], px + 34, yy + l * 15, { size: 12, color: '#fff', align: 'left' });
     }
@@ -37290,14 +37363,8 @@ SA.UI.onBuildTap = function (hit) {
     SA.Game.modal = null;
     return;
   }
-  if (hit.kind === 'issue_add_tzurat') {
-    var plan = SA.Halacha.evaluate(st).measurements.tzuratPlan;
-    if (plan) {
-      SA.Undo.mark();
-      SA.State.setTzuratHapetach(st, plan);
-      SA.Save.markDirty();
-    }
-    SA.Game.modal = null;
+  if (hit.kind === 'issue_add_tzurat' || hit.kind === 'sb_add_tzurat') {
+    SA.UI.addTzuratFromPlan();
     return;
   }
 
@@ -42435,10 +42502,10 @@ SA.Pile.roll = function (cfg, state, seed) {
   var weights = cfg.tierWeights || [1, 0, 0];
   var out = [];
 
-  /* A run may restrict the heap to the families/forms its lesson is about
-     (posts only for lavud, canvas only for the windy wall). Filtering the
-     tiered pools instead of the flat catalog keeps the tier weighting
-     meaningful inside the restriction. */
+  /* A run may restrict the heap to the families its lesson is about
+     (canvas only for the windy wall). Filtering the tiered pools instead
+     of the flat catalog keeps the tier weighting meaningful inside the
+     restriction. */
   var wallPool = pools.wall;
   if (cfg.familyWhitelist) {
     wallPool = [[], [], []];
@@ -42491,13 +42558,18 @@ SA.Pile.roll = function (cfg, state, seed) {
     wallHave += 1;
   }
 
-  /* A few leftover posts for the lavud lesson - never enough to line the pad. */
-  var extraPosts = Math.max(0, Math.min(cfg.postsOnly ? 80 : 8, cfg.extraPosts || 0));
+  /* One-tefach posts. Every heap gets a couple, so a short third wall is
+     actually in the tray. The lavud level asks for more. Never a crate. */
+  var postBudget = cfg.extraPosts != null ? cfg.extraPosts : 2;
+  var extraPosts = Math.max(0, Math.min(12, postBudget));
   var postPool = [];
   for (var pt = 0; pt < 3; pt++) {
     for (var pi = 0; pi < (wallPool[pt] || []).length; pi++) {
       if (SA.Pile.isPostWall(wallPool[pt][pi])) postPool.push(wallPool[pt][pi]);
     }
+  }
+  if (!postPool.length && SA.Mat.byId['wall_pine_post_natural']) {
+    postPool.push(SA.Mat.byId['wall_pine_post_natural']);
   }
   for (var ep = 0; ep < extraPosts && postPool.length; ep++) {
     var pEntry = saPilePick(rnd, postPool);
@@ -44291,10 +44363,9 @@ SA.Scramble.fitRoofToWalls = function (st) {
    further in you are. Per-level overrides below are only for the runs whose
    whole lesson needs a specific heap. */
 SA.Scramble.OVERRIDE = {
-  /* Full-side boards to finish the booth, plus a few posts and a lavud
-     rope wall so the gap-as-solid lesson still has something to place. */
-  /* Posts only. A full board would let you skip lavud entirely. */
-  slats_and_lavud: { postsOnly: true, extraPosts: 48 },
+  /* Two full walls, then a short run of posts for the third side. A pad
+     lined with one-tefach sticks was a pile of tray pages and no time. */
+  slats_and_lavud: { wallCount: 2, extraPosts: 10 },
   /* Sheets that blow around until they are tied. Windy Canvas does NOT
      auto-tie - that level is "tap Tie yourself". */
   windy_canvas: { familyWhitelist: ['canvas'] },
@@ -45269,8 +45340,8 @@ SA.Lang.add({
     'לבוד: הרווח הזה פחות משלושה טפחים, ולכן הוא נחשב קיר.',
   'Gud asik: that ten-tefach wall counts as reaching up to the schach.':
     'גוד אסיק: קיר של עשרה טפחים נחשב כמגיע עד הסכך.',
-  'Two full walls that meet plus a third of even one tefach - that is a sukkah (OC 630:2).':
-    'שני קירות מלאים הנפגשים ועוד קיר שלישי אפילו בטפח - זו סוכה (או"ח תרל:ב).',
+  'Two full walls that meet plus a third wall of four tefachim — that is a sukkah, with no tzurat ha-petach (OC 630:2).':
+    'שני קירות מלאים הנפגשים ועוד קיר שלישי של ארבעה טפחים — זו סוכה, בלי צורת הפתח (או"ח תרל:ב).',
   'More shade than sun now - tzilata merubah me\'chamasa (OC 631:1).':
     'עכשיו יש יותר צל מחמה - צילתה מרובה מחמתה (או"ח תרלא:א).',
   'Ten tefachim of headroom - now it counts as a sukkah (OC 633:8).':
@@ -45361,8 +45432,8 @@ SA.Lang.add({
   'Designer Teak Table': 'שולחן טיק מעצבים',
   'Velvet Dining Chairs': 'כיסאות אוכל מקטיפה',
   'Marble Side Table': 'שולחן צד משיש',
-  'A kosher sukkah needs three walls. Two full walls that meet at a corner, plus a third of even one tefach — custom is three full walls. Then the schach goes on top (OC 630).':
-    'סוכה כשרה צריכה שלושה קירות. שני קירות מלאים הנפגשים בזווית, ועוד שלישי אפילו בטפח — המנהג הוא שלושה קירות מלאים. אחר כך הסכך מלמעלה (או"ח תרל).',
+  'A kosher sukkah needs three walls. Two full walls that meet, plus a third wall of four tefachim — no tzurat ha-petach. A shorter piece within three of the corner needs a tzurat ha-petach. Custom is three full walls. Then the schach goes on top (OC 630).':
+    'סוכה כשרה צריכה שלושה קירות. שני קירות מלאים הנפגשים, ועוד שלישי של ארבעה טפחים — בלי צורת הפתח. קטע קצר יותר בתוך שלושה מהפינה צריך צורת הפתח. המנהג הוא שלושה קירות מלאים. אחר כך הסכך מלמעלה (או"ח תרל).',
   'Schach has to lie on poles or battens across the wall tops — that support is the maamid. Do not rest covering straight on metal (MB 629:22).':
     'הסכך צריך לנוח על מוטות או לטות בראשי הקירות — זה המעמיד. אין להניח סיכוך ישירות על מתכת (מ"ב תרכט:כב).',
   'Schach must be vegetation that grew from the ground, already cut (not still attached), not a vessel that can become tamei, and not rotting or disgusting. Metal, plastic, food, and sleeping mats fail (OC 629:1).':
@@ -45407,8 +45478,8 @@ SA.Lang.add({
     'לבנים, בלוק או זכוכית הם קיר כשר אם הם עומדים ברוח מצויה. לקירות אין מבחן צומח או טומאה (או"ח תרל:י).',
   'Posts spaced under three tefachim apart count as a solid wall by lavud. A gap of three tefachim or more stays open (OC 630:1).':
     'עמודים במרחק של פחות משלושה טפחים נחשבים קיר מלא בלבוד. רווח של שלושה טפחים או יותר נשאר פתוח (או"ח תרל:א).',
-  'Wood boards are a classic wall. A kosher sukkah needs two full walls that meet plus a third of even one tefach — custom is three full walls (OC 630:2).':
-    'לוחות עץ הם קיר קלאסי. סוכה כשרה צריכה שני קירות מלאים הנפגשים ועוד שלישי אפילו בטפח — המנהג הוא שלושה קירות מלאים (או"ח תרל:ב).'
+  'Wood boards are a classic wall. Two full walls that meet, plus a third wall of four tefachim — no tzurat ha-petach. A shorter piece within three needs one. Custom is three full walls (OC 630:2).':
+    'לוחות עץ הם קיר קלאסי. שני קירות מלאים הנפגשים, ועוד שלישי של ארבעה טפחים — בלי צורת הפתח. קטע קצר יותר בתוך שלושה צריך אותה. המנהג הוא שלושה קירות מלאים (או"ח תרל:ב).'
 });
 </script>
 <script>
