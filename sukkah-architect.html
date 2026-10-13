@@ -24612,6 +24612,8 @@ SA.State.setTzuratHapetach = function (st, plan) {
     side: plan.side,
     fromCol: plan.fromCol,
     toCol: plan.toCol,
+    fromEdge: plan.fromEdge,
+    toEdge: plan.toEdge,
     y: plan.y || SA.Rule.WALL_MIN_HEIGHT
   };
 };
@@ -27380,23 +27382,57 @@ SA.Halacha.evaluateWalls = function (state, issues, measurements) {
         /* OC 630:2-3: the tefach (or 4+ for parallel) must sit within lavud of
            a corner that a FULL wall already reaches - not the empty far corner
            five feet from either arm of the L. */
-        var joinsFull = false;
-        if (nearStart && full[prev] && reachesCorner(prev, true)) joinsFull = true;
-        if (nearEnd && full[next] && reachesCorner(next, false)) joinsFull = true;
-        if (joinsFull) {
+        var joinStart = nearStart && full[prev] && reachesCorner(prev, true);
+        var joinEnd = nearEnd && full[next] && reachesCorner(next, false);
+        if (joinStart || joinEnd) {
           thirdWallOk = true;
           if (run.len >= 4) thirdFourOk = true;
           if (run.len >= SA.Rule.WALL_MIN_FULL_LEN) thirdFullJoins = true;
           /* Doorway form only when this piece is not itself a 4-tefach wall,
-             or the two full walls are parallel (OC 630:3). */
+             or the two full walls are parallel (OC 630:3).
+             On an L, the wire is the lintel over the lavud gap: from the top
+             of this short piece to the full wall it stands beside, so that
+             side reads as four tefachim. It does not run off to the empty
+             far end. Parallel walls still close across the whole third side. */
           if ((hasParallelPair || run.len < 4) && !tzuratPlan) {
-            var fromC = nearStart ? run.start : 0;
-            var toC = nearStart ? (len - 1) : (run.start + run.len - 1);
+            var fromEdge, toEdge;
+            if (!hasParallelPair && run.len < 4) {
+              var distStart = run.start;
+              var distEnd = len - (run.start + run.len);
+              if (joinStart && (!joinEnd || distStart <= distEnd)) {
+                fromEdge = 0;
+                toEdge = run.start + run.len;
+              } else {
+                fromEdge = run.start;
+                toEdge = len;
+              }
+            } else if (joinStart && !joinEnd) {
+              fromEdge = run.start;
+              toEdge = len;
+            } else if (joinEnd && !joinStart) {
+              fromEdge = 0;
+              toEdge = run.start + run.len;
+            } else {
+              fromEdge = 0;
+              toEdge = len;
+            }
+            var pieceTop = 0;
+            var tops = state.walls[sideId].panels;
+            for (var tp = 0; tp < tops.length; tp++) {
+              var tpnl = tops[tp];
+              if (tpnl.col + tpnl.w <= run.start || tpnl.col >= run.start + run.len) continue;
+              var tEntry = SA.State.materialById(tpnl.matId);
+              var ph = tpnl.row + (tEntry && tEntry.matKind === 'animal'
+                ? (tEntry.standHeight || tpnl.h) : tpnl.h);
+              if (ph > pieceTop) pieceTop = ph;
+            }
             tzuratPlan = {
               side: sideId,
-              fromCol: Math.min(fromC, toC),
-              toCol: Math.max(fromC, toC),
-              y: SA.Rule.WALL_MIN_HEIGHT
+              fromEdge: Math.min(fromEdge, toEdge),
+              toEdge: Math.max(fromEdge, toEdge),
+              fromCol: Math.min(fromEdge, toEdge),
+              toCol: Math.max(fromEdge, toEdge),
+              y: pieceTop || SA.Rule.WALL_MIN_HEIGHT
             };
           }
         } else thirdWallStranded = true;
@@ -30140,6 +30176,14 @@ function saWallCellWorld(side, col, footprint) {
   if (side === 'S') return { x: W - col - 0.5, z: D };
   if (side === 'E') return { x: W, z: col + 0.5 };
   return { x: 0, z: D - col - 0.5 };
+}
+/* edge 0 is the start corner of the side; edge = length is the end corner. */
+function saWallEdgeWorld(side, edge, footprint) {
+  var W = footprint.w, D = footprint.d;
+  if (side === 'N') return { x: edge, z: 0 };
+  if (side === 'S') return { x: W - edge, z: D };
+  if (side === 'E') return { x: W, z: edge };
+  return { x: 0, z: D - edge };
 }
 /* Depth sample for a panel: the first floor-cell centre just inside that
    side, not the outer wall plane. The plane sits half a tefach behind the
@@ -33168,8 +33212,8 @@ SA.Scene.drawLavudBeams = function (ctx, state, result, cx, cz) {
   }
 };
 
-/* Tzuras hapesach: a thin wire lintel across the open third side, with short
-   post ticks at each end - the doorway form that finishes a 2+tefach build. */
+/* Tzuras hapesach: the lintel sits on the short piece and reaches the full
+   wall beside it (the lavud gap). Parallel walls still span that whole side. */
 SA.Scene.drawTzuratHapetach = function (ctx, state, result, cx, cz) {
   var th = state.tzuratHapetach;
   if (!th || SA.Camera.inside) return;
@@ -33177,8 +33221,10 @@ SA.Scene.drawTzuratHapetach = function (ctx, state, result, cx, cz) {
   if (plan && plan.side !== th.side) return;
   var side = th.side;
   var y = Math.min(state.roofHeight - 0.15, th.y || SA.Rule.WALL_MIN_HEIGHT);
-  var a = saWallCellWorld(side, th.fromCol + 0.5, state.footprint);
-  var b = saWallCellWorld(side, th.toCol + 0.5, state.footprint);
+  var fromEdge = th.fromEdge != null ? th.fromEdge : (th.fromCol + 0.5);
+  var toEdge = th.toEdge != null ? th.toEdge : (th.toCol + 0.5);
+  var a = saWallEdgeWorld(side, fromEdge, state.footprint);
+  var b = saWallEdgeWorld(side, toEdge, state.footprint);
   var pa = SA.Iso.project(a.x, y, a.z, cx, cz);
   var pb = SA.Iso.project(b.x, y, b.z, cx, cz);
   var post = 0.85;
