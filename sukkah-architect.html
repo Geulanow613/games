@@ -221,9 +221,15 @@ SA.View.resize = function () {
     dpr = Math.max(1, Math.sqrt(SA.View.MAX_PIXELS / Math.max(1, vw * vh)));
   }
   var w = window.innerWidth, h = window.innerHeight;
+  var pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+  /* Assigning canvas.width clears the bitmap to black. The emulator fires
+     resize for a one-pixel inset jitter, and each clear showed up as a black
+     tear across the picture. Skip the reset when the size did not change. */
+  if (SA.View.w === w && SA.View.h === h && SA.View.dpr === dpr &&
+      c.width === pw && c.height === ph) return;
   SA.View.w = w; SA.View.h = h; SA.View.dpr = dpr;
-  c.width = Math.round(w * dpr);
-  c.height = Math.round(h * dpr);
+  c.width = pw;
+  c.height = ph;
   c.style.width = w + 'px';
   c.style.height = h + 'px';
   SA.View.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -231,6 +237,22 @@ SA.View.resize = function () {
   SA.View.safe.t = 12; SA.View.safe.b = 12; SA.View.safe.l = 8; SA.View.safe.r = 8;
   /* The HUD sizes itself to this viewport before anything measures it. */
   if (SA.UI && SA.UI.relayout) SA.UI.relayout();
+};
+
+/* Copy a device-pixel cache without scaling it. Drawing it in CSS pixels
+   under the DPR transform leaves a fractional seam, and that seam is a black
+   tear on the emulator. A landing shake is a translation already on the
+   context; keep it, or the site stays put while the booth jumps. */
+SA.View.blitPixels = function (ctx, cv) {
+  var e = 0, f = 0;
+  if (ctx.getTransform) {
+    var m = ctx.getTransform();
+    e = m.e; f = m.f;
+  }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, e, f);
+  ctx.drawImage(cv, 0, 0);
+  ctx.restore();
 };
 
 SA.Loop = {
@@ -2471,13 +2493,15 @@ SA.BG.render = function (ctx, view, id, nightness) {
       cv.width = Math.round(view.w * dpr);
       cv.height = Math.round(view.h * dpr);
     }
-    var c2 = cv.getContext('2d');
+    /* Opaque. A transparent offscreen canvas blitted every frame shows up on
+       the Android emulator as little black tears across the picture. */
+    var c2 = cv.getContext('2d', { alpha: false });
     c2.setTransform(dpr, 0, 0, dpr, 0, 0);
     c2.clearRect(0, 0, view.w, view.h);
     SA.BG.paint(c2, view, id, nightness);
     SA.BG._cacheKey = key;
   }
-  ctx.drawImage(cv, 0, 0, view.w, view.h);
+  SA.View.blitPixels(ctx, cv);
 };
 SA.BG._cacheCv = null;
 SA.BG._cacheKey = '';
@@ -25216,6 +25240,7 @@ SA.State.newSchachGroup = function (matId, size) {
        is only how askew the material happens to be lying - one is inventory
        bookkeeping, the other is paint. */
     cw: size && size.cw, cd: size && size.cd, turn: (size && size.rot) || 0,
+    poly: (size && size.poly) || null,
     /* Nothing lands square. Up to ~17 degrees either way is enough to break the
        grid without making a mat look thrown at the sukkah - but only for a small
        armful. A big mat swung 17 degrees throws its corners a tefach and a half
@@ -25373,6 +25398,20 @@ SA.State.fillSchach = function (st, matEntry) {
   var fw = st.footprint.w, fd = st.footprint.d, x, z, px, pz, grp;
   var now = SA.FX.now();
   st.lastSchachAt = now;
+  var outline = SA.Halacha.roofOutline(st);
+  if (outline && !outline.fullRect) {
+    grp = SA.State.newSchachGroup(matEntry.id, {
+      cw: outline.cw, cd: outline.cd, poly: outline.poly
+    });
+    if (grp) grp.rot = 0;
+    for (var oi = 0; oi < outline.cells.length; oi++) {
+      st.schach[outline.cells[oi][0]][outline.cells[oi][1]] = {
+        matId: matEntry.id, placedAt: now, group: grp
+      };
+    }
+    SA.State.notePlacement(st, 'schach');
+    return;
+  }
   for (x = 0; x < fw; x += 2) {
     for (z = 0; z < fd; z += 2) {
       var pw = Math.min(2, fw - x), pd = Math.min(2 + ((x + z) % 2), fd - z);
@@ -25422,6 +25461,10 @@ SA.State.placeBeam = function (st, x, z, matEntry, size) {
     seed: Math.floor(Math.random() * 100000),
     placedAt: SA.FX.now()
   };
+  if (size && size.diagonal) {
+    b.diagonal = true;
+    b.x0 = size.x0; b.z0 = size.z0; b.x1 = size.x1; b.z1 = size.z1;
+  }
   st.beams.push(b);
   return b;
 };
@@ -25431,6 +25474,10 @@ SA.State.beamAt = function (st, x, z) {
   /* last one laid wins, so tapping a crossing picks the stick on top */
   for (var i = beams.length - 1; i >= 0; i--) {
     var b = beams[i];
+    if (b.diagonal) {
+      if (SA.Halacha.distPointSeg(x + 0.5, z + 0.5, b.x0, b.z0, b.x1, b.z1).d <= 0.72) return b;
+      continue;
+    }
     if (x >= b.x && x < b.x + b.cw && z >= b.z && z < b.z + b.cd) return b;
   }
   return null;
@@ -26166,6 +26213,7 @@ SA.State.nudgeDecor = function (st, dec, dir) {
    still carry it. */
 SA.State.nudgeBeam = function (st, beam, dir) {
   if (!st || !beam) return false;
+  if (beam.diagonal) return false;
   var alongX = beam.cw >= beam.cd;
   /* Which way is "right" for this member on screen right now? */
   var stp = SA.State.screenStep(st, dir, 1);
@@ -27416,23 +27464,17 @@ SA.Halacha.evaluateWalls = function (state, issues, measurements) {
               fromEdge = 0;
               toEdge = len;
             }
-            var pieceTop = 0;
-            var tops = state.walls[sideId].panels;
-            for (var tp = 0; tp < tops.length; tp++) {
-              var tpnl = tops[tp];
-              if (tpnl.col + tpnl.w <= run.start || tpnl.col >= run.start + run.len) continue;
-              var tEntry = SA.State.materialById(tpnl.matId);
-              var ph = tpnl.row + (tEntry && tEntry.matKind === 'animal'
-                ? (tEntry.standHeight || tpnl.h) : tpnl.h);
-              if (ph > pieceTop) pieceTop = ph;
-            }
+            var edgeLo = Math.min(fromEdge, toEdge), edgeHi = Math.max(fromEdge, toEdge);
             tzuratPlan = {
               side: sideId,
-              fromEdge: Math.min(fromEdge, toEdge),
-              toEdge: Math.max(fromEdge, toEdge),
-              fromCol: Math.min(fromEdge, toEdge),
-              toCol: Math.max(fromEdge, toEdge),
-              y: pieceTop || SA.Rule.WALL_MIN_HEIGHT
+              fromEdge: edgeLo,
+              toEdge: edgeHi,
+              fromCol: edgeLo,
+              toCol: edgeHi,
+              /* The lintel sits on the tops of the post and the wall it
+                 meets (OC 630). A bar at ten tefachim on a full-height post
+                 is a rail in the middle, not a doorway. */
+              y: SA.Halacha.tzuratTop(state, sideId, edgeLo, edgeHi) || SA.Rule.WALL_MIN_HEIGHT
             };
           }
         } else thirdWallStranded = true;
@@ -27654,7 +27696,7 @@ function saFloodComponents(w, d, cls, wallFull) {
       if (visited[k]) continue;
       var t = cls[x][z].type;
       visited[k] = true;
-      if (t === 'kosher') continue;
+      if (t === 'outside' || t === 'kosher') continue;
       var stack = [[x, z]], cells = [];
       var minX = x, maxX = x, minZ = z, maxZ = z;
       /* WHICH WALL, IF ANY, IS THIS PATCH LEANING ON?
@@ -27800,6 +27842,8 @@ SA.Halacha.litterMarks = function (state) {
 
 SA.Halacha.evaluateSchach = function (state, issues, measurements) {
   var w = state.footprint.w, d = state.footprint.d;
+  var outline = SA.Halacha.roofOutline(state);
+  if (measurements) measurements.roofOutline = outline;
   var hazardSet = SA.Halacha.hazardCells(state);
   var litMarks = SA.Halacha.litterMarks(state);
   var frameSup = measurements && measurements.frameSupport;
@@ -27809,6 +27853,10 @@ SA.Halacha.evaluateSchach = function (state, issues, measurements) {
   for (var x = 0; x < w; x++) {
     var col = [];
     for (var z = 0; z < d; z++) {
+      if (!outline.fullRect && !outline.inside[x + '_' + z]) {
+        col.push({ type: 'outside' });
+        continue;
+      }
       if (hazardSet[x + '_' + z]) { col.push({ type: 'pasul', reason: 'overhead' }); continue; }
       var cell = state.schach[x][z];
       if (!cell) {
@@ -27871,7 +27919,7 @@ SA.Halacha.evaluateSchach = function (state, issues, measurements) {
     }
     cls.push(col);
   }
-  var totalCells = w * d;
+  var totalCells = outline.fullRect ? (w * d) : outline.cells.length;
   /* Lavud (OC 632:2): a gap under three tefachim is nullified into the schach
      around it. Those seams inherit the average fill of the kosher cells they
      sit between - sparse poles do not magically become a solid roof via lavud. */
@@ -27950,6 +27998,13 @@ SA.Halacha.evaluateSchach = function (state, issues, measurements) {
   if (!floorOk) {
     issues.push({ severity: 'pasul', code: 'floor_too_small',
       en: 'The floor must be at least seven by seven tefachim (OC 634:1).', cardId: 'sk_floor' });
+  } else if (!outline.fullRect && kosherCount > 0 &&
+      saPatchWidth(outline.cells) < SA.Rule.FLOOR_MIN) {
+    /* A triangle on a seven-tefach pad does not contain a seven-by-seven.
+       The open corner past the short wall is not a sukkah (OC 634:1). */
+    issues.push({ severity: 'pasul', code: 'roof_inside_walls',
+      en: 'Inside these walls the roof does not leave seven by seven tefachim. The open corner past the short wall is not part of the sukkah (OC 634:1).',
+      cardId: 'sk_floor' });
   }
 
   for (var i = 0; i < comps.length; i++) {
@@ -28388,11 +28443,11 @@ SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
      two-tefach door across a twelve-foot roof, then hiding it under the
      next mat, left the meter naming a door the player could not see. */
   if (SA.Halacha.schachRoofReady(snap, rigid) && wantCw >= w && wantCd >= d) {
-    return {
+    return SA.Halacha.clipSchachToWalls(state, {
       ok: true, reason: null,
       x: 0, z: 0, cw: w, cd: d,
       settleRoof: settleRoof, fitted: false
-    };
+    });
   }
   /* Free build is a workshop. Dropping a covering on walls and slats
      puts that covering on the roof, even when the card is only a few
@@ -28403,11 +28458,11 @@ SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
   if (SA.Game && SA.Game.mode === 'free' &&
       !(matEntry && SA.Mat.schachStaysOnTop(matEntry)) &&
       snap.nCarry >= 2 && snap.landed > 0) {
-    return {
+    return SA.Halacha.clipSchachToWalls(state, {
       ok: true, reason: null,
       x: 0, z: 0, cw: w, cd: d,
       settleRoof: settleRoof, fitted: false, onAim: true
-    };
+    });
   }
   var held = snap.sup.held;
   var hx = Math.max(0, Math.min(w - 1, hitX | 0));
@@ -28470,7 +28525,7 @@ SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
       cw: wantCw, cd: wantCd, settleRoof: settleRoof
     };
   }
-  return {
+  return SA.Halacha.clipSchachToWalls(state, {
     ok: true, reason: null,
     x: best.x, z: best.z, cw: best.cw, cd: best.cd,
     settleRoof: settleRoof,
@@ -28479,7 +28534,7 @@ SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
        the covering had to go somewhere else - the one case that needs saying
        out loud (p17). */
     onAim: bestOnFinger
-  };
+  });
 };
 
 /* Roof-line cells that actually have a panel under them. A short canvas on
@@ -28540,16 +28595,410 @@ SA.Halacha.wallTopSolid = function (state) {
   var e = SA.Halacha.wallTopCols(state, 'E', mE);
   var ww = SA.Halacha.wallTopCols(state, 'W', mW);
   var x, z;
+  /* South and west are indexed from the other end (p16 saQuadWall): col 0
+     on the south is the east corner, col 0 on the west is the south corner.
+     A short piece has to carry the cells it is actually standing over. */
   for (x = 0; x < w; x++) {
     if (n[x]) { solid[x + '_0'] = 1; if (mN[x]) metalTop[x + '_0'] = 1; }
-    if (s[x]) { solid[x + '_' + (d - 1)] = 1; if (mS[x]) metalTop[x + '_' + (d - 1)] = 1; }
+    if (s[x]) {
+      var sx = w - 1 - x;
+      solid[sx + '_' + (d - 1)] = 1;
+      if (mS[x]) metalTop[sx + '_' + (d - 1)] = 1;
+    }
   }
   for (z = 0; z < d; z++) {
-    if (ww[z]) { solid['0_' + z] = 1; if (mW[z]) metalTop['0_' + z] = 1; }
+    if (ww[z]) {
+      var wz = d - 1 - z;
+      solid['0_' + wz] = 1;
+      if (mW[z]) metalTop['0_' + wz] = 1;
+    }
     if (e[z]) { solid[(w - 1) + '_' + z] = 1; if (mE[z]) metalTop[(w - 1) + '_' + z] = 1; }
   }
   return { solid: solid, metalTop: metalTop, reach: wc.reach, carries: wc.carries,
     anySide: wc.anySide, maxReach: wc.maxReach };
+};
+
+/* Distance from a point to a segment, and the closest point on it. */
+SA.Halacha.distPointSeg = function (px, pz, ax, az, bx, bz) {
+  var dx = bx - ax, dz = bz - az;
+  var l2 = dx * dx + dz * dz;
+  var t = l2 ? ((px - ax) * dx + (pz - az) * dz) / l2 : 0;
+  if (t < 0) t = 0;
+  else if (t > 1) t = 1;
+  var qx = ax + dx * t, qz = az + dz * t;
+  return { d: Math.hypot(px - qx, pz - qz), x: qx, z: qz, t: t };
+};
+
+SA.Halacha.pointInPoly = function (x, z, poly) {
+  var inside = false, j = poly.length - 1, i;
+  for (i = 0; i < poly.length; i++) {
+    var yi = poly[i].z, yj = poly[j].z, xi = poly[i].x, xj = poly[j].x;
+    if (((yi > z) !== (yj > z)) &&
+        (x < (xj - xi) * (z - yi) / ((yj - yi) || 1e-9) + xi)) inside = !inside;
+    j = i;
+  }
+  return inside;
+};
+
+/* Standing wall runs in world coordinates. South and west use the same
+   end-index as the drawing (saWallEdgeWorld), so a short wall is where it looks. */
+SA.Halacha.wallSegments = function (state) {
+  var fp = state.footprint, segs = [], sides = ['N', 'E', 'S', 'W'], si, side, cols, len, c, start;
+  for (si = 0; si < sides.length; si++) {
+    side = sides[si];
+    cols = SA.Halacha.wallTopCols(state, side);
+    len = cols.length;
+    start = -1;
+    for (c = 0; c <= len; c++) {
+      if (c < len && cols[c]) {
+        if (start < 0) start = c;
+      } else if (start >= 0) {
+        segs.push({
+          side: side,
+          a: saWallEdgeWorld(side, start, fp),
+          b: saWallEdgeWorld(side, c, fp),
+          len: c - start,
+          sideLen: len
+        });
+        start = -1;
+      }
+    }
+  }
+  return segs;
+};
+
+/* How high this panel is painted. Boards and posts are drawn up to the roof
+   line, so the doorway has to move with the height slider. Animals keep
+   their own stand height. */
+SA.Halacha.panelTop = function (state, panel) {
+  if (!panel) return 0;
+  var e = SA.State.materialById(panel.matId);
+  var row = panel.row || 0;
+  if (e && e.matKind === 'animal') return row + (e.standHeight || panel.h || 0);
+  var roof = state && state.roofHeight;
+  if (!(roof > 0)) return row + (panel.h || 0);
+  var wantH = Math.max(panel.h || 0, roof - row);
+  var drawH = Math.max(1, Math.min(wantH, roof - row));
+  if (roof >= SA.Rule.WALL_MIN_HEIGHT) {
+    drawH = Math.max(drawH, Math.min(SA.Rule.WALL_MIN_HEIGHT, roof - row));
+  }
+  return row + drawH;
+};
+
+/* Lintel height for a tzurat ha-petach: the top of the short piece, and the
+   top of the full wall at the corner it stands against. The kaneh rests on
+   the lechayayim (על גבי הלחיים), not halfway up them. */
+SA.Halacha.tzuratTop = function (state, side, fromEdge, toEdge) {
+  if (!state || !state.walls || !side) return 0;
+  var len = SA.State.wallLength(state, side);
+  var lo = Math.min(fromEdge, toEdge), hi = Math.max(fromEdge, toEdge);
+  function topOn(sd, a, b) {
+    var panels = state.walls[sd] && state.walls[sd].panels;
+    if (!panels) return 0;
+    var top = 0, i, p;
+    for (i = 0; i < panels.length; i++) {
+      p = panels[i];
+      if (p.col + p.w <= a - 0.05 || p.col >= b + 0.05) continue;
+      top = Math.max(top, SA.Halacha.panelTop(state, p));
+    }
+    return top;
+  }
+  var y = topOn(side, lo, hi);
+  var ring = SA.WALL_SIDES || ['N', 'E', 'S', 'W'];
+  var idx = ring.indexOf(side);
+  if (idx >= 0) {
+    var prev = ring[(idx + 3) % 4], next = ring[(idx + 1) % 4];
+    var prevLen = SA.State.wallLength(state, prev);
+    if (lo <= SA.Rule.LAVUD + 0.05) y = Math.max(y, topOn(prev, Math.max(0, prevLen - 2), prevLen));
+    if (hi >= len - SA.Rule.LAVUD - 0.05) y = Math.max(y, topOn(next, 0, 2));
+  }
+  return y;
+};
+
+/* The roof that the walls actually hold. Two full walls plus a short third
+   wall come to a point (or a quad that reads as a triangle). Three full walls,
+   or two parallel full walls, still hold the rectangle — that roof is on the
+   walls, not on open air. Fewer than two standing runs leaves the pad alone. */
+SA.Halacha.roofOutline = function (state) {
+  var w = state.footprint.w, d = state.footprint.d, x, z, i;
+  function fullRect() {
+    var cells = [], inside = {};
+    for (x = 0; x < w; x++) for (z = 0; z < d; z++) {
+      cells.push([x, z]);
+      inside[x + '_' + z] = 1;
+    }
+    return {
+      fullRect: true,
+      poly: [{ x: 0, z: 0 }, { x: w, z: 0 }, { x: w, z: d }, { x: 0, z: d }],
+      cells: cells, inside: inside, minX: 0, minZ: 0, cw: w, cd: d
+    };
+  }
+  var segs = SA.Halacha.wallSegments(state);
+  if (segs.length < 2) return fullRect();
+  /* Two full walls still hold the square: the open side is the doorway, and
+     the schach belongs on it. The roof comes to a point only once a short
+     piece is standing, so the covering stops at that piece instead of lying
+     across the open rest of its side. */
+  function samePt(a, b) {
+    return Math.abs(a.x - b.x) <= 0.25 && Math.abs(a.z - b.z) <= 0.25;
+  }
+  function d2(a, b) {
+    var dx = a.x - b.x, dz = a.z - b.z;
+    return dx * dx + dz * dz;
+  }
+  var full = [], shorts = [], si2, sideHas = {};
+  for (si2 = 0; si2 < segs.length; si2++) {
+    if (segs[si2].len < segs[si2].sideLen - 0.5) shorts.push(segs[si2]);
+    else { full.push(segs[si2]); sideHas[segs[si2].side] = 1; }
+  }
+  /* No short piece: the open side is the doorway and the schach belongs on
+     the square. Two parallel full walls, or three full walls, hold that
+     square even when another piece is short. */
+  if (!shorts.length) return fullRect();
+  if (full.length >= 3) return fullRect();
+  if ((sideHas.N && sideHas.S) || (sideHas.E && sideHas.W)) return fullRect();
+  /* Two full walls make an L. The roof is that L, out to the free end of the
+     short piece. A short piece whose far tip is the open pad corner must not
+     be included at that tip — the hull would become the square again and the
+     schach would lie on the side that has no wall. */
+  var pts = [];
+  if (full.length === 2) {
+    var fa = full[0], fb = full[1], A = null, E1, E2;
+    if (samePt(fa.a, fb.a)) { A = fa.a; E1 = fa.b; E2 = fb.b; }
+    else if (samePt(fa.a, fb.b)) { A = fa.a; E1 = fa.b; E2 = fb.a; }
+    else if (samePt(fa.b, fb.a)) { A = fa.b; E1 = fa.a; E2 = fb.b; }
+    else if (samePt(fa.b, fb.b)) { A = fa.b; E1 = fa.a; E2 = fb.a; }
+    if (A) {
+      var corners = [{ x: 0, z: 0 }, { x: w, z: 0 }, { x: w, z: d }, { x: 0, z: d }];
+      var opp = null, ci;
+      for (ci = 0; ci < corners.length; ci++) {
+        if (!samePt(A, corners[ci]) && !samePt(E1, corners[ci]) && !samePt(E2, corners[ci])) opp = corners[ci];
+      }
+      pts.push({ x: A.x, z: A.z }, { x: E1.x, z: E1.z }, { x: E2.x, z: E2.z });
+      for (si2 = 0; si2 < shorts.length; si2++) {
+        var spa = shorts[si2].a, spb = shorts[si2].b;
+        var far = d2(spa, A) >= d2(spb, A) ? spa : spb;
+        var inner = far === spa ? spb : spa;
+        var use = (opp && d2(far, opp) <= 0.25) ? inner : far;
+        pts.push({ x: use.x, z: use.z });
+      }
+    }
+  }
+  if (pts.length < 3) {
+    pts = [];
+    for (i = 0; i < segs.length; i++) { pts.push(segs[i].a); pts.push(segs[i].b); }
+  }
+  pts.sort(function (a, b) { return a.x === b.x ? a.z - b.z : a.x - b.x; });
+  var uniq = [];
+  for (i = 0; i < pts.length; i++) {
+    if (!uniq.length || Math.abs(uniq[uniq.length - 1].x - pts[i].x) > 1e-4 ||
+        Math.abs(uniq[uniq.length - 1].z - pts[i].z) > 1e-4) uniq.push({ x: pts[i].x, z: pts[i].z });
+  }
+  if (uniq.length < 3) return fullRect();
+  function cross(o, a, b) { return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x); }
+  var lower = [], upper = [];
+  for (i = 0; i < uniq.length; i++) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], uniq[i]) <= 0) lower.pop();
+    lower.push(uniq[i]);
+  }
+  for (i = uniq.length - 1; i >= 0; i--) {
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], uniq[i]) <= 0) upper.pop();
+    upper.push(uniq[i]);
+  }
+  lower.pop(); upper.pop();
+  var poly = lower.concat(upper);
+  if (poly.length < 3) return fullRect();
+  var cells = [], inside = {}, minX = w, minZ = d, maxX = 0, maxZ = 0;
+  for (x = 0; x < w; x++) for (z = 0; z < d; z++) {
+    var cx = x + 0.5, cz = z + 0.5, inCell = SA.Halacha.pointInPoly(cx, cz, poly);
+    if (!inCell) {
+      for (var e2 = 0; e2 < poly.length; e2++) {
+        var n2 = poly[(e2 + 1) % poly.length];
+        if (SA.Halacha.distPointSeg(cx, cz, poly[e2].x, poly[e2].z, n2.x, n2.z).d <= 0.55) { inCell = true; break; }
+      }
+    }
+    if (!inCell) continue;
+    cells.push([x, z]);
+    inside[x + '_' + z] = 1;
+    if (x < minX) minX = x;
+    if (z < minZ) minZ = z;
+    if (x + 1 > maxX) maxX = x + 1;
+    if (z + 1 > maxZ) maxZ = z + 1;
+  }
+  if (cells.length < 3 || cells.length >= w * d) return fullRect();
+  return {
+    fullRect: false, poly: poly, cells: cells, inside: inside,
+    minX: minX, minZ: minZ, cw: Math.max(1, maxX - minX), cd: Math.max(1, maxZ - minZ)
+  };
+};
+
+/* A covering that would have filled the pad follows the walls instead when
+   the walls do not hold the whole rectangle. */
+SA.Halacha.clipSchachToWalls = function (state, layout) {
+  if (!layout || !layout.ok) return layout;
+  var outline = SA.Halacha.roofOutline(state);
+  if (!outline || outline.fullRect) return layout;
+  var w = state.footprint.w, d = state.footprint.d;
+  if (layout.cw >= w && layout.cd >= d) {
+    layout.cells = outline.cells;
+    layout.poly = outline.poly;
+    layout.x = outline.minX;
+    layout.z = outline.minZ;
+    layout.cw = outline.cw;
+    layout.cd = outline.cd;
+    layout.fitted = true;
+    return layout;
+  }
+  var cells = [], x, z;
+  for (x = layout.x; x < layout.x + layout.cw; x++) {
+    for (z = layout.z; z < layout.z + layout.cd; z++) {
+      if (outline.inside[x + '_' + z]) cells.push([x, z]);
+    }
+  }
+  if (cells.length && cells.length < layout.cw * layout.cd) layout.cells = cells;
+  return layout;
+};
+
+/* Cells a diagonal slat passes through. */
+SA.Halacha.rasterSeg = function (x0, z0, x1, z1, w, d) {
+  var len = Math.hypot(x1 - x0, z1 - z0);
+  var n = Math.max(2, Math.ceil(len / 0.4));
+  var seen = {}, out = [], i, t, x, z, k;
+  for (i = 0; i <= n; i++) {
+    t = i / n;
+    x = Math.floor(x0 + (x1 - x0) * t);
+    z = Math.floor(z0 + (z1 - z0) * t);
+    if (x < 0) x = 0; else if (x >= w) x = w - 1;
+    if (z < 0) z = 0; else if (z >= d) z = d - 1;
+    k = x + '_' + z;
+    if (seen[k]) continue;
+    seen[k] = 1;
+    out.push([x, z]);
+  }
+  return out;
+};
+
+SA.Halacha.nearSolid = function (solid, x, z, w, d) {
+  var x0 = Math.max(0, Math.floor(x) - 1), x1 = Math.min(w - 1, Math.floor(x) + 1);
+  var z0 = Math.max(0, Math.floor(z) - 1), z1 = Math.min(d - 1, Math.floor(z) + 1);
+  var ix, iz;
+  for (ix = x0; ix <= x1; ix++) for (iz = z0; iz <= z1; iz++) {
+    if (!solid[ix + '_' + iz]) continue;
+    if (Math.hypot(ix + 0.5 - x, iz + 0.5 - z) <= 1.15) return true;
+  }
+  return false;
+};
+
+/* A slat from the short wall (wherever that piece stands) through the finger
+   until it meets another wall. Only when the roof is not already a rectangle —
+   a normal three-wall sukkah keeps straight slats. */
+SA.Halacha.diagonalSlatNear = function (state, hitX, hitZ) {
+  var outline = SA.Halacha.roofOutline(state);
+  if (!outline || outline.fullRect) return null;
+  var segs = SA.Halacha.wallSegments(state);
+  if (segs.length < 2) return null;
+  var w = state.footprint.w, d = state.footprint.d;
+  var hx = (hitX | 0) + 0.5, hz = (hitZ | 0) + 0.5;
+  /* A finger on a wall used to lay the stick along that wall. A slat on the
+     wall holds nothing. Step the aim into the open roof so the stick crosses
+     it and the schach has something to lie on. */
+  var guardN = 0;
+  while (guardN++ < 4) {
+    var pushed = false, si, seg, near, nx, nz, nm, step;
+    for (si = 0; si < segs.length; si++) {
+      seg = segs[si];
+      near = SA.Halacha.distPointSeg(hx, hz, seg.a.x, seg.a.z, seg.b.x, seg.b.z);
+      if (near.d >= 1.25) continue;
+      nx = hx - near.x; nz = hz - near.z; nm = Math.hypot(nx, nz);
+      if (nm < 0.08) {
+        nx = w / 2 - hx; nz = d / 2 - hz;
+        nm = Math.hypot(nx, nz) || 1;
+      }
+      step = (1.25 - near.d) + 1.15;
+      hx += nx / nm * step;
+      hz += nz / nm * step;
+      pushed = true;
+    }
+    hx = Math.max(0.8, Math.min(w - 0.8, hx));
+    hz = Math.max(0.8, Math.min(d - 0.8, hz));
+    if (!pushed) break;
+  }
+  var short = null, i;
+  for (i = 0; i < segs.length; i++) {
+    if (segs[i].len >= segs[i].sideLen - 0.5) continue;
+    if (!short || segs[i].len < short.len) short = segs[i];
+  }
+  var origin = short || segs[0];
+  function liesOnWall(x0, z0, x1, z1) {
+    var mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, s, hitW;
+    for (s = 0; s < segs.length; s++) {
+      hitW = SA.Halacha.distPointSeg(mx, mz, segs[s].a.x, segs[s].a.z, segs[s].b.x, segs[s].b.z);
+      if (hitW.d < 0.45) return true;
+    }
+    return false;
+  }
+  function cast(ax, az) {
+    var spt = SA.Halacha.distPointSeg(ax, az, origin.a.x, origin.a.z, origin.b.x, origin.b.z);
+    var dx = ax - spt.x, dz = az - spt.z, mag = Math.hypot(dx, dz);
+    if (mag < 0.35) {
+      var far = null, farD = -1, fi;
+      for (fi = 0; fi < segs.length; fi++) {
+        if (segs[fi] === origin) continue;
+        var midX = (segs[fi].a.x + segs[fi].b.x) / 2, midZ = (segs[fi].a.z + segs[fi].b.z) / 2;
+        var dd = Math.hypot(midX - spt.x, midZ - spt.z);
+        if (dd > farD) { farD = dd; far = { x: midX, z: midZ }; }
+      }
+      if (!far) return null;
+      dx = far.x - spt.x; dz = far.z - spt.z;
+      mag = Math.hypot(dx, dz) || 1;
+    }
+    dx /= mag; dz /= mag;
+    function rayHit(dirx, dirz) {
+      var best = null, e, ax1, az1, bx, bz, sx, sz, den, t, u, hit;
+      for (e = 0; e < segs.length; e++) {
+        if (segs[e] === origin) continue;
+        ax1 = segs[e].a.x; az1 = segs[e].a.z; bx = segs[e].b.x; bz = segs[e].b.z;
+        sx = bx - ax1; sz = bz - az1;
+        den = dirx * sz - dirz * sx;
+        if (Math.abs(den) < 1e-8) continue;
+        t = ((ax1 - spt.x) * sz - (az1 - spt.z) * sx) / den;
+        u = ((ax1 - spt.x) * dirz - (az1 - spt.z) * dirx) / den;
+        if (t < 0.4 || u < -0.02 || u > 1.02) continue;
+        hit = { t: t, x: spt.x + dirx * t, z: spt.z + dirz * t };
+        if (!best || hit.t < best.t) best = hit;
+      }
+      return best;
+    }
+    var hit = rayHit(dx, dz) || rayHit(-dx, -dz);
+    if (!hit || Math.hypot(hit.x - spt.x, hit.z - spt.z) < 1.2) return null;
+    if (liesOnWall(spt.x, spt.z, hit.x, hit.z)) return null;
+    var xLo = Math.min(spt.x, hit.x), zLo = Math.min(spt.z, hit.z);
+    return {
+      ok: true, diagonal: true, bridges: true, gain: 1,
+      x0: spt.x, z0: spt.z, x1: hit.x, z1: hit.z,
+      x: Math.max(0, Math.min(w - 1, Math.floor(xLo))),
+      z: Math.max(0, Math.min(d - 1, Math.floor(zLo))),
+      cw: Math.max(1, Math.min(w, Math.ceil(Math.abs(hit.x - spt.x)))),
+      cd: Math.max(1, Math.min(d, Math.ceil(Math.abs(hit.z - spt.z))))
+    };
+  }
+  /* A diagonal that hugs the wall does not hold a seven-by-seven of schach.
+     Keep the line under the finger when it already crosses the open roof.
+     When it does not, use the line through the middle. */
+  function wallClearance(lay) {
+    if (!lay) return 0;
+    var mx = (lay.x0 + lay.x1) / 2, mz = (lay.z0 + lay.z1) / 2, s, hitW, best = 1e9;
+    for (s = 0; s < segs.length; s++) {
+      hitW = SA.Halacha.distPointSeg(mx, mz, segs[s].a.x, segs[s].a.z, segs[s].b.x, segs[s].b.z);
+      if (hitW.d < best) best = hitW.d;
+    }
+    return best;
+  }
+  var aimed = cast(hx, hz);
+  var mid = cast(w / 2, d / 2);
+  if (aimed && wallClearance(aimed) >= 4.5) return aimed;
+  if (mid && (!aimed || wallClearance(mid) > wallClearance(aimed))) return mid;
+  return aimed || mid;
 };
 
 /* The stretch of a pole that is actually carried: from the first support it
@@ -28753,19 +29202,63 @@ SA.Halacha.beamDropLayout = function (state, alongZ, hitX, hitZ) {
     return flipped;
   }
   if (onAnimal(primary) && !onAnimal(flipped)) return primary;
-  if (primary.ok && primary.bridges) return primary;
-  /* Turn the stick round rather than lay it uselessly along a wall top. This
-     is what "poles should not need rotating" comes down to: the card is held
-     one way, the roof wants the other, and the game knows which. */
-  if (flipped.ok && flipped.bridges) {
-    flipped.flipRot = true;
-    return flipped;
+  /* The glow has to be the slat under the finger. Distance to the stick's
+     centre used to prefer a ledger on the far wall, so the highlight sat in
+     the back corner while the player was aiming at the short wall. A diagonal
+     from that short wall wins when it is the line they are actually on. */
+  function fingerDist(lay) {
+    if (!lay || !lay.ok) return 1e9;
+    var hx = (hitX | 0) + 0.5, hz = (hitZ | 0) + 0.5;
+    if (lay.diagonal) return SA.Halacha.distPointSeg(hx, hz, lay.x0, lay.z0, lay.x1, lay.z1).d;
+    var x0 = lay.x, x1 = lay.x + lay.cw, z0 = lay.z, z1 = lay.z + lay.cd;
+    var ddx = hx < x0 ? x0 - hx : (hx > x1 ? hx - x1 : 0);
+    var ddz = hz < z0 ? z0 - hz : (hz > z1 ? hz - z1 : 0);
+    return Math.hypot(ddx, ddz);
   }
-  if (primary.ok) return primary;
-  if (flipped.ok) {
-    flipped.flipRot = true;
-    return flipped;
+  var savedH = state.roofHeight;
+  var planD = SA.Halacha.schachRoofIfSettled(state);
+  if (planD.canSettle) state.roofHeight = planD.useRoof;
+  var diag = SA.Halacha.diagonalSlatNear(state, hitX, hitZ);
+  state.roofHeight = savedH;
+  if (diag) diag.settleRoof = planD.canSettle ? planD.settleTo : null;
+  var bestLay = null;
+  /* A one-cell strip along the wall holds nothing the player can roof.
+     Once a real diagonal is already down, that strip can even become
+     "carried" and steal the next drop. It is still the wall, not a slat. */
+  function hugsWall(lay) {
+    if (!lay || !lay.ok || lay.diagonal) return false;
+    var fw = state.footprint.w, fd = state.footprint.d;
+    var thinRow = lay.cd <= 1 && (lay.z <= 1 || lay.z + lay.cd >= fd - 1);
+    var thinCol = lay.cw <= 1 && (lay.x <= 1 || lay.x + lay.cw >= fw - 1);
+    return thinRow || thinCol;
   }
+  function consider(lay, flip) {
+    if (!lay || !lay.ok) return;
+    var dist = fingerDist(lay);
+    if (!bestLay) {
+      if (flip) lay.flipRot = true;
+      lay._d = dist;
+      bestLay = lay;
+      return;
+    }
+    /* A ledger on the wall is carried and holds nothing. Any real bridge —
+       the diagonal off the short post — beats it, even when the finger is
+       sitting on that wall. A near-wall strip loses to that diagonal too. */
+    var bridgeBetter = !!(lay.bridges && !bestLay.bridges);
+    var diagBeatsHug = !!(lay.diagonal && hugsWall(bestLay));
+    var closer = dist + (flip ? 0.2 : 0) < bestLay._d - 0.35;
+    if (lay.diagonal || !hugsWall(lay) || hugsWall(bestLay)) {
+      if (bridgeBetter || closer || diagBeatsHug) {
+        if (flip) lay.flipRot = true;
+        lay._d = dist;
+        bestLay = lay;
+      }
+    }
+  }
+  consider(primary, false);
+  consider(flipped, true);
+  consider(diag, false);
+  if (bestLay) return bestLay;
   if (primary.reason === 'no_wall' && flipped.reason === 'no_wall') {
     if (SA.State.untiedSoftWallCount(state)) primary.reason = 'untied';
     else if (SA.State.wallReachMax(state) > 0) primary.reason = 'walls_short';
@@ -28806,6 +29299,24 @@ SA.Halacha.frameSupport = function (state, assumeEntry) {
   var beamCarry = {};
   for (var i = 0; i < beams.length; i++) {
     var b = beams[i];
+    if (b.diagonal) {
+      if (!SA.Halacha.nearSolid(solid, b.x0, b.z0, w, d) ||
+          !SA.Halacha.nearSolid(solid, b.x1, b.z1, w, d)) continue;
+      landedBeams[b.uid] = 1;
+      var bEntryD = SA.Mat.BEAM_BY_ID[b.matId];
+      beamCarry[b.uid] = SA.Mat.beamCarryTefachim(bEntryD);
+      var isMetalD = !!(bEntryD && bEntryD.mekabelTumah);
+      if (isMetalD) { metalOf[b.uid] = bEntryD; if (!anyMetal) anyMetal = bEntryD; }
+      var line = SA.Halacha.rasterSeg(b.x0, b.z0, b.x1, b.z1, w, d);
+      for (var li = 0; li < line.length; li++) {
+        var dkey = line[li][0] + '_' + line[li][1];
+        var underD = carrier[dkey];
+        if (!isMetalD && metalOf[underD]) { capped[underD] = 1; metalCarriesWood = true; }
+        solid[dkey] = 1;
+        carrier[dkey] = b.uid;
+      }
+      continue;
+    }
     if (!SA.Halacha.beamFullyCarried(solid, b.x, b.z, b.cw, b.cd)) continue;
     landedBeams[b.uid] = 1;
     var bEntry = SA.Mat.BEAM_BY_ID[b.matId];
@@ -29034,6 +29545,8 @@ SA.Halacha.evaluate = function (state) {
 };
 
 SA.Lang.add({
+  'Inside these walls the roof does not leave seven by seven tefachim. The open corner past the short wall is not part of the sukkah (OC 634:1).':
+    'בתוך הקירות האלה הגג לא משאיר שבעה על שבעה טפחים. הפינה הפתוחה מעבר לקיר הקצר אינה חלק מהסוכה (או"ח תרלד:א).',
   'Tie him so he cannot walk away. Untied, he is not a wall.':
     'קשרו אותו כדי שלא יברח. בלי קשר הוא לא קיר.',
   'Stuff the holes under his belly and under his neck. Each one is taller than three tefachim.':
@@ -29059,6 +29572,8 @@ SA.Lang.add({
     'הקירות האלה אינם נפגשים בפינות. כל קיר מלא צריך להגיע לתוך שלושה טפחים מהבא כדי שלבוד יחבר ביניהם (או"ח תרל,א).',
   'Two full walls meet. Add a third wall of four tefachim at a far corner — that wall does not need a tzurat ha-petach. A shorter piece within three tefachim of that corner works only if you add a tzurat ha-petach (OC 630:2).':
     'שני קירות מלאים נפגשים. הוסיפו קיר שלישי של ארבעה טפחים בפינה רחוקה — הקיר הזה אינו צריך צורת הפתח. קטע קצר יותר בתוך שלושה טפחים מהפינה כשר רק אם מוסיפים צורת הפתח (או"ח תרל,ב).',
+  'Two full walls meet. Add a third wall of four tefachim within three tefachim of the open end of a full wall — not at the empty far corner. That four-tefach wall does not need a tzurat ha-petach. A shorter piece in that same spot works only with a tzurat ha-petach (OC 630:2).':
+    'שני קירות מלאים נפגשים. הוסיפו קיר שלישי של ארבעה טפחים, בתוך שלושה טפחים מהקצה הפתוח של קיר מלא — לא בפינה הריקה הרחוקה. קיר של ארבעה טפחים אינו צריך צורת הפתח. קטע קצר יותר באותו מקום כשר רק עם צורת הפתח (או"ח תרל,ב).',
   'This piece is within three tefachim of the corner, and it is shorter than four. Tap Add a tzurat ha-petach so that side counts (OC 630:2).':
     'הקטע הזה בתוך שלושה טפחים מהפינה, והוא קצר מארבעה. הקישו על הוסיפו צורת הפתח כדי שהצד ייחשב (או"ח תרל,ב).',
   'The four-tefach piece is within three of the wall. Two facing walls still need a tzurat ha-petach across that side (OC 630:3). Tap Add a tzurat ha-petach.':
@@ -29600,10 +30115,11 @@ SA.Levels = [
     hint: 'This pad is the minimum: seven by seven tefachim. Smaller, and it is not a sukkah.', goal: { type: 'kosher' }, cardId: 'sk_floor',
     brief: { have: 'a pad that is exactly seven by seven tefachim', teach: 'the smallest a sukkah floor can be',
       do: 'Build three walls and kosher schach on this pad. This size is the lesson — it is as small as a sukkah can be.' } },
-  { id: 'slats_and_lavud', title: 'Slats and Lavud', site: 'pine_forest', footprint: { w: 10, d: 10 },
-    hint: 'Two full walls, then ten posts. Space the posts under three tefachim apart — lavud treats those gaps as solid wall.', goal: { type: 'kosher' }, cardId: 'sk_lavud',
-    brief: { have: 'two full walls and ten posts', teach: 'lavud — a gap under three tefachim counts as solid wall',
-      do: 'Put up the two full walls. Stand the posts on another side with less than three tefachim between them, then roof it.' } },
+  { id: 'slats_and_lavud', title: 'Slats and Lavud', site: 'pine_forest', footprint: { w: 15, d: 15 },
+    hint: 'This sukkah is bigger than seven by seven, so one post can hold a kosher roof. Stand the post within three tefachim of the corner. Add a tzurat ha-petach that rises from the ground to the top of the post. Lay the slats diagonally from that post across to the other wall, then put the schach on the slats.', goal: { type: 'kosher' }, cardId: 'sk_lavud',
+    brief: { have: 'two full walls, one post, and slats, on a pad bigger than seven by seven',
+      teach: 'a tzurat ha-petach at the top of one post, and diagonal slats the schach rests on',
+      do: 'Put up the two full walls. Stand one post within three tefachim of the corner and add a tzurat ha-petach up to the top of that post. Lay slats diagonally from the post across the open roof to the other wall, then cover the space they hold with schach. A seven-by-seven of that schach has to sit inside the walls.' } },
   { id: 'windy_canvas', title: 'The Windy Canvas Wall', site: 'beach', footprint: { w: 8, d: 8 }, familyWhitelist: ['canvas'],
     hint: 'Canvas is on a frame — tap Tie so ordinary wind cannot open a gap.',
     goal: { type: 'kosher', requireTied: true }, cardId: 'sk_ruach',
@@ -29754,6 +30270,14 @@ SA.Lang.add({
     'רק עמודים. הניחו אותם במרחק של פחות משלושה טפחים — לבוד מתייחס לרווחים האלה כקיר.',
   'Two full walls, then ten posts. Space the posts under three tefachim apart — lavud treats those gaps as solid wall.':
     'שני קירות מלאים, ואז עשרה עמודים. הניחו את העמודים במרחק של פחות משלושה טפחים — לבוד מתייחס לרווחים האלה כקיר מלא.',
+  'This sukkah is bigger than seven by seven, so one post can hold a kosher roof. Stand the post within three tefachim of the corner. Add a tzurat ha-petach that rises from the ground to the top of the post. Lay the slats diagonally from that post across to the other wall, then put the schach on the slats.':
+    'הסוכה הזו גדולה משבעה על שבעה, ולכן עמוד אחד יכול להחזיק גג כשר. העמידו את העמוד בתוך שלושה טפחים מהפינה. הוסיפו צורת הפתח העולה מן הקרקע עד ראש העמוד. הניחו את השריגים באלכסון מהעמוד אל הקיר השני, ואז שימו את הסכך על השריגים.',
+  'two full walls, one post, and slats, on a pad bigger than seven by seven':
+    'שני קירות מלאים, עמוד אחד ושריגים, על שטח גדול משבעה על שבעה',
+  'a tzurat ha-petach at the top of one post, and diagonal slats the schach rests on':
+    'צורת הפתח בראש עמוד אחד, ושריגים באלכסון שהסכך נח עליהם',
+  'Put up the two full walls. Stand one post within three tefachim of the corner and add a tzurat ha-petach up to the top of that post. Lay slats diagonally from the post across the open roof to the other wall, then cover the space they hold with schach. A seven-by-seven of that schach has to sit inside the walls.':
+    'העמידו את שני הקירות המלאים. העמידו עמוד אחד בתוך שלושה טפחים מהפינה והוסיפו צורת הפתח עד ראש העמוד. הניחו שריגים באלכסון מהעמוד, לרוחב הגג הפתוח, אל הקיר השני, ואז כסו בסכך את השטח שהם מחזיקים. שבעה על שבעה מהסכך הזה צריכים לשבת בתוך הקירות.',
   'posts, and no solid boards': 'עמודים, ובלי לוחות מלאים',
   'two full walls and ten posts': 'שני קירות מלאים ועשרה עמודים',
   'Stand the posts with less than three tefachim between them, on three sides, then roof it.':
@@ -30184,6 +30708,21 @@ function saWallEdgeWorld(side, edge, footprint) {
   if (side === 'S') return { x: W - edge, z: D };
   if (side === 'E') return { x: W, z: edge };
   return { x: 0, z: D - edge };
+}
+/* A thin quad along a diagonal slat, wide enough to read as a board. */
+function saSlatQuad(x0, z0, x1, z1, y, cx, cz) {
+  var dx = x1 - x0, dz = z1 - z0;
+  var len = Math.hypot(dx, dz) || 1;
+  /* About a tefach wide. Thinner than that and the beam painter throws the
+     stick out (its short side is under a couple of pixels), so a diagonal
+     the player just laid never appears. */
+  var px = -dz / len * 0.5, pz = dx / len * 0.5;
+  return [
+    SA.Iso.project(x0 + px, y, z0 + pz, cx, cz),
+    SA.Iso.project(x1 + px, y, z1 + pz, cx, cz),
+    SA.Iso.project(x1 - px, y, z1 - pz, cx, cz),
+    SA.Iso.project(x0 - px, y, z0 - pz, cx, cz)
+  ];
 }
 /* Depth sample for a panel: the first floor-cell centre just inside that
    side, not the outer wall plane. The plane sits half a tefach behind the
@@ -31648,7 +32187,7 @@ SA.Scene.render = function (ctx, state, result) {
                still tappable when nothing is behind it (that is what lets the
                fourth wall go up), never able to swallow the wall you can
                plainly see through it. */
-            SA.Pick.add('wall_cell', { side: side2, col: p2.col, uid: p2.uid }, wq, fade);
+            SA.Pick.add('wall_cell', { side: side2, col: p2.col, w: p2.w, uid: p2.uid }, wq, fade);
           } });
           if (!fade) {
           /* An elephant is taller than the sukkah it is holding up, so its
@@ -31712,7 +32251,7 @@ SA.Scene.render = function (ctx, state, result) {
                stacked up into a visible ghost box around an empty lot, which is
                the drafting-table look again. Where a wall CAN go is discovered
                by holding a piece over it, not by a printed outline. */
-            SA.Pick.add('wall_cell', { side: side3, col: col3, uid: null }, eq);
+            SA.Pick.add('wall_cell', { side: side3, col: col3, w: 1, uid: null }, eq);
           } });
         })(side, c);
       }
@@ -31791,6 +32330,24 @@ SA.Scene.render = function (ctx, state, result) {
           var solidDraw = (fsDraw && fsDraw.solid) || SA.Halacha.frameSupport(state).solid;
           if (!SA.Halacha.beamFullyCarried(solidDraw, bm.x, bm.z, bm.cw, bm.cd)) return;
         }
+      }
+      if (bm.diagonal && bm.x0 != null) {
+        /* Same layer as a straight slat. Painting it here, while the job list
+           is still being built, put it under the floor and the walls, so the
+           piece was spent and nothing showed on the roof. */
+        var yD = state.roofHeight - 0.42;
+        var sq = saSlatQuad(bm.x0, bm.z0, bm.x1, bm.z1, yD, cx, cz);
+        var midX = (bm.x0 + bm.x1) / 2, midZ = (bm.z0 + bm.z1) / 2;
+        var dDepth = SA.Iso.depthKey(midX, state.roofHeight, midZ, cx, cz);
+        jobs.push({ layer: 1.5, depth: dDepth, draw: function () {
+          ctx.save();
+          SA.FX.withPop(ctx, sq, bm.placedAt, function () {
+            SA.Draw.beamSpan(ctx, sq, bEntry, bm.seed);
+          });
+          ctx.restore();
+          SA.Pick.add('beam_item', { uid: bm.uid }, sq);
+        } });
+        return;
       }
       var by = state.roofHeight - 0.42;
       var over = 0.3;
@@ -31945,7 +32502,7 @@ SA.Scene.render = function (ctx, state, result) {
          lying on a flat plane, so a screen-space spin reads exactly like turning
          it on the roof, and costs four sin/cos instead of a second projection. */
       var rot = g.rot || 0, quad = corners;
-      if (rot) {
+      if (rot && !(g.poly && g.poly.length >= 3)) {
         var ccx = (corners[0].sx + corners[2].sx) / 2, ccy = (corners[0].sy + corners[2].sy) / 2;
         var cs = Math.cos(rot), sn = Math.sin(rot);
         quad = [];
@@ -31953,6 +32510,32 @@ SA.Scene.render = function (ctx, state, result) {
           var ddx = corners[qi].sx - ccx, ddy = corners[qi].sy - ccy;
           quad.push({ sx: ccx + ddx * cs - ddy * sn, sy: ccy + ddx * sn + ddy * cs });
         }
+      }
+      /* A roof that follows the walls is a polygon, not the box around it.
+         The stamp fills that box and the clip cuts it back to the walls, so
+         the open corner past a short wall stays open air. */
+      var clip = null;
+      if (g.poly && g.poly.length >= 3) {
+        clip = [];
+        var pminx = Infinity, pminz = Infinity, pmaxx = -Infinity, pmaxz = -Infinity, pi, pp;
+        for (pi = 0; pi < g.poly.length; pi++) {
+          pp = g.poly[pi];
+          if (pp.x < pminx) pminx = pp.x;
+          if (pp.z < pminz) pminz = pp.z;
+          if (pp.x > pmaxx) pmaxx = pp.x;
+          if (pp.z > pmaxz) pmaxz = pp.z;
+          clip.push(SA.Iso.project(pp.x, yTop, pp.z, cx, cz));
+        }
+        mx = (pminx + pmaxx) / 2;
+        mz = (pminz + pmaxz) / 2;
+        hw = Math.max(0.35, (pmaxx - pminx) / 2);
+        hd = Math.max(0.35, (pmaxz - pminz) / 2);
+        quad = [
+          SA.Iso.project(mx - hw, yTop, mz - hd, cx, cz),
+          SA.Iso.project(mx + hw, yTop, mz - hd, cx, cz),
+          SA.Iso.project(mx + hw, yTop, mz + hd, cx, cz),
+          SA.Iso.project(mx - hw, yTop, mz + hd, cx, cz)
+        ];
       }
       var gdepth = SA.Iso.depthKey(mx, yTop, mz, cx, cz);
       /* THE UNDERSIDE OF THE ROOF.
@@ -31973,7 +32556,7 @@ SA.Scene.render = function (ctx, state, result) {
          ghost roof used to show only the cut-away corner. */
       if (SA.Scene._roofUnder && !SA.Scene._roofOpen) {
         jobs.push({ layer: 1.7, depth: gdepth, draw: function () {
-          SA.Draw.poly(ctx, quad, SA.Mat.shadeColor(sEntry.tone || '#6a7a4a', 0.52), null);
+          SA.Draw.poly(ctx, clip || quad, SA.Mat.shadeColor(sEntry.tone || '#6a7a4a', 0.52), null);
         } });
       }
       /* A door sitting in a hole of a whole-pad mat still has to paint after
@@ -31987,7 +32570,16 @@ SA.Scene.render = function (ctx, state, result) {
         var ghost = SA.Scene._roofGhost;
         if (ghost < 1) { ctx.save(); ctx.globalAlpha = ghost; }
         SA.FX.withPop(ctx, quad, grp.placedAt, function () {
+          if (clip) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(clip[0].sx, clip[0].sy);
+            for (var ci = 1; ci < clip.length; ci++) ctx.lineTo(clip[ci].sx, clip[ci].sy);
+            ctx.closePath();
+            ctx.clip();
+          }
           SA.Draw.schachTile(ctx, quad, sEntry, g.seed, hw * 2, hd * 2);
+          if (clip) ctx.restore();
         });
         if (ghost < 1) ctx.restore();
       } };
@@ -32666,7 +33258,7 @@ SA.Scene.renderCached = function (ctx, state, result) {
     SA.Scene._key = '';
   }
   if (SA.Scene._key !== key) {
-    var c2 = cv.getContext('2d');
+    var c2 = cv.getContext('2d', { alpha: false });
     c2.setTransform(dpr, 0, 0, dpr, 0, 0);
     c2.clearRect(0, 0, view.w, view.h);
     /* Scene.render takes its canvas as an argument and every drawable it
@@ -32683,7 +33275,7 @@ SA.Scene.renderCached = function (ctx, state, result) {
     var snap = SA.Scene._pick || [];
     for (var pi = 0; pi < snap.length; pi++) SA.Pick.list.push(snap[pi]);
   }
-  ctx.drawImage(cv, 0, 0, view.w, view.h);
+  SA.View.blitPixels(ctx, cv);
   if (SA.Pile.dragging) SA.Scene.drawSnapPreview(ctx, state, cx, cz);
 };
 
@@ -33005,6 +33597,10 @@ SA.Scene.drawSnapPreview = function (ctx, state, cx, cz) {
        watched the mat land somewhere else, and got told at the end that a bare
        strip was splitting the sukkah in two. Now the strip is visible while
        there is still something to do about it. */
+    /* The piece lands at the settled roof. Drawing the glow at the old, taller
+       line put it up the screen — the back corner — while the drop sat on the walls. */
+    var roofY = pv.settleRoof != null ? pv.settleRoof : state.roofHeight;
+    var roofOutline = (pv.kind === 'schach') ? SA.Halacha.roofOutline(state) : null;
     if (pv.kind === 'schach' && drag && drag.piece) {
       var covEntry = SA.Pile.entryOf(drag.piece);
       var covSup = SA.Halacha.frameSupport(state, covEntry);
@@ -33014,9 +33610,10 @@ SA.Scene.drawSnapPreview = function (ctx, state, cx, cz) {
         /* Drawn every frame WHILE DRAGGING, which is the moment smoothness
            matters most, so it shares the corner grid rather than projecting
            four fresh points per cell (saPlaneGrid). */
-        var badGrid = saPlaneGrid(state.footprint.w, state.footprint.d, state.roofHeight, cx, cz);
+        var badGrid = saPlaneGrid(state.footprint.w, state.footprint.d, roofY, cx, cz);
         for (var gx = 0; gx < state.footprint.w; gx++) {
           for (var gz = 0; gz < state.footprint.d; gz++) {
+            if (roofOutline && !roofOutline.fullRect && !roofOutline.inside[gx + '_' + gz]) continue;
             if (covSup.held[gx + '_' + gz]) continue;
             if (state.schach[gx] && state.schach[gx][gz]) continue;
             SA.Draw.poly(ctx, badGrid.quad(gx, gz), badFill, null);
@@ -33025,7 +33622,7 @@ SA.Scene.drawSnapPreview = function (ctx, state, cx, cz) {
         ctx.restore();
       }
     }
-    if (pv.kind === 'beam' && pv.ok !== false) {
+    if ((pv.kind === 'beam' || pv.asBeam) && pv.ok !== false && !pv.diagonal) {
       var bayStep = SA.State.roofBayStep(state, null, null);
       var alongX = pv.cw >= pv.cd;
       var bayAxis = alongX ? state.footprint.d : state.footprint.w;
@@ -33042,9 +33639,9 @@ SA.Scene.drawSnapPreview = function (ctx, state, cx, cz) {
         }
         if (hasOne) continue;
         if (Math.abs(bi - (alongX ? pv.z : pv.x)) < 2) continue;
-        var bA = SA.Iso.project(alongX ? 0 : bi + 0.5, state.roofHeight,
+        var bA = SA.Iso.project(alongX ? 0 : bi + 0.5, roofY,
           alongX ? bi + 0.5 : 0, cx, cz);
-        var bB = SA.Iso.project(alongX ? state.footprint.w : bi + 0.5, state.roofHeight,
+        var bB = SA.Iso.project(alongX ? state.footprint.w : bi + 0.5, roofY,
           alongX ? bi + 0.5 : state.footprint.d, cx, cz);
         ctx.beginPath();
         ctx.moveTo(bA.sx, bA.sy);
@@ -33053,9 +33650,30 @@ SA.Scene.drawSnapPreview = function (ctx, state, cx, cz) {
       }
       ctx.restore();
     }
-    for (var x = pv.x; x < pv.x + pv.cw; x++) {
-      for (var z = pv.z; z < pv.z + pv.cd; z++) {
-        SA.Draw.poly(ctx, saQuadSchach(x, z, state.roofHeight, cx, cz), fill, edge, 1.4);
+    if (pv.diagonal && pv.x0 != null) {
+      var slatQ = saSlatQuad(pv.x0, pv.z0, pv.x1, pv.z1, roofY - 0.2, cx, cz);
+      ctx.shadowColor = 'rgba(255,224,150,0.95)';
+      ctx.shadowBlur = 14;
+      SA.Draw.poly(ctx, slatQ, fill, edge, 2.2);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    } else if (pv.poly && pv.poly.length >= 3) {
+      var polyPts = [], ppi;
+      for (ppi = 0; ppi < pv.poly.length; ppi++) {
+        polyPts.push(SA.Iso.project(pv.poly[ppi].x, roofY, pv.poly[ppi].z, cx, cz));
+      }
+      ctx.shadowColor = 'rgba(255,224,150,0.9)';
+      ctx.shadowBlur = 12;
+      SA.Draw.poly(ctx, polyPts, fill, edge, 2);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    } else if (pv.cells && pv.cells.length) {
+      for (var ci2 = 0; ci2 < pv.cells.length; ci2++) {
+        SA.Draw.poly(ctx, saQuadSchach(pv.cells[ci2][0], pv.cells[ci2][1], roofY, cx, cz), fill, edge, 1.4);
+      }
+    } else {
+      for (var x = pv.x; x < pv.x + pv.cw; x++) {
+        for (var z = pv.z; z < pv.z + pv.cd; z++) {
+          SA.Draw.poly(ctx, saQuadSchach(x, z, roofY, cx, cz), fill, edge, 1.4);
+        }
       }
     }
   } else if (pv.kind === 'decor') {
@@ -33212,6 +33830,19 @@ SA.Scene.drawLavudBeams = function (ctx, state, result, cx, cz) {
   }
 };
 
+/* Where the doorway is drawn: lintel on the tops, uprights from the ground.
+   A stub hanging 0.85 tefachim under the roof reads as a bar in the middle
+   of the post, and a kaneh has to rest on the lechayayim. */
+SA.Scene.tzuratFigure = function (state, th) {
+  if (!state || !th) return null;
+  var fromEdge = th.fromEdge != null ? th.fromEdge : ((th.fromCol || 0) + 0.5);
+  var toEdge = th.toEdge != null ? th.toEdge : ((th.toCol || 0) + 0.5);
+  var y = SA.Halacha.tzuratTop(state, th.side, fromEdge, toEdge);
+  if (!(y > 1)) y = th.y || 0;
+  if (!(y > 1)) return null;
+  return { y: y, y0: 0, fromEdge: fromEdge, toEdge: toEdge };
+};
+
 /* Tzuras hapesach: the lintel sits on the short piece and reaches the full
    wall beside it (the lavud gap). Parallel walls still span that whole side. */
 SA.Scene.drawTzuratHapetach = function (ctx, state, result, cx, cz) {
@@ -33219,20 +33850,21 @@ SA.Scene.drawTzuratHapetach = function (ctx, state, result, cx, cz) {
   if (!th || SA.Camera.inside) return;
   var plan = result && result.measurements && result.measurements.tzuratPlan;
   if (plan && plan.side !== th.side) return;
+  var fig = SA.Scene.tzuratFigure(state, th);
+  if (!fig) return;
   var side = th.side;
-  var y = Math.min(state.roofHeight - 0.15, th.y || SA.Rule.WALL_MIN_HEIGHT);
-  var fromEdge = th.fromEdge != null ? th.fromEdge : (th.fromCol + 0.5);
-  var toEdge = th.toEdge != null ? th.toEdge : (th.toCol + 0.5);
+  var y = fig.y;
+  var fromEdge = fig.fromEdge;
+  var toEdge = fig.toEdge;
   var a = saWallEdgeWorld(side, fromEdge, state.footprint);
   var b = saWallEdgeWorld(side, toEdge, state.footprint);
   var pa = SA.Iso.project(a.x, y, a.z, cx, cz);
   var pb = SA.Iso.project(b.x, y, b.z, cx, cz);
-  var post = 0.85;
-  var aLo = SA.Iso.project(a.x, y - post, a.z, cx, cz);
-  var bLo = SA.Iso.project(b.x, y - post, b.z, cx, cz);
+  var aLo = SA.Iso.project(a.x, fig.y0, a.z, cx, cz);
+  var bLo = SA.Iso.project(b.x, fig.y0, b.z, cx, cz);
   ctx.save();
   ctx.strokeStyle = 'rgba(230, 210, 140, 0.95)';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.75;
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(pa.sx, pa.sy); ctx.lineTo(pb.sx, pb.sy);
@@ -33968,7 +34600,7 @@ SA.UI.showcaseFrame = function (ctx, w, h) {
     cache.height = Math.max(1, Math.round(h * SA.View.dpr));
     SA.UI._showcaseCanvas = cache;
   }
-  var c2 = cache.getContext('2d');
+  var c2 = cache.getContext('2d', { alpha: false });
   c2.setTransform(SA.View.dpr, 0, 0, SA.View.dpr, 0, 0);
   c2.clearRect(0, 0, w, h);
   SA.UI.paintShowcase(c2, w, h);
@@ -33981,7 +34613,7 @@ SA.UI.renderTitle = function (ctx) {
   var w = SA.View.w, h = SA.View.h, safe = SA.View.safe;
 
   var frame = SA.UI.showcaseFrame(ctx, w, h);
-  ctx.drawImage(frame, 0, 0, w, h);
+  SA.View.blitPixels(ctx, frame);
   /* The showcase is painted off-screen, so its own pick quads are meaningless -
      wipe anything the scene registered and let the menu own every tap. */
   SA.Pick.reset();
@@ -34201,6 +34833,9 @@ SA.UI.renderTitleChrome = function (ctx, w, h, safe) {
 
   /* Menu stacked lower so the showcase sukkah sits on the ground between the
      wordmark and the buttons, not floating over the mid-sky. */
+  if (SA.Host.inApp()) {
+    SA.UI.btn(ctx, safe.l + 8, safe.t + 8, 78, 40, 'BACK', 'title_home', {});
+  }
   var bw = menu.bw, bx = menu.bx, by = menu.by;
   var startH = menu.startH, pickH = menu.pickH, cardsH = menu.cardsH;
   var extraH = menu.extraH, langH = menu.langH;
@@ -34307,7 +34942,9 @@ SA.UI.onTitleTap = function (hit) {
   else if (hit.kind === 'title_levels') SA.Game.goLevels();
   else if (hit.kind === 'title_free' && SA.Game.freeBuildUnlocked()) SA.Game.startFreeBuild(false);
   else if (hit.kind === 'title_cards') SA.Game.goCards();
-  else if (hit.kind === 'title_more_games') { try { location.href = 'mitz://game/dash'; } catch (e) {} }
+  else if (hit.kind === 'title_home' || hit.kind === 'title_more_games') {
+    try { location.href = 'mitz://game/dash'; } catch (e) {}
+  }
   else if (hit.kind === 'title_lang') SA.Lang.set(SA.Lang.isHe() ? 'en' : 'he');
   else if (hit.kind === 'title_settings') SA.Game.modal = 'settings';
 };
@@ -35554,7 +36191,12 @@ SA.UI.renderPanelInspector = function (ctx, trayTop) {
   if (entry) {
     var nameW = w - 24 - (bx - 12) - 96;
     if (nameW > 60) {
-      var nf = SA.Draw.fitLines(ctx, SA.Lang.t(entry.name || entry.id), nameW, 2, 12.5, 9);
+      /* Walls keep the readable name on `en` / wallName. `name` is never
+         set, so the old fallback printed the catalog id. */
+      var shown = (entry.family && entry.finish && SA.Mat.wallName)
+        ? SA.Mat.wallName(entry)
+        : SA.Lang.t(entry.en || entry.name || entry.id);
+      var nf = SA.Draw.fitLines(ctx, shown, nameW, 2, 12.5, 9);
       var ny = barY + barH / 2 - (nf.lines.length - 1) * nf.size * 0.6;
       for (var ni = 0; ni < nf.lines.length; ni++) {
         SA.Draw.text(ctx, nf.lines[ni], bx, ny + ni * nf.size * 1.2,
@@ -42486,18 +43128,34 @@ SA.Pile.ensureTable = function (state) {
   /* The 7×7 lesson is the pad itself. A table will not fit, and dealing one
      only hands the player a card the pad refuses. */
   if (runCfg && runCfg.decorCount === 0) return false;
+  var maxTef = runCfg && runCfg.decorMaxTef;
+  function fitsTable(e) {
+    return !!(e && (!maxTef || SA.Mat.decorSizeTefachim(e) <= maxTef));
+  }
+  if (maxTef) {
+    var smallDecor = [[], [], []], anySmallT = 0, sti, sii;
+    for (sti = 0; sti < 3; sti++) {
+      for (sii = 0; sii < (decorPool[sti] || []).length; sii++) {
+        if (fitsTable(decorPool[sti][sii])) { smallDecor[sti].push(decorPool[sti][sii]); anySmallT++; }
+      }
+    }
+    if (anySmallT) decorPool = smallDecor;
+  }
   var tw = runCfg && runCfg.tierWeights;
   var startTier = 0;
   if (tw && (tw[2] || 0) > 0 && !(tw[0] > 0) && !(tw[1] > 0)) startTier = 2;
   else if (tw && (tw[1] || 0) > 0 && !(tw[0] > 0)) startTier = 1;
   var entry = SA.Pile.pickDecorRole(Math.random, decorPool, startTier, 'table', tw);
+  if (!fitsTable(entry)) entry = null;
   if (!entry) {
     /* Prefer a plain folding table if the role picker somehow came up empty. */
-    var prefs = ['dec_folding_table', 'dec_plastic_folding_table', 'dec_crate_table',
-      'dec_table', 'dec_card_table'];
+    var prefs = maxTef
+      ? ['dec_kids_table', 'dec_wine_crate', 'dec_bencher_box']
+      : ['dec_folding_table', 'dec_plastic_folding_table', 'dec_crate_table',
+        'dec_table', 'dec_card_table'];
     for (var pi = 0; pi < prefs.length && !entry; pi++) {
       var pe = SA.Mat.DECOR_BY_ID[prefs[pi]];
-      if (pe && SA.Pile.decorIsUnlocked(pe)) {
+      if (pe && SA.Pile.decorIsUnlocked(pe) && fitsTable(pe)) {
         if (tw && !((tw[pe.tier || 0] || 0) > 0)) continue;
         entry = pe;
       }
@@ -42567,6 +43225,18 @@ SA.Pile.roll = function (cfg, state, seed) {
   }
   var schachPool = SA.Pile.filterTierPool(pools.schach, SA.Pile.schachIsUnlocked);
   var decorPool = SA.Pile.filterTierPool(pools.decor, SA.Pile.decorIsUnlocked);
+  if (cfg.decorMaxTef) {
+    var cappedDecor = [[], [], []], anySmall = 0, dtCap, diCap;
+    for (dtCap = 0; dtCap < 3; dtCap++) {
+      for (diCap = 0; diCap < (decorPool[dtCap] || []).length; diCap++) {
+        if (SA.Mat.decorSizeTefachim(decorPool[dtCap][diCap]) <= cfg.decorMaxTef) {
+          cappedDecor[dtCap].push(decorPool[dtCap][diCap]);
+          anySmall++;
+        }
+      }
+    }
+    if (anySmall) decorPool = cappedDecor;
+  }
 
   var longSide = Math.max(state.footprint.w, state.footprint.d);
   var shortSide = Math.min(state.footprint.w, state.footprint.d);
@@ -43139,22 +43809,94 @@ SA.Pile.floorCellInsideWall = function (state, payload) {
    was refused while an empty slot sat under the same finger. A built panel can
    never accept a board anyway, so when both are under the point the empty one
    is what the player meant. */
-SA.Pile.wallHit = function (x, y, slop) {
-  var stack = SA.Pick.hitsAt(x, y, ['wall_cell']), i, e, best = null, bestD = 0;
-  for (i = 0; i < stack.length; i++) {
-    e = stack[i];
-    if (e.payload.uid != null) continue;
-    /* Free slots are single cells, so the nearest centre is the one the finger
-       is actually over - which settles the corner where two empty walls
-       overlap instead of always handing it to whichever drew last. */
-    var qx = 0, qy = 0, q;
-    for (q = 0; q < e.quad.length; q++) { qx += e.quad[q].sx; qy += e.quad[q].sy; }
-    qx /= e.quad.length; qy /= e.quad.length;
-    var dd = (qx - x) * (qx - x) + (qy - y) * (qy - y);
-    if (!best || dd < bestD) { best = e; bestD = dd; }
+/* The wall's length, in screen space: midpoint of each end of the quad.
+   A full door is one tall quad, so its centre sits in the middle of the
+   wall and a finger at either corner was scored as column 0. */
+SA.Pile.wallAxis = function (quad) {
+  var q = quad || [];
+  if (q.length < 2) return null;
+  if (q.length >= 4) {
+    return {
+      a: { sx: (q[0].sx + q[3].sx) / 2, sy: (q[0].sy + q[3].sy) / 2 },
+      b: { sx: (q[1].sx + q[2].sx) / 2, sy: (q[1].sy + q[2].sy) / 2 }
+    };
   }
+  return { a: q[0], b: q[1] };
+};
+
+/* Column under the finger along this wall quad. Wide panels store only
+   their starting column; without this a post on the left wall always
+   landed on that start, which is the far tip. */
+SA.Pile.wallColumnAt = function (hit, x, y) {
+  var col = hit && hit.payload ? (hit.payload.col | 0) : 0;
+  var w = hit && hit.payload && hit.payload.w > 1 ? hit.payload.w : 1;
+  var axis = hit && SA.Pile.wallAxis(hit.quad);
+  if (!axis || w <= 1) return col;
+  var dx = axis.b.sx - axis.a.sx, dy = axis.b.sy - axis.a.sy;
+  var L2 = dx * dx + dy * dy || 1;
+  var t = ((x - axis.a.sx) * dx + (y - axis.a.sy) * dy) / L2;
+  if (t < 0) t = 0;
+  if (t > 0.999) t = 0.999;
+  return col + Math.floor(t * w);
+};
+
+/* A one-tefach post dropped on a wall that is already standing belongs on
+   the open side next to that corner, within three tefachim. Lavud is a gap
+   under three (OC 630:1), so flush, one, and two all have to be reachable —
+   not only the tip the old column-0 hit could find. */
+SA.Pile.shortPostBeside = function (state, side, col, span) {
+  span = Math.max(1, span | 0);
+  var len = SA.State.wallLength(state, side);
+  col = Math.max(0, Math.min(len - 1, col | 0));
+  if (span > 3 || !SA.State.wallSpanOccupancy(state, side, col, 1)) {
+    return { side: side, col: Math.max(0, Math.min(len - span, col)) };
+  }
+  var ring = ['N', 'E', 'S', 'W'];
+  var idx = ring.indexOf(side);
+  if (idx < 0) return { side: side, col: col };
+  function tryEnd(atStart) {
+    var adj = atStart ? ring[(idx + 3) % 4] : ring[(idx + 1) % 4];
+    var raw = atStart ? col : (len - 1 - col);
+    var inset = raw > 2 ? 2 : raw;
+    var adjLen = SA.State.wallLength(state, adj);
+    /* This side's start meets the previous side's end. Its end meets the
+       next side's start. */
+    var adjCol = atStart ? (adjLen - span - inset) : inset;
+    adjCol = Math.max(0, Math.min(adjLen - span, adjCol));
+    if (SA.State.wallSpanOccupancy(state, adj, adjCol, span)) return null;
+    return { side: adj, col: adjCol };
+  }
+  var atStart = col <= (len - 1) / 2;
+  return tryEnd(atStart) || tryEnd(!atStart) || { side: side, col: col };
+};
+
+SA.Pile.wallHit = function (x, y, slop) {
+  var stack = SA.Pick.hitsAt(x, y, ['wall_cell']), i;
+  function segDist(e) {
+    var axis = SA.Pile.wallAxis(e.quad);
+    if (!axis) return 1e12;
+    var dx = axis.b.sx - axis.a.sx, dy = axis.b.sy - axis.a.sy;
+    var L2 = dx * dx + dy * dy || 1;
+    var t = ((x - axis.a.sx) * dx + (y - axis.a.sy) * dy) / L2;
+    if (t < 0) t = 0;
+    else if (t > 1) t = 1;
+    var px = axis.a.sx + dx * t, py = axis.a.sy + dy * t;
+    return (px - x) * (px - x) + (py - y) * (py - y);
+  }
+  function bestOf(list) {
+    var best = null, bestD = 0, n, d;
+    for (n = 0; n < list.length; n++) {
+      d = segDist(list[n]);
+      if (!best || d < bestD) { best = list[n]; bestD = d; }
+    }
+    return best;
+  }
+  var empty = [];
+  for (i = 0; i < stack.length; i++) if (stack[i].payload.uid == null) empty.push(stack[i]);
+  /* An empty column under the finger beats the full wall behind it, and the
+     distance is to the column itself, not to the middle of a tall quad. */
+  var best = bestOf(empty) || bestOf(stack);
   if (best) return best;
-  if (stack.length) return stack[0];
   return SA.Pick.hitTestKind(x, y, 'wall_cell', slop);
 };
 
@@ -43199,7 +43941,8 @@ SA.Pile.hitForPiece = function (x, y, piece, state) {
     if (asWall) return asWall;
   }
   if (hit) {
-    return piece.kind === 'decor' ? SA.Pile.coerceDecorHit(piece, hit, state) : hit;
+    if (piece.kind === 'decor') return SA.Pile.coerceDecorHit(piece, hit, state);
+    return SA.Pile.aimed(hit, x, y);
   }
   var entry = SA.Pile.entryOf(piece);
   if (piece.kind === 'decor' && entry) {
@@ -43231,6 +43974,17 @@ SA.Pile.aimed = function (hit, x, y) {
    screen to say why: the player reported it as the booth shrinking, which is
    exactly what it looks like. One helper, both paths, and the drop that brings
    a roof down from over twenty amos names the rule and the source. */
+function saCopyLay(dst, src) {
+  if (!src) return dst;
+  if (src.diagonal) {
+    dst.diagonal = true;
+    dst.x0 = src.x0; dst.z0 = src.z0; dst.x1 = src.x1; dst.z1 = src.z1;
+  }
+  if (src.cells) dst.cells = src.cells;
+  if (src.poly) dst.poly = src.poly;
+  return dst;
+}
+
 SA.Pile.settleRoofTo = function (state, to) {
   var from = state.roofHeight;
   if (to == null || to === from) return;
@@ -43346,7 +44100,16 @@ SA.Pile.previewFor = function (piece, hit, state) {
       };
     }
     var spanW = wallTwin ? (entryWall.widthTefachim || 4) : SA.Pile.spanOf(piece);
-    var fit = SA.State.wallSpanFit(state, hit.payload.side, hit.payload.col, spanW);
+    var aimCol = hit.payload.col | 0;
+    if (hit.at) aimCol = SA.Pile.wallColumnAt(hit, hit.at[0], hit.at[1]);
+    if (spanW <= 3) {
+      var beside = SA.Pile.shortPostBeside(state, hit.payload.side, aimCol, spanW);
+      aimCol = beside.col;
+      hit = { kind: hit.kind, quad: hit.quad, at: hit.at, payload: {
+        side: beside.side, col: beside.col, w: 1, uid: hit.payload.uid
+      } };
+    }
+    var fit = SA.State.wallSpanFit(state, hit.payload.side, aimCol, spanW);
     return {
       kind: 'wall', side: hit.payload.side, col: fit.col, w: fit.w,
       h: SA.State.framedWallHeight(state, entryWall,
@@ -43358,41 +44121,42 @@ SA.Pile.previewFor = function (piece, hit, state) {
   if (beamTwin) {
     /* Roof drop of a wooden ladder is a slat, never covering. */
     var lplayout = SA.Halacha.beamDropLayout(state, !!piece.rot, hit.payload.x, hit.payload.z);
-    return {
+    return saCopyLay({
       kind: 'beam', x: lplayout.x, z: lplayout.z, cw: lplayout.cw, cd: lplayout.cd,
       ok: lplayout.ok, trap: false, asBeam: true,
       reason: lplayout.reason, settleRoof: lplayout.settleRoof, flipRot: !!lplayout.flipRot,
       beamMatId: beamTwin.id
-    };
+    }, lplayout);
   }
   if (piece.kind === 'schach' && piece.asBeam) {
     /* Same bamboo / slat, laid as a pole - stretched and snapped like a beam. */
     var playout = SA.Halacha.beamDropLayout(state, !!piece.rot, hit.payload.x, hit.payload.z);
-    return {
+    return saCopyLay({
       kind: 'schach', x: playout.x, z: playout.z, cw: playout.cw, cd: playout.cd,
       ok: playout.ok, trap: !!piece.trap, asBeam: true,
       reason: playout.reason, settleRoof: playout.settleRoof, flipRot: !!playout.flipRot
-    };
+    }, playout);
   }
   if (piece.kind === 'schach') {
     var slayout = SA.Halacha.schachDropLayout(state, hit.payload.x, hit.payload.z,
       SA.Pile.cwOf(piece), SA.Pile.cdOf(piece), entry);
-    return {
+    return saCopyLay({
       kind: 'schach', x: slayout.x, z: slayout.z, cw: slayout.cw, cd: slayout.cd,
       ok: slayout.ok, trap: !!piece.trap,
       reason: slayout.ok ? null : slayout.reason,
-      settleRoof: slayout.settleRoof
-    };
+      settleRoof: slayout.settleRoof,
+      onAim: slayout.onAim
+    }, slayout);
   }
   if (piece.kind === 'beam') {
     /* Cut to the roof and snapped onto a wall-top or a wall-to-wall run - a
        four-tefach stick still has to reach the far wall to rest on it. */
     var blayout = SA.Halacha.beamDropLayout(state, !!piece.rot, hit.payload.x, hit.payload.z);
-    return {
+    return saCopyLay({
       kind: 'beam', x: blayout.x, z: blayout.z, cw: blayout.cw, cd: blayout.cd,
       ok: blayout.ok, reason: blayout.reason,
       settleRoof: blayout.settleRoof, flipRot: !!blayout.flipRot
-    };
+    }, blayout);
   }
   return null;
 };
@@ -43448,12 +44212,26 @@ SA.Pile.place = function (piece, preview, state) {
     /* Group size follows what actually landed (may be smaller than the card
        when the frame cannot hold a whole-pad mat). */
     var group = SA.State.newSchachGroup(entry.id, {
-      cw: preview.cw, cd: preview.cd, rot: piece.rot
+      cw: preview.cw, cd: preview.cd, rot: piece.rot, poly: preview.poly || null
     });
     if (group) { group.lift = 0; group.dx = 0; group.dz = 0; group.rot = 0; }
     if (group && piece.chainPaid) group.chainPaid = 1;
-    for (var x = preview.x; x < preview.x + preview.cw; x++) {
-      for (var z = preview.z; z < preview.z + preview.cd; z++) SA.State.placeSchach(state, x, z, entry, group);
+    if (preview.asBeam && preview.diagonal) {
+      var asBeam = (preview.beamMatId && SA.State.materialById(preview.beamMatId)) ||
+        SA.Pile.alsoBeamEntry(piece) ||
+        SA.Mat.BEAM_BY_ID['beam_rough_laths'] || SA.Mat.BEAM_BY_ID['beam_pine_battens'];
+      SA.State.placeBeam(state, preview.x, preview.z, asBeam, {
+        cw: preview.cw, cd: preview.cd, rot: piece.rot || 0, diagonal: true,
+        x0: preview.x0, z0: preview.z0, x1: preview.x1, z1: preview.z1
+      });
+    } else if (preview.cells && preview.cells.length) {
+      for (var ci = 0; ci < preview.cells.length; ci++) {
+        SA.State.placeSchach(state, preview.cells[ci][0], preview.cells[ci][1], entry, group);
+      }
+    } else {
+      for (var x = preview.x; x < preview.x + preview.cw; x++) {
+        for (var z = preview.z; z < preview.z + preview.cd; z++) SA.State.placeSchach(state, x, z, entry, group);
+      }
     }
     SA.Progress.onAction('place_schach', piece.matId);
     /* A trap lands like anything else and the meter goes red under it. The
@@ -43470,8 +44248,13 @@ SA.Pile.place = function (piece, preview, state) {
     if (preview.settleRoof != null) SA.Pile.settleRoofTo(state, preview.settleRoof);
     if (preview.flipRot) piece.rot = piece.rot ? 0 : 1;
     var beamEntry = (preview.beamMatId && SA.State.materialById(preview.beamMatId)) || entry;
-    var beamLaid = SA.State.placeBeam(state, preview.x, preview.z, beamEntry,
-      { cw: preview.cw, cd: preview.cd, rot: piece.rot || 0 });
+    var beamOpts = { cw: preview.cw, cd: preview.cd, rot: piece.rot || 0 };
+    if (preview.diagonal) {
+      beamOpts.diagonal = true;
+      beamOpts.x0 = preview.x0; beamOpts.z0 = preview.z0;
+      beamOpts.x1 = preview.x1; beamOpts.z1 = preview.z1;
+    }
+    var beamLaid = SA.State.placeBeam(state, preview.x, preview.z, beamEntry, beamOpts);
     if (beamLaid && piece.chainPaid) beamLaid.chainPaid = 1;
     SA.Progress.onAction('place_beam', beamEntry.id);
     if (SA.Scramble.active()) SA.Scramble.teachOnPlace(piece, beamEntry, preview);
@@ -44409,9 +45192,14 @@ SA.Scramble.fitRoofToWalls = function (st) {
    further in you are. Per-level overrides below are only for the runs whose
    whole lesson needs a specific heap. */
 SA.Scramble.OVERRIDE = {
-  /* Two full walls, then a short run of posts for the third side. A pad
-     lined with one-tefach sticks was a pile of tray pages and no time. */
-  slats_and_lavud: { wallCount: 2, extraPosts: 10 },
+  /* Two full walls and a few posts. One post at the corner, with the
+     tzurat on its top, is the third wall. Straw shades the clipped roof. */
+  slats_and_lavud: {
+    wallCount: 2, extraPosts: 4, honorFootprint: true,
+    decorCount: 8, decorMaxTef: 6, trapCount: 0,
+    singleSchach: true, noExtraSchach: true,
+    forcedSchach: ['sch_loose_straw']
+  },
   /* Sheets that blow around until they are tied. Windy Canvas does NOT
      auto-tie - that level is "tap Tie yourself". */
   windy_canvas: { familyWhitelist: ['canvas'] },
@@ -44533,7 +45321,7 @@ SA.Scramble.config = function (level, index) {
   cfg.roofPinned = !!(ov && ov.startRoof != null);
   if (!cfg.roofPinned) cfg.startRoof = SA.Shiur.DEFAULT_WALL_H_TEFACHIM || 14;
   if (level.grantElephant) { cfg.animalChance = 1; cfg.allowElephant = true; }
-  /* The 7×7 level is the one run that is not the backyard pad. */
+  /* honorFootprint keeps that level's own pad. The backyard is everyone else. */
   cfg.startFootprint = cfg.honorFootprint && level.footprint
     ? { w: level.footprint.w, d: level.footprint.d }
     : SA.Scramble.boothFootprint();
