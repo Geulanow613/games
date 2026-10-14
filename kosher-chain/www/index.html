@@ -5091,6 +5091,11 @@ Menu.prototype.build = function () {
     onTap: function () { Game.go(new Help()); } }));
   row += 88;
   if (MitzHost.inApp()) {
+    this.btns.push(new Button({
+      x: 18 + safe.l, y: 18 + safe.t, w: 128, h: 52,
+      label: 'BACK', color: PAL.slate, size: 20,
+      onTap: function () { MitzHost.openDash(); }
+    }));
     this.btns.push(new Button({ x: x, y: row, w: w, h: 74, label: 'MORE GAMES', color: PAL.slate, size: 22,
       onTap: function () { MitzHost.openDash(); } }));
   }
