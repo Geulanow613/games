@@ -28616,6 +28616,28 @@ SA.Halacha.schachDropLayout = function (state, hitX, hitZ, cw, cd, matEntry) {
       best = grown;
     }
   }
+  /* A diagonal slat holds a band, not a rectangle. On a small pad the biggest
+     rectangle inside that band is still most of the roof. On a backyard pad
+     it collapses to a few cells, so the same short wall could not carry
+     schach. A mat the size of the roof lies on every cell the frame holds
+     inside the walls. */
+  var slantOutline = SA.Halacha.roofOutline(state);
+  if (best && slantOutline && !slantOutline.fullRect && wantCw >= w && wantCd >= d) {
+    var band = [], bx2, bz2;
+    for (bx2 = 0; bx2 < w; bx2++) {
+      for (bz2 = 0; bz2 < d; bz2++) {
+        if (held[bx2 + '_' + bz2]) band.push([bx2, bz2]);
+      }
+    }
+    if (band.length > bestArea * 2) {
+      return {
+        ok: true, reason: null,
+        x: best.x, z: best.z, cw: best.cw, cd: best.cd,
+        cells: band, banded: true,
+        settleRoof: settleRoof, fitted: true, onAim: true
+      };
+    }
+  }
   if (!best) {
     return {
       ok: false, reason: 'unsupported',
@@ -29063,7 +29085,12 @@ SA.Halacha.diagonalSlatNear = function (state, hitX, hitZ) {
         t = ((ax1 - spt.x) * sz - (az1 - spt.z) * sx) / den;
         u = ((ax1 - spt.x) * dirz - (az1 - spt.z) * dirx) / den;
         if (t < 0.4 || u < -0.02 || u > 1.02) continue;
-        hit = { t: t, x: spt.x + dirx * t, z: spt.z + dirz * t };
+        /* A ray that just passes the corner used to end past the pad, so the
+           slat never counted as resting and fell straight back off. Sit the
+           end on the wall it actually met. */
+        if (u < 0) u = 0;
+        else if (u > 1) u = 1;
+        hit = { t: t, x: ax1 + sx * u, z: az1 + sz * u };
         if (!best || hit.t < best.t) best = hit;
       }
       return best;
@@ -29578,10 +29605,28 @@ SA.Halacha.frameSupport = function (state, assumeEntry) {
       for (var hz = 0; hz < d; hz++) held[hx + '_' + hz] = 1;
     }
   }
+  /* Two full walls and a short third come to a point. The open corner past
+     that short piece is not roof, on this level or any other. */
+  var roofOutline = SA.Halacha.roofOutline(state);
+  var roofFull = !roofOutline || roofOutline.fullRect;
+  if (!roofFull) {
+    for (var ox = 0; ox < w; ox++) {
+      for (var oz = 0; oz < d; oz++) {
+        if (!roofOutline.inside[ox + '_' + oz]) held[ox + '_' + oz] = 0;
+      }
+    }
+  }
   var allHeld = true;
-  for (var ax = 0; ax < w && allHeld; ax++) {
-    for (var az = 0; az < d; az++) {
-      if (!held[ax + '_' + az]) { allHeld = false; break; }
+  if (roofFull) {
+    for (var ax = 0; ax < w && allHeld; ax++) {
+      for (var az = 0; az < d; az++) {
+        if (!held[ax + '_' + az]) { allHeld = false; break; }
+      }
+    }
+  } else {
+    for (var oc = 0; oc < roofOutline.cells.length; oc++) {
+      var ocell = roofOutline.cells[oc];
+      if (!held[ocell[0] + '_' + ocell[1]]) { allHeld = false; break; }
     }
   }
   return {
@@ -30799,6 +30844,26 @@ function saQuadSchach(x, z, y, cx, cz) {
     SA.Iso.project(x, y, z, cx, cz), SA.Iso.project(x + 1, y, z, cx, cz),
     SA.Iso.project(x + 1, y, z + 1, cx, cz), SA.Iso.project(x, y, z + 1, cx, cz)
   ];
+}
+function saQuadSchachRun(x, z, cw, y, cx, cz) {
+  return [
+    SA.Iso.project(x, y, z, cx, cz), SA.Iso.project(x + cw, y, z, cx, cz),
+    SA.Iso.project(x + cw, y, z + 1, cx, cz), SA.Iso.project(x, y, z + 1, cx, cz)
+  ];
+}
+/* Consecutive cells on one row. A diagonal band is many of these, not one box. */
+function saSchachRuns(rows) {
+  var out = [], zs = Object.keys(rows), zi, xs, i, x0, n;
+  for (zi = 0; zi < zs.length; zi++) {
+    xs = rows[zs[zi]].slice().sort(function (a, b) { return a - b; });
+    x0 = xs[0]; n = 1;
+    for (i = 1; i <= xs.length; i++) {
+      if (i < xs.length && xs[i] === xs[i - 1] + 1) { n++; continue; }
+      out.push({ x: x0, z: +zs[zi], cw: n });
+      if (i < xs.length) { x0 = xs[i]; n = 1; }
+    }
+  }
+  return out;
 }
 
 /* ONE PROJECTION PER CORNER, NOT FOUR PER CELL.
@@ -32724,6 +32789,12 @@ SA.Scene.render = function (ctx, state, result) {
           if (sz < grp.z0) grp.z0 = sz;
           if (sz + 1 > grp.z1) grp.z1 = sz + 1;
         }
+        if (cell.group && cell.group.banded) {
+          if (!grp.rows) grp.rows = {};
+          var bandZ = String(sz);
+          if (!grp.rows[bandZ]) grp.rows[bandZ] = [];
+          grp.rows[bandZ].push(sx);
+        }
       }
     }
   }
@@ -32993,7 +33064,7 @@ SA.Scene.render = function (ctx, state, result) {
          ceiling behind it. Look Inside wants the opposite: the whole room,
          floor and all, through the covering. An opaque lid here is why the
          ghost roof used to show only the cut-away corner. */
-      if (SA.Scene._roofUnder && !SA.Scene._roofOpen) {
+      if (SA.Scene._roofUnder && !SA.Scene._roofOpen && !(g.banded && grp.rows)) {
         jobs.push({ layer: 1.7, depth: gdepth, draw: function () {
           SA.Draw.poly(ctx, clip || quad, SA.Mat.shadeColor(sEntry.tone || '#6a7a4a', 0.52), null);
         } });
@@ -33009,6 +33080,17 @@ SA.Scene.render = function (ctx, state, result) {
         var ghost = SA.Scene._roofGhost;
         if (ghost < 1) { ctx.save(); ctx.globalAlpha = ghost; }
         SA.FX.withPop(ctx, quad, grp.placedAt, function () {
+          /* Schach on a diagonal slat is a band. One box around that band
+             would paint the open corner past the short wall. */
+          if (g.banded && grp.rows) {
+            var runs = saSchachRuns(grp.rows), ri, run, rq;
+            for (ri = 0; ri < runs.length; ri++) {
+              run = runs[ri];
+              rq = saQuadSchachRun(run.x, run.z, run.cw, yTop, cx, cz);
+              SA.Draw.schachTile(ctx, rq, sEntry, (g.seed || 1) + ri, run.cw, 1);
+            }
+            return;
+          }
           if (clip) {
             ctx.save();
             ctx.beginPath();
@@ -37604,7 +37686,9 @@ SA.UI.renderIssuesModal = function (ctx, result) {
   var mIssues = result.issues || [];
   for (var mi = 0; mi < mIssues.length; mi++) {
     needH += SA.UI.wrapText(ctx, SA.Lang.t(mIssues[mi].en), pw - 50, 12.5).length * 17 + 16;
-    if (mIssues[mi].code === 'roof_above_walls' || mIssues[mi].code === 'tzurat_hapetach_needed') needH += 42;
+    if (mIssues[mi].code === 'roof_above_walls') needH += 42;
+    /* Gap under the paragraph, then a full-width button, then air before the next line. */
+    if (mIssues[mi].code === 'tzurat_hapetach_needed') needH += 68;
   }
   if (!mIssues.length) needH += 40;
   var ph = Math.max(120, Math.min(maxH, needH));
@@ -37623,7 +37707,14 @@ SA.UI.renderIssuesModal = function (ctx, result) {
   for (var f = 0; f < result.issues.length; f++) {
     (result.issues[f].severity === 'lchatchila' ? advice : blocking).push(result.issues[f]);
   }
-  var relevant = blocking.concat(advice);
+  /* The doorway note is the thing this sheet was opened to say. Keep it, and
+     its button, at the top — later issues must not push it off the phone. */
+  var tzFirst = [], tzRest = [];
+  for (var ti = 0; ti < blocking.length; ti++) {
+    if (blocking[ti].code === 'tzurat_hapetach_needed') tzFirst.push(blocking[ti]);
+    else tzRest.push(blocking[ti]);
+  }
+  var relevant = tzFirst.concat(tzRest).concat(advice);
   if (!relevant.length) {
     SA.Draw.text(ctx, SA.Lang.t('Nothing is missing - it is kosher.'), px + pw / 2, yy + 20, { size: 13, color: 'rgba(255,255,255,0.7)' });
   }
@@ -37660,8 +37751,15 @@ SA.UI.renderIssuesModal = function (ctx, result) {
       yy += 42;
     }
     if (it.code === 'tzurat_hapetach_needed' && result.measurements && result.measurements.tzuratPlan) {
-      SA.UI.btn(ctx, px + 34, yy - 4, 210, 34, 'Add a tzurat ha-petach', 'issue_add_tzurat', {});
-      yy += 42;
+      /* Centered in the paragraph column, with air above and below so the
+         button is not stuck to the last line or hanging off the left. */
+      yy += 8;
+      var textLeft = px + 34;
+      var textW = Math.max(140, pw - 50);
+      var tbw = Math.min(textW, 280);
+      var tbx = textLeft + (textW - tbw) / 2;
+      SA.UI.btn(ctx, tbx, yy, tbw, 40, 'Add a tzurat ha-petach', 'issue_add_tzurat', {}, true);
+      yy += 40 + 16;
     }
   }
   ctx.restore();
@@ -44510,15 +44608,43 @@ SA.Pile.wallColumnAt = function (hit, x, y) {
   return col + Math.floor(t * w);
 };
 
+/* A full wall reaches this end of the side: a tall run of at least seven
+   tefachim comes within lavud of the corner. */
+SA.Pile.sideReachesCorner = function (state, side, atEnd) {
+  if (!state || !state.walls || !state.walls[side]) return false;
+  var len = SA.State.wallLength(state, side);
+  var panels = state.walls[side].panels || [];
+  var tall = 0, reaches = false, i, p;
+  for (i = 0; i < panels.length; i++) {
+    p = panels[i];
+    if ((p.h || 0) < SA.Rule.WALL_MIN_HEIGHT) continue;
+    tall += p.w || 0;
+    if (atEnd ? (p.col + p.w > len - SA.Rule.LAVUD) : (p.col < SA.Rule.LAVUD)) reaches = true;
+  }
+  return reaches && tall >= SA.Rule.WALL_MIN_FULL_LEN;
+};
+
+/* Thumb on a long wall. Three tefachim is a few pixels on a backyard pad, so
+   a post aimed at the corner used to land just outside lavud and the tzurat
+   note never opened. Anything this close is pulled into a real lavud gap. */
+SA.Pile.LAVUD_AIM = 8;
+
 /* A one-tefach post dropped on a wall that is already standing belongs on
    the open side next to that corner, within three tefachim. Lavud is a gap
    under three (OC 630:1), so flush, one, and two all have to be reachable —
-   not only the tip the old column-0 hit could find. */
+   not only the tip the old column-0 hit could find.
+   The same pull applies on an empty side: a short post near a corner a full
+   wall already reaches lands inside that lavud, on every level. */
 SA.Pile.shortPostBeside = function (state, side, col, span) {
   span = Math.max(1, span | 0);
   var len = SA.State.wallLength(state, side);
   col = Math.max(0, Math.min(len - 1, col | 0));
-  if (span > 3 || !SA.State.wallSpanOccupancy(state, side, col, 1)) {
+  if (span > 3) {
+    return { side: side, col: Math.max(0, Math.min(len - span, col)) };
+  }
+  if (!SA.State.wallSpanOccupancy(state, side, col, 1)) {
+    var pulled = SA.Pile.snapPostToLavud(state, side, col, span);
+    if (pulled) return pulled;
     return { side: side, col: Math.max(0, Math.min(len - span, col)) };
   }
   var ring = ['N', 'E', 'S', 'W'];
@@ -44537,7 +44663,30 @@ SA.Pile.shortPostBeside = function (state, side, col, span) {
     return { side: adj, col: adjCol };
   }
   var atStart = col <= (len - 1) / 2;
-  return tryEnd(atStart) || tryEnd(!atStart) || { side: side, col: col };
+  return tryEnd(atStart) || tryEnd(!atStart) ||
+    SA.Pile.snapPostToLavud(state, side, col, span) ||
+    { side: side, col: col };
+};
+
+/* Keep a gap of 0, 1, or 2. A miss just past that, still by the corner, becomes 2. */
+SA.Pile.snapPostToLavud = function (state, side, col, span) {
+  var len = SA.State.wallLength(state, side);
+  var ring = ['N', 'E', 'S', 'W'];
+  var idx = ring.indexOf(side);
+  if (idx < 0) return null;
+  var prev = ring[(idx + 3) % 4], next = ring[(idx + 1) % 4];
+  var startHeld = SA.Pile.sideReachesCorner(state, prev, true);
+  var endHeld = SA.Pile.sideReachesCorner(state, next, false);
+  var distStart = col;
+  var distEnd = len - (col + span);
+  var aim = SA.Pile.LAVUD_AIM;
+  var useStart = startHeld && distStart <= aim && (!endHeld || distStart <= distEnd);
+  var useEnd = endHeld && distEnd <= aim && !useStart;
+  if (!useStart && !useEnd) return null;
+  var gap = useStart ? distStart : distEnd;
+  var inset = gap < SA.Rule.LAVUD ? gap : (SA.Rule.LAVUD - 1);
+  if (useStart) return { side: side, col: inset };
+  return { side: side, col: Math.max(0, len - span - inset) };
 };
 
 SA.Pile.wallHit = function (x, y, slop) {
@@ -44652,6 +44801,7 @@ function saCopyLay(dst, src) {
   }
   if (src.cells) dst.cells = src.cells;
   if (src.poly) dst.poly = src.poly;
+  if (src.banded) dst.banded = 1;
   return dst;
 }
 
@@ -44887,6 +45037,7 @@ SA.Pile.place = function (piece, preview, state) {
       cw: preview.cw, cd: preview.cd, rot: piece.rot, poly: preview.poly || null
     });
     if (group) { group.lift = 0; group.dx = 0; group.dz = 0; group.rot = 0; }
+    if (group && preview.banded) group.banded = 1;
     if (group && piece.chainPaid) group.chainPaid = 1;
     if (preview.asBeam && preview.diagonal) {
       var asBeam = (preview.beamMatId && SA.State.materialById(preview.beamMatId)) ||
