@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#05070f">
-<meta name="description" content="Mitzvah Dash - eight fast arcade minigames that teach real Halacha.">
+<meta name="description" content="Mitzvah Dash - eight colorful arcade games to play and learn.">
 <title>Mitzvah Dash</title>
 <style>
   *{box-sizing:border-box;}
@@ -393,7 +393,9 @@ var Lang = {
     'DASH': 'דאש',
     'Six arcade minigames. Real halacha.': 'שישה משחקים. הלכה אמיתית.',
     'Seven arcade minigames. Real halacha.': 'שבעה משחקים. הלכה אמיתית.',
-    'Eight arcade minigames. Real halacha.': 'שמונה משחקים. הלכה אמיתית.',
+    'Shabbat Sprint': 'ספרינט שבת',
+    'Help Needy Families get their Shabbat necessities!': 'עזרו למשפחות נזקקות להשיג את צרכי השבת!',
+    'Eight arcade games. Play and learn.': 'שמונה משחקים. משחקים ולומדים.',
     'Camp Kosh': 'קעמפ כשר',
     'Feed the boys, keep it kosher': 'תאכיל את הבחורים, תשמור על כשרות',
     'Sukkah Scramble': 'מרוץ הסוכה',
@@ -637,8 +639,8 @@ var Lang = {
     'STONE STEPS': 'מדרגות אבן',
     'CITY RUSH': 'העיר',
     'DOWNTOWN': 'מרכז',
-    'NIGHT MARKET': 'שוק לילה',
-    'WET NIGHT': 'לילה רטוב',
+    'FOGGY MARKET': 'שוק בערפל',
+    'WET MORNING': 'בוקר רטוב',
     'RUSH HOUR': 'שעת לחץ',
     'BUSY CORNER': 'פינה עמוסה',
     'LAST BLOCK': 'הבלוק האחרון',
@@ -803,7 +805,7 @@ var Lang = {
     'ride with them across': 'תסעו איתם לצד השני',
     'Beat the Zman': 'לפני הזמן',
     'Reach the shul before the zman runs out.': 'הגיעו לבית הכנסת לפני שנגמר הזמן.',
-    'Kavod Shabbos': 'כבוד שבת',
+    'Clean for Shul': 'נקי לבית הכנסת',
     'Reach shul with your hat still dry - no sprinklers.': 'הגיעו עם כובע יבש - בלי ממטרות.',
     'Kosher Ride': 'טרמפ כשר',
     'Hitch a ride on a kosher food truck.': 'תפסו טרמפ על משאית אוכל כשר.',
@@ -853,8 +855,8 @@ var Lang = {
     'slash everything!': 'חתכו הכל!',
     'BAKERY BURST!': 'פיצוץ מאפייה!',
     'slash the flying batch': 'חתכו את מה שעף',
-    'THE AFIKOMAN HELD THE HOUR': 'האפיקומן שמר על השעה',
-    'The fourth hour passed': 'השעה הרביעית עברה',
+    'THE AFIKOMAN BOUGHT TIME': 'האפיקומן הרוויח זמן',
+    'Too close to Yom Tov': 'קרוב מדי לחג',
     'Shemura matzah ruined': 'המצה השמורה נפגעה',
     'Chametz Slicer': 'חותך חמץ',
     'Slice 50 pieces of flying chametz.': 'חתכו 50 חתיכות חמץ עפות.',
@@ -865,8 +867,8 @@ var Lang = {
     'Afikoman Shield': 'מגן אפיקומן',
     'Collect 5 Afikoman golden shields.': 'אספו 5 מגני אפיקומן זהובים.',
     'Special Delivery': 'משלוח מיוחד',
-    'Complete a delivery run before the fourth hour is up.': 'סיימו משלוח לפני שהשעה הרביעית נגמרת.',
-    'Before the Hour': 'לפני השעה',
+    'Complete a delivery run before Yom Tov.': 'סיימו משלוח לפני החג.',
+    'Before Yom Tov': 'לפני החג',
     'Deliver shemura matzah down all twelve routes.': 'הביאו מצה שמורה בכל שנים־עשר המסלולים.',
     'SLASH THE CHAMETZ': 'חתכו את החמץ',
     'AFIKOMAN SHIELD!': 'מגן אפיקומן!',
@@ -943,7 +945,7 @@ var Lang = {
     'SHEMURA': 'שמורה',
     'SHEMURA CARGO': 'מטען שמורה',
     'AFIKOMAN': 'אפיקומן',
-    '4TH HOUR': 'שעה רביעית',
+    'BEFORE YOM TOV': 'לפני החג',
     'DELIVERY': 'משלוח',
     'HARD': 'קשה',
     'GENTLE': 'עדין',
@@ -998,7 +1000,7 @@ var Lang = {
     'Run There, Stroll Back': 'לרוץ לבית הכנסת',
     'Every Step Counts': 'שכר פסיעות',
     'Daven With Everyone Else': 'תפילה בציבור',
-    'Your Shabbos Hat': 'הכובע של שבת',
+    'Looking Sharp for Shul': 'מסודרים לבית הכנסת',
     'Meat and Milk: Three Rules': 'בשר בחלב: שלושה איסורים',
     'Written Three Times': 'כתוב שלוש פעמים',
     'Pareve: The Neutral Team': 'פרווה: הקבוצה הניטרלית',
@@ -1025,7 +1027,6 @@ var Lang = {
     'Before He Has to Ask': 'קודם שישאל',
     'The Very Top Rung': 'להחזיק ביד',
     'The Community Fund': 'קופה של צדקה',
-    'Leave the Corner': 'פאה, לקט, שכחה',
     'When You Have Nothing': 'ופייסו בדברים',
     'On Purim, No Questions': 'מתנות לאביונים',
     'A Tenth, Not a Half': 'מעשר כספים',
@@ -1054,7 +1055,7 @@ var Lang = {
     'The Gemara says: hurry on the way TO shul, but walk home calmly. Why? Because if you sprint out afterwards it looks like you could not wait to escape. Running toward something says you wanted to be there.': 'הגמרא אומרת: ממהרים בדרך אל בית הכנסת, ובחזרה הולכים רגוע. למה? אם רצים החוצה אחר כך נראה שלא יכולתם לחכות לברוח. לרוץ אל משהו אומר שרציתם להיות שם.',
     'Living far from shul is not bad luck - the Gemara counts the steps. Each one on the way to a mitzvah gets its own reward. So the long way round is worth more, not less.': 'לגור רחוק מבית הכנסת זה לא חוסר מזל - הגמרא סופרת את הצעדים. כל אחד בדרך למצווה מקבל שכר. אז הדרך הארוכה שווה יותר, לא פחות.',
     'Hashem never turns away the prayer of a whole community. So try hard to daven with a minyan - and to daven in the same regular spot, rather than wherever you happen to land.': 'השם לא מחזיר תפילה של ציבור. אז תשתדלו להתפלל במניין - ובאותו מקום קבוע, לא איפה שנחתתם.',
-    'Shabbos is supposed to look different from Tuesday - nicer clothes, not the same old weekday outfit. A hat you keep looking sharp for shul is how lots of families do that honour. It is not a rule that every Jew must own a hat worn only on Shabbos. Still: turning up with a soaking wet hat is a sloppy look for the day. Watch the sprinklers.': 'שבת אמורה להיראות אחרת מיום שלישי - בגדים יותר יפים, לא אותה חול. כובע שמורים יפה לבית הכנסת זה איך הרבה משפחות עושות את הכבוד. זה לא כלל שכל יהודי חייב כובע רק לשבת. ובכל זאת: להגיע עם כובע ספוג זה מראה מרושל ליום. שימו לב לממטרות.',
+    'When you daven, you stand before the King. The Gemara learns from the words "Prepare to meet your G-d" that you dress for davening the way you would to meet an important person - neat and tidy, every day of the week. A hat you keep looking sharp for shul is how lots of people do that. Turning up with a soaking wet hat is a sloppy look. Watch the sprinklers.': 'כשמתפללים, עומדים לפני המלך. הגמרא לומדת מהמילים ״הכון לקראת אלוקיך״ שמתלבשים לתפילה כמו לפגישה עם אדם חשוב - מסודרים ונקיים, בכל יום בשבוע. הרבה אנשים עושים את זה עם כובע שנשמר מסודר לבית הכנסת. להגיע עם כובע ספוג מים זה מראה מרושל. היזהרו מהממטרות.',
     'Meat and milk together is not one rule, it is three. You may not COOK them together. You may not EAT the mixture. And you may not get any BENEFIT from it at all - you cannot sell it, and you cannot even give it to your dog. (That last rule is for beef, lamb and goat cooked in milk. Chicken in milk the Sages forbade to eat, but you may still benefit from it.)': 'בשר וחלב זה לא כלל אחד, זה שלושה. אסור לבשל ביחד. אסור לאכול את התערובת. ואסור ליהנות מזה בכלל - אי אפשר למכור, ואי אפשר אפילו לתת לכלב. (האיסור ליהנות הוא בבשר בהמה, כמו בקר, כבש ועז, שבושל בחלב. עוף בחלב חכמים אסרו לאכול, אבל מותר ליהנות ממנו.)',
     '"Do not cook a kid in its mother\'s milk" shows up three separate times in the Torah. The Sages asked the obvious question - why three? - and answered: one for cooking, one for eating, one for benefit. Nothing in the Torah is repeated for no reason.': '״לא תבשל גדי בחלב אמו״ מופיע שלוש פעמים בתורה. חכמים שאלו את השאלה הברורה - למה שלוש? - וענו: אחת לבישול, אחת לאכילה, אחת להנאה. כלום בתורה לא חוזר סתם.',
     'Eggs, fruit, vegetables and grains are neither meat nor milk. They are pareve, which means they can go with either side. Fish is pareve too, but it has extra rules: nobody eats fish and meat on the same plate. Fish with dairy depends on your family - lots of Ashkenazim do, Sephardim usually do not, and Chabad skip fish with milk. Ask at home.': 'ביצים, פרי, ירק ודגן הם לא בשר ולא חלב. הם פרווה - יכולים לשבת עם כל צד. דג גם פרווה, אבל יש לו כללים נוספים: אף אחד לא אוכל דג ובשר באותה צלחת. דג עם חלבי תלוי במשפחה - הרבה אשכנזים כן, ספרדים בדרך כלל לא, ובחב״ד מדלגים על דג עם חלב. תשאל בבית.',
@@ -1064,7 +1065,7 @@ var Lang = {
     'On a factory snack, reading the ingredients is often not enough. What machine was it made on? What was made on that machine yesterday? What is hiding inside the word "flavouring"? A hechsher is somebody whose job is to go and actually look. Food from a kosher kitchen at home does not need a stamp on the bowl.': 'על חטיף מהמפעל, לקרוא רכיבים לעתים קרובות לא מספיק. על איזו מכונה זה נעשה? מה עשו עליה אתמול? מה מתחבא בתוך המילה ״טעם״? הכשר זה מישהו שהעבודה שלו היא ללכת באמת לראות. אוכל ממטבח כשר בבית לא צריך חותמת על הקערה.',
     'Swallowing one tiny bug can break several Torah prohibitions at the same time - which is a lot of trouble for something you did not even taste. That is why leafy greens, berries, and grains get washed and checked, usually against the light.': 'לבלוע חרק קטן יכול לשבור כמה איסורים בבת אחת - הרבה צרות על משהו שלא טעמתם. לכן עלים, פירות יער ודגנים שוטפים ובודקים, בדרך כלל מול האור.',
     'Pots and pans soak up the taste of whatever was cooked in them - invisibly, but really. So meat and dairy get their own pots, plates and cutlery. Lots of kitchens also keep two sinks or two counters - that is extra care, not the basic rule. The must-have is two sets of the things that touch the food.': 'סירים סופגים את הטעם של מה שבישלו בהם - בלי לראות, אבל באמת. אז לבשר ולחלבי יש סירים, צלחות וסכו״ם משלהם. בהרבה מטבחים גם שני כיורים או שני שיש - זה זהירות נוספת, לא הדין הבסיסי. מה שחייבים זה שתי מערכות של מה שנוגע באוכל.',
-    'On Erev Pesach the clock runs out in two stages. You may EAT chametz until the end of the fourth halachic hour. You may still own it for one more hour. After that it has to be gone - burned, sold or destroyed. Your shul publishes the exact minutes every year, because they move.': 'בערב פסח השעון נגמר בשני שלבים. אפשר לאכול חמץ עד סוף השעה הרביעית. אפשר עוד להחזיק אותו שעה נוספת. אחר כך הוא צריך להיעלם - שרוף, מכור או מחוסל. בית הכנסת מפרסם את הדקות כל שנה, כי הן זזות.',
+    'On Erev Pesach the clock runs out in two stages. You may EAT chametz until the end of the fourth halachic hour. You may still own it for one more hour. By the end of that fifth hour it has to be gone - sold or destroyed. If you burn it, it has to be in the fire before then. Your shul publishes the exact minutes every year, because they move.': 'בערב פסח השעון נגמר בשני שלבים. אפשר לאכול חמץ עד סוף השעה הרביעית. אפשר עוד להחזיק אותו שעה נוספת. עד סוף השעה החמישית הוא צריך להיעלם - מכור או מחוסל. מי ששורף אותו, צריך שיהיה באש לפני כן. בית הכנסת מפרסם את הדקות כל שנה, כי הן זזות.',
     'On the night of the 14th of Nissan, the evening that starts Erev Pesach, you search the house for chametz - every pocket, every shelf, anywhere a crumb could have travelled during the year. The classic way is by the light of a candle, so you look at one small place at a time. Some families dim the big lights. Many today allow a flashlight; ask what your family does.': 'בליל י״ד בניסן, הערב שבו מתחיל ערב פסח, מחפשים חמץ בבית - כל כיס, כל מדף, כל מקום שפירור יכול היה לטייל בשנה. הדרך הקלאסית היא לאור נר, כדי להסתכל על מקום קטן כל פעם. יש משפחות שמעמעמות את האורות הגדולים. רבים היום מתירים פנס; תשאלו מה עושים אצלכם.',
     'After the search - and again after the burning the next morning - you say a declaration: any chametz I did not find is not mine, it is like the dust of the ground. Because the problem on Pesach is not only eating chametz, it is OWNING it. So you stop owning it out loud.': 'אחרי החיפוש - ושוב אחרי הביעור בבוקר - אומרים: כל חמץ שלא מצאתי אינו שלי, הוא כעפר הארץ. כי הבעיה בפסח היא לא רק לאכול חמץ, אלא להחזיק אותו. אז מפסיקים להחזיק אותו בקול.',
     'Flour and water start turning into chametz once dough sits around unworked for the time it takes to walk a mil - which we hold is about eighteen minutes. That is why a matzah bakery is a sprint: mix, roll, bake, then stop everything and scrub every surface before the next batch.': 'קמח ומים מתחילים להיות חמץ כשהבצק יושב בלי עבודה כמה שלוקח ללכת מיל - אצלנו בערך שמונה עשרה דקות. לכן מאפיית מצה זה ספרינט: לשים, לרדד, לאפות, לעצור ולשפשף כל משטח לפני המנה הבאה.',
@@ -1120,7 +1121,7 @@ var Lang = {
     'cones block a lane. weave around them': 'קונוסים חוסמים נתיב. תתחמקו',
     'wind off the water. bread drifts - lead your slash': 'רוח מהמים. הלחם זז - חתכו מוקדם',
     'everything at once. keep the cargo guarded': 'הכל ביחד. שמרו על המטען',
-    'the fourth hour is close. get it there': 'השעה הרביעית קרובה. תגיעו',
+    'Yom Tov is close. get it there': 'החג קרוב. תביאו אותה',
 
     /* shul-crossing street blurbs */
     'tap to hop. swipe to switch lanes': 'לחצו לקפוץ. החליקו להחליף נתיב',
@@ -1133,15 +1134,15 @@ var Lang = {
     'same street, a little faster': 'אותו רחוב, קצת יותר מהר',
     'wet streets, more sprinklers. keep the hat dry': 'רחובות רטובים, עוד ממטרות. שהכובע יישאר יבש',
     'the jets do not wait': 'הסילונים לא מחכים',
-    'night lamps. the zman is still the zman': 'פנסי לילה. הזמן עדיין הזמן',
-    'darker. still hopping': 'יותר חשוך. ממשיכים לקפוץ',
+    'first light. the lamps are still on': 'אור ראשון. הפנסים עוד דולקים',
+    'the sky is going pink. daven before sunset': 'השמיים מוורידים. מתפללים לפני השקיעה',
     'hop onto a walker - miss the gap and they bump you back': 'קפצו על הולך - פספסתם והם דוחפים אחורה',
     'more walkers. the bump still costs no life': 'עוד הולכים. הדחיפה עדיין לא עולה חיים',
     'narrow streets. buses AND stalls': 'רחובות צרים. אוטובוסים וגם דוכנים',
     'the quarter is tighter': 'הרובע צפוף יותר',
-    'everything at once. keep hopping': 'הכל ביחד. תמשיכו לקפוץ',
-    'night city. hop first, read later': 'עיר בלילה. קודם קפיצה, אחר כך קריאה',
-    'stalls after dark': 'דוכנים אחרי החשכה',
+    'morning fog. keep hopping': 'ערפל של בוקר. תמשיכו לקפוץ',
+    'fog downtown. hop first, read later': 'ערפל במרכז. קודם קפיצה, אחר כך קריאה',
+    'stalls in the morning fog': 'דוכנים בערפל של הבוקר',
     'rain on the city': 'גשם על העיר',
     'everything at once, a little more': 'הכל ביחד, עוד קצת',
     'the last turns are the tight ones': 'הסיבובים האחרונים הם הצרים',
@@ -1232,7 +1233,7 @@ var Lang = {
     'praying together with the community': 'להתפלל ביחד עם הקהל',
     'minyan': 'מניין',
     'ten Jewish men, age thirteen and up - the quorum needed for public prayer': 'עשרה גברים יהודים, מגיל שלוש עשרה ומעלה - מה שצריך כדי להתפלל בציבור',
-    'honouring Shabbos - treating it like the special day it is': 'לכבד את השבת - להתייחס אליה כמו אל היום המיוחד שהיא',
+    'Hikon likras Elokecha': 'הכון לקראת אלוקיך',
     'Shul': 'שול',
     'the place people go to daven (pray) together': 'המקום שבו מתפללים ביחד',
     'Basar b\'chalav': 'בשר בחלב',
@@ -1383,7 +1384,7 @@ var Lang = {
     'Berachos 6b': 'ברכות ו ע״ב',
     'Berachos 6b; Sotah 22a': 'ברכות ו ע״ב; סוטה כ״ב ע״א',
     'Berachos 6b, 8a; OC 90:9, 90:19': 'ברכות ו ע״ב וח ע״א; או״ח צ, ט וצ, יט',
-    'Shabbos 113a; OC 262:2-3': 'שבת קי״ג ע״א; או״ח רס״ב, ב-ג',
+    'Shabbos 10a; OC 91:5 with Mishnah Berurah': 'שבת י׳ ע״א; או״ח צ״א, ה ומשנה ברורה',
     'Chullin 115b; YD 87:1, 87:3': 'חולין קט״ו ע״ב; יו״ד פ״ז, א, ג',
     'Shemos 23:19, 34:26; Devarim 14:21; Chullin 115b': 'שמות כ״ג, יט ול״ד, כו; דברים י״ד, כא; חולין קט״ו ע״ב',
     'YD 87:3; OC 173:2': 'יו״ד פ״ז, ג; או״ח קע״ג, ב',
@@ -1420,9 +1421,7 @@ var Lang = {
 
     /* card notes + the line every card ends on */
     'Menorah Keeper grades each night by how many lights are still burning when the clock runs out. That is the game\'s scoring, not the halacha - once you lit properly, the mitzvah was already done.': 'שומר המנורה נותן ציון לכל לילה לפי כמה נרות עוד דולקים כשהשעון נגמר. זה הניקוד של המשחק, לא ההלכה - מי שהדליק כמו שצריך, כבר עשה את המצווה.',
-    'Shul Crossing lets you ride on trucks and scoop up coin boxes along the way - that part is just the game. On a real Shabbos you walk the whole way, and nobody picks up money.': 'במשחק אפשר לעלות על משאיות ולאסוף קופות בדרך - זה רק המשחק. בשבת אמיתית הולכים ברגל כל הדרך, ואף אחד לא מרים כסף.',
-    'Matzah Havoc races the fourth hour to get the shemura matzah delivered. That clock is the game\'s idea: the real fourth-hour deadline on Erev Pesach is for eating chametz, not for delivering matzah.': 'במהומת משלוח מצה מתחרים בשעה הרביעית כדי להביא את המצה השמורה. השעון הזה הוא רעיון של המשחק: סוף השעה הרביעית בערב פסח הוא הזמן האחרון לאכול חמץ, לא להביא מצה.',
-    'Real-life question? Ask your rav.': 'שאלה למעשה? שואלים את הרב.',
+    '"prepare to meet your G-d" - Amos 4:12': '״הכון לקראת אלוקיך״ - עמוס ד, יב',
 
     /* in-play callouts, stats rows and victory quotes */
     'Run complete': 'הסיבוב הסתיים',
@@ -1459,7 +1458,7 @@ var Lang = {
     'Chametz sliced': 'חמץ שנחתך',
     'Giant croissants': 'קרואסונים ענקיים',
     'Yeast clouds cleared': 'ענני שמרים שפוזרו',
-    'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there before the fourth hour \u2014 that is the whole job.': 'מצה שמורה שומרים מהקציר, כדי שהתבואה אף פעם לא תתחיל לתפוח בשקט. הבאתם אותה לפני השעה הרביעית - זו כל העבודה.',
+    'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there before Yom Tov \u2014 that is the whole job.': 'מצה שמורה שומרים מהקציר, כדי שהתבואה אף פעם לא תתחיל לתפוח בשקט. הבאתם אותה לפני החג - זו כל העבודה.',
     'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there \u2014 that is the whole job.': 'מצה שמורה שומרים מהקציר, כדי שהתבואה אף פעם לא תתחיל לתפוח בשקט. הבאתם אותה - זו כל העבודה.',
     'BIRD SNACK!': 'חטיף לציפור!',
     'BONK!': 'בום!',
@@ -2615,13 +2614,12 @@ var Halacha = {
              ['minyan','ten Jewish men, age thirteen and up - the quorum needed for public prayer'],
              ['daven','Yiddish for pray']],
       source:'Berachos 6b, 8a; OC 90:9, 90:19' },
-    { id:'s7', game:'shul', icon:'clothes', title:'Your Shabbos Hat',
-      hebrew:'כְּבוֹד שַׁבָּת',
-      body:'Shabbos is supposed to look different from Tuesday - nicer clothes, not the same old weekday outfit. A hat you keep looking sharp for shul is how lots of families do that honour. It is not a rule that every Jew must own a hat worn only on Shabbos. Still: turning up with a soaking wet hat is a sloppy look for the day. Watch the sprinklers.',
-      terms:[['Kavod Shabbos','honouring Shabbos - treating it like the special day it is'],
+    { id:'s7', game:'shul', icon:'clothes', title:'Looking Sharp for Shul',
+      hebrew:'הִכּוֹן לִקְרַאת אֱלֹקֶיךָ',
+      body:'When you daven, you stand before the King. The Gemara learns from the words "Prepare to meet your G-d" that you dress for davening the way you would to meet an important person - neat and tidy, every day of the week. A hat you keep looking sharp for shul is how lots of people do that. Turning up with a soaking wet hat is a sloppy look. Watch the sprinklers.',
+      terms:[['Hikon likras Elokecha','"prepare to meet your G-d" - Amos 4:12'],
              ['Shul','the place people go to daven (pray) together']],
-      source:'Shabbos 113a; OC 262:2-3',
-      note:'Shul Crossing lets you ride on trucks and scoop up coin boxes along the way - that part is just the game. On a real Shabbos you walk the whole way, and nobody picks up money.' },
+      source:'Shabbos 10a; OC 91:5 with Mishnah Berurah' },
 
     /* ---- Kashrus / Kosher Sort ------------------------------------------ */
     { id:'k1', game:'kosher', icon:'split', title:'Meat and Milk: Three Rules',
@@ -2681,13 +2679,12 @@ var Halacha = {
     /* ---- Pesach / Matzah Delivery Havoc --------------------------------- */
     { id:'p1', game:'matzah', icon:'clock', title:'The Morning It All Stops',
       hebrew:'עֶרֶב פֶּסַח',
-      body:'On Erev Pesach the clock runs out in two stages. You may EAT chametz until the end of the fourth halachic hour. You may still own it for one more hour. After that it has to be gone - burned, sold or destroyed. Your shul publishes the exact minutes every year, because they move.',
+      body:'On Erev Pesach the clock runs out in two stages. You may EAT chametz until the end of the fourth halachic hour. You may still own it for one more hour. By the end of that fifth hour it has to be gone - sold or destroyed. If you burn it, it has to be in the fire before then. Your shul publishes the exact minutes every year, because they move.',
       terms:[['Erev Pesach','the day before Pesach begins'],
              ['chametz','anything leavened - bread, cake, pasta, beer'],
              ['sha\'ah zmanis','a "halachic hour" - one twelfth of the daylight'],
              ['shul','synagogue (Yiddish)']],
-      source:'Pesachim 11b; OC 443:1',
-      note:'Matzah Havoc races the fourth hour to get the shemura matzah delivered. That clock is the game\'s idea: the real fourth-hour deadline on Erev Pesach is for eating chametz, not for delivering matzah.' },
+      source:'Pesachim 11b; OC 443:1' },
     { id:'p2', game:'matzah', icon:'candle', title:'The Search by Candlelight',
       hebrew:'בְּדִיקַת חָמֵץ',
       body:'On the night of the 14th of Nissan, the evening that starts Erev Pesach, you search the house for chametz - every pocket, every shelf, anywhere a crumb could have travelled during the year. The classic way is by the light of a candle, so you look at one small place at a time. Some families dim the big lights. Many today allow a flashlight; ask what your family does.',
@@ -2804,13 +2801,6 @@ var Halacha = {
       terms:[['Kupah','the community charity fund - literally "the box"'],
              ['Gabbai tzedakah','the person who collects and hands out the fund']],
       source:'Bava Basra 8b-9a; Melachim II 12:16; YD 256-257' },
-    { id:'t9', game:'tzedaka', icon:'leaf', title:'Leave the Corner',
-      hebrew:'פֵּאָה, לֶקֶט, שִׁכְחָה',
-      body:'The Torah never tells a farmer to hand out food. It tells him to leave the corner of his field standing, leave whatever falls while harvesting, leave the sheaf he forgot - and walk away. The poor come and take it themselves. Nobody gives, nobody receives, and nobody has to say thank you.',
-      terms:[['Pe\'ah','the corner of the field you leave unharvested'],
-             ['Leket','stalks that drop while you are cutting - you leave them'],
-             ['Shikchah','a sheaf you forgot in the field - you do not go back for it']],
-      source:'Vayikra 19:9-10; Devarim 24:19-21; Mishnah Peah 4:1-2' },
     { id:'t10', game:'tzedaka', icon:'heart', title:'When You Have Nothing',
       hebrew:'וּפַיְּיסוֹ בִּדְבָרִים',
       body:'Someone asks and your pockets are genuinely empty. You still do not walk past. Rambam says: settle him with words. And the Gemara counts it up - give a coin and you get six blessings, speak kindly to him and you get eleven. The one thing you may never do is nothing.',
@@ -2865,7 +2855,7 @@ var Halacha = {
 
     { id:'b_zman',     game:'shul',    name:'Beat the Zman',      icon:'clock',  card:'s1',
       how:'Reach the shul before the zman runs out.' },
-    { id:'b_dry',      game:'shul',    name:'Kavod Shabbos',      icon:'clothes',card:'s7',
+    { id:'b_dry',      game:'shul',    name:'Clean for Shul',     icon:'clothes',card:'s7',
       how:'Reach shul with your hat still dry - no sprinklers.' },
     { id:'b_tank',     game:'shul',    name:'Kosher Ride',        icon:'truck',  card:'s3',
       how:'Hitch a ride on a kosher food truck.' },
@@ -2900,8 +2890,8 @@ var Halacha = {
     { id:'b_afik',     game:'matzah',  name:'Afikoman Shield',    icon:'matzah', card:'p6',
       how:'Collect 5 Afikoman golden shields.' },
     { id:'b_deliver',  game:'matzah',  name:'Special Delivery',   icon:'truck',  card:'p1',
-      how:'Complete a delivery run before the fourth hour is up.' },
-    { id:'b_routes',   game:'matzah',  name:'Before the Hour',    icon:'clock',  card:'p5',
+      how:'Complete a delivery run before Yom Tov.' },
+    { id:'b_routes',   game:'matzah',  name:'Before Yom Tov',     icon:'clock',  card:'p5',
       how:'Deliver shemura matzah down all twelve routes.' },
 
     { id:'b_scholar',  game:'general', name:'Talmid Chacham',     icon:'book',   card:'g1',
@@ -3094,6 +3084,16 @@ var Icons = {
       [-30, -12, 6, 24].forEach(function (sx) {
         ctx.moveTo(sx, -2); ctx.lineTo(sx + 14, -22);
       });
+      ctx.stroke();
+    },
+    surf: function (ctx) {
+      ctx.beginPath();
+      ctx.moveTo(0, -40); ctx.lineTo(-34, 36);
+      ctx.moveTo(0, -40); ctx.lineTo(0, 36);
+      ctx.moveTo(0, -40); ctx.lineTo(34, 36);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(0, 8, 16, 8, 0, 0, TAU);
       ctx.stroke();
     },
     candle: function (ctx) {
@@ -3307,6 +3307,10 @@ var Game = {
     }
     if (id === 'sukkah') {
       MitzHost.open('sukkah');
+      return;
+    }
+    if (id === 'shabbat') {
+      MitzHost.open('shabbat-surfers');
       return;
     }
     FX.reset();
@@ -3674,7 +3678,8 @@ var GAMES = [
   { id:'tzedaka', name:'Tzedaka Blast',  tag:'Into their hands',          icon:'coin',  color:'#c9adff' },
   /* own engine - the Play tab host swaps HTML; standalone opens the sibling.
      Wide leftover tile under the six arcade pairs. */
-  { id:'sukkah',  name:'Sukkah Scramble', tag:'', icon:'sukkah', color:'#d1975a', external: true }
+  { id:'sukkah',  name:'Sukkah Scramble', tag:'', icon:'sukkah', color:'#d1975a', external: true },
+  { id:'shabbat', name:'Shabbat Sprint', tag:'Help Needy Families get their Shabbat necessities!', icon:'surf', color:'#e0b15a', external: true }
 ];
 /* what the Play tab grid actually shows */
 var VISIBLE_GAMES = GAMES.filter(function (g) { return !g.hidden; });
@@ -3691,6 +3696,9 @@ var MitzHost = {
     }
     if (game === 'sukkah' || game === 'sukkah-architect') {
       try { location.href = 'sukkah-architect/index.html'; return true; } catch (e) {}
+    }
+    if (game === 'shabbat' || game === 'shabbat-surfers') {
+      try { location.href = 'shabbat-surfers/index.html'; return true; } catch (e) {}
     }
     return false;
   }
@@ -3759,7 +3767,7 @@ var Screens = {
         size: 64, color: C.cream, align: 'center', weight: '900',
         stroke: 'rgba(0,0,0,.6)', strokeW: 8, shadow: 'rgba(120,200,255,.4)', shadowBlur: 24
       });
-      Draw.text(ctx, 'Seven arcade minigames. Real halacha.', CFG.W / 2, top + 212, {
+      Draw.text(ctx, 'Eight arcade games. Play and learn.', CFG.W / 2, top + 212, {
         size: 22, color: 'rgba(255,255,255,.72)', align: 'center', weight: '600'
       });
 
@@ -4463,7 +4471,6 @@ Screens.renderPause = function (ctx) {
 
 /* ------------------------------------------------- HALACHA FLASH CARD */
 /* Cards teach, they do not pasken - every card says where a real question goes. */
-Screens.RAV_LINE = 'Real-life question? Ask your rav.';
 
 /* One glossary row: the term, then its definition beside it - or under it when
    the term is too wide to leave the definition a sensible column. popupLayout
@@ -4500,7 +4507,6 @@ Screens.popupLayout = function (ctx, card) {
     termsH += 10;
   }
   var sourceH = Draw.paraHeight(ctx, card.source, bodyW, { size: 20, lineHeight: 26, weight: '700' }) + 20;
-  sourceH += Draw.paraHeight(ctx, Screens.RAV_LINE, bodyW, { size: 18, lineHeight: 24, weight: '700' }) + 6;
 
   var scrollContentH = 28 + bodyH;
   if (termsH) scrollContentH += 12 + termsH;
@@ -4574,11 +4580,8 @@ Screens.renderPopupScroll = function (ctx, card, L, scroll) {
     ty += nh + 22;
   }
   ty += 8;
-  ty = Draw.para(ctx, card.source, x + 44, ty, bodyW, {
+  Draw.para(ctx, card.source, x + 44, ty, bodyW, {
     size: 20, lineHeight: 26, color: '#7a5a22', weight: '700', baseline: 'top'
-  });
-  Draw.para(ctx, Screens.RAV_LINE, x + 44, ty + 6, bodyW, {
-    size: 18, lineHeight: 24, color: '#8a6a2f', weight: '700', baseline: 'top'
   });
 };
 
@@ -4802,7 +4805,7 @@ Screens.renderMatzahVictory = function (ctx, o) {
   var sliced = o.sliced || 0;
   var quote = o.late
     ? 'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there \u2014 that is the whole job.'
-    : 'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there before the fourth hour \u2014 that is the whole job.';
+    : 'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there before Yom Tov \u2014 that is the whole job.';
   var quoteH = Draw.paraHeight(ctx, quote, bodyW, { size: 22, lineHeight: 30, weight: '600' });
   var h = Math.min(430 + quoteH, CFG.H - View.safe.t - View.safe.b - 290);
   var y = View.safe.t + Math.max(24, (CFG.H - View.safe.t - View.safe.b - h - 270) / 2);
@@ -8286,16 +8289,16 @@ ShulCrossing.SCENES = [
     grass:'#2a5a40', grass2:'#346848', road:'#22262e', plaza:'#a8a088',
     len:22, zman:50, spd:1.08, food:0.12, puddle:0.42, roadP:0.40, minyan:0, stall:0,
     night:0, rain:1, roadRun:2, bus:0, scooter:0 },
-  { id:'lamps',  name:'LAMP WALK',      sub:'night lamps. the zman is still the zman',
-    sky:[[0,'#0c1428'],[0.4,'#182440'],[0.75,'#243048'],[1,'#1c2430']],
-    grass:'#1a3a28', grass2:'#224830', road:'#1a1e28', plaza:'#8a7a58',
+  { id:'lamps',  name:'LAMP WALK',      sub:'first light. the lamps are still on',
+    sky:[[0,'#24305a'],[0.4,'#46507e'],[0.75,'#a07e9a'],[1,'#e2ac92']],
+    grass:'#2a5a3c', grass2:'#326846', road:'#22262e', plaza:'#a89478',
     len:22, zman:50, spd:1.12, food:0.13, puddle:0.18, roadP:0.46, minyan:0, stall:0,
-    night:1, rain:0, roadRun:2, bus:0, scooter:1 },
-  { id:'late',   name:'LATE MINCHA',    sub:'darker. still hopping',
-    sky:[[0,'#0c1428'],[0.4,'#182440'],[0.75,'#243048'],[1,'#1c2430']],
-    grass:'#1a3a28', grass2:'#224830', road:'#1a1e28', plaza:'#8a7a58',
+    night:0, rain:0, fog:0, lamps:1, roadRun:2, bus:0, scooter:1 },
+  { id:'late',   name:'LATE MINCHA',    sub:'the sky is going pink. daven before sunset',
+    sky:[[0,'#3a3a6a'],[0.4,'#76588a'],[0.75,'#cc8a8c'],[1,'#eeb48e']],
+    grass:'#2c5a3c', grass2:'#346846', road:'#24262e', plaza:'#b09878',
     len:22, zman:50, spd:1.14, food:0.13, puddle:0.18, roadP:0.48, minyan:0, stall:0,
-    night:1, rain:0, roadRun:2, bus:0, scooter:1 },
+    night:0, rain:0, fog:0, lamps:1, roadRun:2, bus:0, scooter:1 },
   { id:'bus',    name:'BUS ROUTE',      sub:'big buses. hop the gap - or grab a kosher ride',
     sky:[[0,'#3a4a6a'],[0.35,'#5a6a88'],[0.7,'#8a9ab0'],[1,'#c0c4b0']],
     grass:'#3a6a48', grass2:'#467a54', road:'#2a2e38', plaza:'#c9b184',
@@ -8336,56 +8339,56 @@ ShulCrossing.SCENES = [
     grass:'#4a5a38', grass2:'#586844', road:'#2a2824', plaza:'#b8a070',
     len:25, zman:44, spd:1.20, food:0.14, puddle:0.16, roadP:0.46, minyan:0.12, stall:1,
     night:0, rain:0, roadRun:3, bus:1, scooter:0 },
-  { id:'city',   name:'CITY RUSH',      sub:'everything at once. keep hopping',
-    sky:[[0,'#1a2438'],[0.35,'#2a3850'],[0.7,'#3a4860'],[1,'#2a3038']],
-    grass:'#244838', grass2:'#2c5440', road:'#1c2028', plaza:'#8a7a5a',
+  { id:'city',   name:'CITY RUSH',      sub:'morning fog. keep hopping',
+    sky:[[0,'#4a5668'],[0.35,'#6a7686'],[0.7,'#9aa2a8'],[1,'#bcbcb4']],
+    grass:'#355a46', grass2:'#3e6650', road:'#262a32', plaza:'#a49c8a',
     len:26, zman:43, spd:1.22, food:0.14, puddle:0.18, roadP:0.48, minyan:0.14, stall:1,
-    night:1, rain:0, roadRun:3, bus:1, scooter:1 },
-  { id:'downtown', name:'DOWNTOWN',     sub:'night city. hop first, read later',
-    sky:[[0,'#1a2438'],[0.35,'#2a3850'],[0.7,'#3a4860'],[1,'#2a3038']],
-    grass:'#244838', grass2:'#2c5440', road:'#1c2028', plaza:'#8a7a5a',
+    night:0, rain:0, fog:0.30, lamps:1, roadRun:3, bus:1, scooter:1 },
+  { id:'downtown', name:'DOWNTOWN',     sub:'fog downtown. hop first, read later',
+    sky:[[0,'#4a5668'],[0.35,'#6a7686'],[0.7,'#9aa2a8'],[1,'#bcbcb4']],
+    grass:'#355a46', grass2:'#3e6650', road:'#262a32', plaza:'#a49c8a',
     len:26, zman:42, spd:1.26, food:0.14, puddle:0.18, roadP:0.50, minyan:0.16, stall:1,
-    night:1, rain:0, roadRun:3, bus:1, scooter:1 },
-  { id:'nightmkt', name:'NIGHT MARKET', sub:'stalls after dark',
-    sky:[[0,'#1a2438'],[0.35,'#2a3850'],[0.7,'#3a4860'],[1,'#2a3038']],
-    grass:'#244838', grass2:'#2c5440', road:'#1c2028', plaza:'#8a7a5a',
+    night:0, rain:0, fog:0.34, lamps:1, roadRun:3, bus:1, scooter:1 },
+  { id:'nightmkt', name:'FOGGY MARKET', sub:'stalls in the morning fog',
+    sky:[[0,'#4a5668'],[0.35,'#6a7686'],[0.7,'#9aa2a8'],[1,'#bcbcb4']],
+    grass:'#355a46', grass2:'#3e6650', road:'#262a32', plaza:'#a49c8a',
     len:26, zman:42, spd:1.28, food:0.14, puddle:0.18, roadP:0.50, minyan:0.16, stall:1,
-    night:1, rain:0, roadRun:3, bus:1, scooter:1 },
-  { id:'wetnight', name:'WET NIGHT',    sub:'rain on the city',
+    night:0, rain:0, fog:0.38, lamps:1, roadRun:3, bus:1, scooter:1 },
+  { id:'wetnight', name:'WET MORNING',  sub:'rain on the city',
     sky:[[0,'#2a3848'],[0.35,'#3a4c5c'],[0.7,'#5a6c74'],[1,'#8a9088']],
     grass:'#2a5a40', grass2:'#346848', road:'#22262e', plaza:'#a8a088',
     len:26, zman:41, spd:1.22, food:0.13, puddle:0.36, roadP:0.46, minyan:0.14, stall:1,
-    night:1, rain:1, roadRun:3, bus:1, scooter:1 },
+    night:0, rain:1, fog:0.18, lamps:1, roadRun:3, bus:1, scooter:1 },
   { id:'rushhr', name:'RUSH HOUR',      sub:'everything at once, a little more',
-    sky:[[0,'#1a2438'],[0.35,'#2a3850'],[0.7,'#3a4860'],[1,'#2a3038']],
-    grass:'#244838', grass2:'#2c5440', road:'#1c2028', plaza:'#8a7a5a',
+    sky:[[0,'#4a5668'],[0.35,'#6a7686'],[0.7,'#9aa2a8'],[1,'#bcbcb4']],
+    grass:'#355a46', grass2:'#3e6650', road:'#262a32', plaza:'#a49c8a',
     len:27, zman:41, spd:1.30, food:0.14, puddle:0.18, roadP:0.50, minyan:0.16, stall:1,
-    night:1, rain:0, roadRun:3, bus:1, scooter:1 },
+    night:0, rain:0, fog:0.30, lamps:1, roadRun:3, bus:1, scooter:1 },
   { id:'corner', name:'BUSY CORNER',    sub:'the last turns are the tight ones',
-    sky:[[0,'#241428'],[0.35,'#3a2040'],[0.7,'#4a2848'],[1,'#2a1c28']],
-    grass:'#2a3a28', grass2:'#344830', road:'#1a1620', plaza:'#8a6a50',
+    sky:[[0,'#4a4a70'],[0.35,'#786a8a'],[0.7,'#c49a9a'],[1,'#e4bea0']],
+    grass:'#34583e', grass2:'#3c6448', road:'#24262e', plaza:'#b49e80',
     len:27, zman:40, spd:1.30, food:0.14, puddle:0.18, roadP:0.50, minyan:0.16, stall:1,
-    night:1, rain:0, roadRun:3, bus:1, scooter:1 },
+    night:0, rain:0, fog:0.26, lamps:1, roadRun:3, bus:1, scooter:1 },
   { id:'lastblk', name:'LAST BLOCK',    sub:'you can see the shul from here',
-    sky:[[0,'#241428'],[0.35,'#3a2040'],[0.7,'#4a2848'],[1,'#2a1c28']],
-    grass:'#2a3a28', grass2:'#344830', road:'#1a1620', plaza:'#8a6a50',
+    sky:[[0,'#4a4a70'],[0.35,'#786a8a'],[0.7,'#c49a9a'],[1,'#e4bea0']],
+    grass:'#34583e', grass2:'#3c6448', road:'#24262e', plaza:'#b49e80',
     len:27, zman:40, spd:1.32, food:0.15, puddle:0.19, roadP:0.51, minyan:0.17, stall:1,
-    night:1, rain:0, roadRun:3, bus:1, scooter:1 },
+    night:0, rain:0, fog:0.30, lamps:1, roadRun:3, bus:1, scooter:1 },
   { id:'almost', name:'ALMOST THERE',   sub:'do not slow down now',
-    sky:[[0,'#241428'],[0.35,'#3a2040'],[0.7,'#4a2848'],[1,'#2a1c28']],
-    grass:'#2a3a28', grass2:'#344830', road:'#1a1620', plaza:'#8a6a50',
+    sky:[[0,'#2e3644'],[0.35,'#404a58'],[0.7,'#5e666c'],[1,'#7a7e78']],
+    grass:'#2a4a38', grass2:'#325440', road:'#20242c', plaza:'#9a927c',
     len:28, zman:39, spd:1.32, food:0.15, puddle:0.20, roadP:0.51, minyan:0.18, stall:1,
-    night:1, rain:0, roadRun:3, bus:1, scooter:1 },
+    night:0, rain:1, fog:0.22, lamps:1, roadRun:3, bus:1, scooter:1 },
   { id:'dash',   name:'THE DASH',       sub:'one more street',
-    sky:[[0,'#241428'],[0.35,'#3a2040'],[0.7,'#4a2848'],[1,'#2a1c28']],
-    grass:'#2a3a28', grass2:'#344830', road:'#1a1620', plaza:'#8a6a50',
+    sky:[[0,'#2e3644'],[0.35,'#404a58'],[0.7,'#5e666c'],[1,'#7a7e78']],
+    grass:'#2a4a38', grass2:'#325440', road:'#20242c', plaza:'#9a927c',
     len:28, zman:39, spd:1.33, food:0.15, puddle:0.20, roadP:0.52, minyan:0.18, stall:1,
-    night:1, rain:0, roadRun:3, bus:1, scooter:1 },
+    night:0, rain:1, fog:0.26, lamps:1, roadRun:3, bus:1, scooter:1 },
   { id:'sof',    name:'SOF ZMAN',       sub:'the deadline is close. RUN',
-    sky:[[0,'#241428'],[0.35,'#3a2040'],[0.7,'#4a2848'],[1,'#2a1c28']],
-    grass:'#2a3a28', grass2:'#344830', road:'#1a1620', plaza:'#8a6a50',
+    sky:[[0,'#2e3644'],[0.35,'#404a58'],[0.7,'#5e666c'],[1,'#7a7e78']],
+    grass:'#2a4a38', grass2:'#325440', road:'#20242c', plaza:'#9a927c',
     len:28, zman:38, spd:1.34, food:0.15, puddle:0.20, roadP:0.52, minyan:0.18, stall:1,
-    night:1, rain:0, roadRun:3, bus:1, scooter:1 }
+    night:0, rain:1, fog:0.30, lamps:1, roadRun:3, bus:1, scooter:1 }
 ];
 
 ShulCrossing.prototype.scene = function () {
@@ -8562,11 +8565,14 @@ ShulCrossing.paint = function (kind) {
 
 ShulCrossing.prototype.decor = function (r) {
   var d = [], t = this.cfg || this.tune();
-  var n = randInt(t.night ? 1 : 0, 3);
+  /* street lamps stand along the walks where they are switched on: night,
+     first light, dusk, and the foggy mornings */
+  var lit = t.night || t.lamps;
+  var n = randInt(lit ? 1 : 0, 3);
   for (var i = 0; i < n; i++) {
     d.push({
       col: randInt(0, 8),
-      kind: t.night ? (chance(0.55) ? 'lamp' : (chance(0.5) ? 'tree' : 'bench'))
+      kind: lit ? (chance(0.55) ? 'lamp' : (chance(0.5) ? 'tree' : 'bench'))
                     : (chance(0.5) ? 'tree' : 'bench'),
       off: rand(-16, 16)
     });
@@ -8908,6 +8914,14 @@ ShulCrossing.prototype.render = function (ctx) {
       for (i = 0; i < row.items.length; i++) this.drawWalker(ctx, row.items[i], y);
     }
   }
+  /* fog: the far streets fade into it, the street you stand on stays clear */
+  if (S.fog) {
+    var haze = ctx.createLinearGradient(0, 0, 0, CFG.H * 0.62);
+    haze.addColorStop(0, 'rgba(200,206,212,' + S.fog + ')');
+    haze.addColorStop(1, 'rgba(200,206,212,0)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, 0, CFG.W, CFG.H * 0.62);
+  }
   this.drawPlayer(ctx);
   if (this.flakes && this.flakes.length) {
     ctx.save();
@@ -9174,7 +9188,7 @@ ShulCrossing.prototype.drawVehicle = function (ctx, v, y, dir) {
     ctx.fillStyle = 'rgba(255,240,180,.9)';
     ctx.fillRect(dir > 0 ? x + w / 2 - 8 : x - w / 2 + 2, y - 8, 6, 12);
   }
-  if (this.cfg && this.cfg.night && v.kind !== 'scooter') {
+  if (this.cfg && (this.cfg.night || this.cfg.lamps) && v.kind !== 'scooter') {
     var hx = dir > 0 ? x + w / 2 - 4 : x - w / 2 + 4;
     ctx.fillStyle = 'rgba(255,220,140,.55)';
     ctx.beginPath();
@@ -11741,7 +11755,7 @@ KitchenMatch.prototype.stats = function () {
 /* ==========================================================================
    GAME 4 - MATZAH DELIVERY HAVOC  (Twelve-route dash)
    Steer the shemura matzah truck with the left-thumb slider while your other
-   hand slices the flying chametz out of the air before the fourth hour.
+   hand slices the flying chametz out of the air before Yom Tov.
    Twelve named routes, each a different street, with new trouble arriving late.
    ========================================================================== */
 function MatzahHavoc() {
@@ -11843,10 +11857,11 @@ MatzahHavoc.SCENES = [
     weather:null, night:1, speed:430, goal:13800, hour:50,
     air:0.58, road:1.05, cloud:4.6, pickup:10, cars:0.55,
     giants:1, yeast:1, dough:1, slick:0, wind:70, tornado:1, dump:1, block:1 },
-  { id:'erev',   name:'EREV PESACH',    sub:'the fourth hour is close. get it there',
-    sky:[[0,'#241428'],[0.3,'#3a2040'],[0.65,'#4a2838'],[1,'#2a1c24']],
-    sand:'#3a2a30', curb:'#2e2228', asphalt:'#221c24', line:'rgba(255,196,120,.55)',
-    weather:null, night:1, speed:455, goal:14200, hour:46,
+  { id:'erev',   name:'EREV PESACH',    sub:'Yom Tov is close. get it there',
+    /* late afternoon: the sky is going pink, Yom Tov is not in yet */
+    sky:[[0,'#7a6a9a'],[0.3,'#c88a98'],[0.65,'#e8a888'],[1,'#b88a6a']],
+    sand:'#b08a6a', curb:'#8e6c52', asphalt:'#2e2a34', line:'rgba(255,226,180,.7)',
+    weather:null, night:0, speed:455, goal:14200, hour:46,
     air:0.48, road:0.92, cloud:4.0, pickup:9, cars:0.6,
     giants:1, yeast:1, dough:1, slick:0, wind:90, tornado:1, dump:1, block:1 }
 ];
@@ -12265,14 +12280,14 @@ MatzahHavoc.prototype.update = function (dt) {
     if (pk.y > CFG.H + 120) this.pickups.splice(i, 1);
   }
 
-  /* ---- the fourth hour ---- */
+  /* ---- the clock to Yom Tov ---- */
   if (this.hour <= 0) {
     this.hour = this.hourMax * 0.65;
     if (this.shield > 0) {
-      FX.text(this.truckX, MatzahHavoc.TRUCK_Y - 120, 'THE AFIKOMAN HELD THE HOUR', C.gold, 26, 3);
+      FX.text(this.truckX, MatzahHavoc.TRUCK_Y - 120, 'THE AFIKOMAN BOUGHT TIME', C.gold, 26, 3);
     } else {
       this.late = true;
-      this.damage('The fourth hour passed', this.truckX, MatzahHavoc.TRUCK_Y - 120);
+      this.damage('Too close to Yom Tov', this.truckX, MatzahHavoc.TRUCK_Y - 120);
       if (this.lives <= 0) return;
     }
   }
@@ -12623,7 +12638,7 @@ MatzahHavoc.prototype.renderHud = function (ctx, y) {
   var w = 300, x = (CFG.W - w) / 2;
   Draw.panel(ctx, x, y - 6, w, 76, { fill: 'rgba(6,10,26,.8)', radius: 16, stroke: 'rgba(255,255,255,.14)' });
   var late = this.hour / this.hourMax < 0.28;
-  Draw.text(ctx, '4TH HOUR', x + 16, y + 18, { size: 19, color: late ? C.red : C.gold, weight: '900' });
+  Draw.text(ctx, 'BEFORE YOM TOV', x + 16, y + 18, { size: 19, color: late ? C.red : C.gold, weight: '900' });
   Draw.text(ctx, mmss(this.hour), x + w - 16, y + 18, {
     size: 20, color: late ? C.red : 'rgba(255,255,255,.75)', align: 'right', weight: '800'
   });

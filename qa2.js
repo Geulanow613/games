@@ -517,7 +517,7 @@ const assert = require('assert');
     /[\u0590-\u05FF]/.test(r.badge) && /[\u0590-\u05FF]/.test(r.card),
     JSON.stringify(r));
 
-  // every card line has a Hebrew side: glossary terms and definitions, sources, notes, and the rav line
+  // every card line has a Hebrew side: glossary terms and definitions, sources, notes
   r = await page.evaluate(() => {
     const prev = Lang.id();
     Lang.set('he');
@@ -527,11 +527,11 @@ const assert = require('assert');
       [c.title, c.body, c.source].concat(c.note ? [c.note] : []).forEach(s => { if (!he(s)) missing.push(c.id + ': ' + s); });
       (c.terms || []).forEach(t => t.forEach(s => { if (!he(s)) missing.push(c.id + ' term: ' + s); }));
     });
-    const rav = Screens.RAV_LINE && he(Screens.RAV_LINE);
+    const rav = !Screens.RAV_LINE;
     Lang.set(prev);
     return { missing: missing.slice(0, 8), n: missing.length, rav };
   });
-  check('lang: every card glossary line, source and note has Hebrew, and every card says to ask a rav',
+  check('lang: every card glossary line, source and note has Hebrew, with no "ask your rav" line',
     r.n === 0 && r.rav === true, JSON.stringify(r));
 
   // card facts the audit corrected
@@ -2369,8 +2369,49 @@ const assert = require('assert');
     s.deliver();
     return { late, refilled, badge: Profile.hasBadge('b_deliver'), lateCount: s.lateCount };
   });
-  check('matzah: a delivery after the fourth hour ran out does not earn Special Delivery',
+  check('matzah: a delivery after the Yom Tov clock ran out does not earn Special Delivery',
     r.late === true && r.refilled && r.badge === false && r.lateCount === 1, JSON.stringify(r));
+
+  // round 3 (Q162-Q164): a weekday walk to shul, matzah raced to Yom Tov, daylight that fits the deadline
+  r = await page.evaluate(() => {
+    const prev = Lang.id();
+    const shulText = Halacha.cards.filter(c => c.game === 'shul')
+      .map(c => [c.title, c.hebrew || '', c.body, c.source, c.note || ''].concat((c.terms || []).flat()).join(' '))
+      .concat(Halacha.badges.filter(b => b.game === 'shul').map(b => b.name + ' ' + b.how))
+      .concat(ShulCrossing.SCENES.map(sc => sc.name + ' ' + sc.sub)).join(' ');
+    const s7 = Halacha.byId('s7'), p1 = Halacha.byId('p1');
+    const matzahText = Halacha.cards.filter(c => c.game === 'matzah').map(c => c.body + ' ' + (c.note || '')).join(' ')
+      .concat(' ', Halacha.badges.filter(b => b.game === 'matzah').map(b => b.name + ' ' + b.how).join(' '))
+      .concat(' ', MatzahHavoc.SCENES.map(sc => sc.sub).join(' '));
+    const lum = hex => { const n = parseInt(hex.slice(1), 16); return ((n >> 16) * 0.3 + ((n >> 8) & 255) * 0.59 + (n & 255) * 0.11); };
+    const skyLum = sc => sc.sky.reduce((a, st) => a + lum(st[1]), 0) / sc.sky.length;
+    const shulLate = ShulCrossing.SCENES.slice(20, 30);
+    const mincha = ShulCrossing.SCENES.find(sc => sc.id === 'late');
+    const erev = MatzahHavoc.SCENES[11];
+    Lang.set('he');
+    const he = ['Looking Sharp for Shul', 'Clean for Shul', 'Before Yom Tov', 'BEFORE YOM TOV',
+      'Too close to Yom Tov', 'Yom Tov is close. get it there', 'FOGGY MARKET', 'WET MORNING',
+      'the sky is going pink. daven before sunset', 'stalls in the morning fog', s7.body, p1.body]
+      .filter(k => !/[\u0590-\u05FF]/.test(Lang.t(k)));
+    Lang.set(prev);
+    return {
+      shabbos: /shabbos|shabbat/i.test(shulText.replace(/Shabbos \d+[ab]/g, '')),  // the tractate in a source is fine
+      s7: s7.title === 'Looking Sharp for Shul' && !s7.note,
+      badge: Halacha.badges.find(b => b.id === 'b_dry').name === 'Clean for Shul',
+      fourth: /fourth hour|4th hour/i.test(matzahText.replace(p1.body, '')),
+      p1: !p1.note && /fifth hour/.test(p1.body) && /in the fire before then/.test(p1.body),
+      erevSub: erev.sub === 'Yom Tov is close. get it there',
+      shulNight: shulLate.filter(sc => sc.night).map(sc => sc.id),
+      shulDark: shulLate.filter(sc => skyLum(sc) < 70).map(sc => sc.id),
+      fogOrRain: shulLate.every(sc => sc.fog > 0 || sc.rain),
+      mincha: !mincha.night && skyLum(mincha) > 90,
+      erevDay: !erev.night && skyLum(erev) > 110,
+      he
+    };
+  });
+  check('round 3: Shul Crossing is a weekday walk, Matzah Havoc races Yom Tov, and morning deadlines are not drawn at night',
+    !r.shabbos && r.s7 && r.badge && !r.fourth && r.p1 && r.erevSub && r.shulNight.length === 0 &&
+    r.shulDark.length === 0 && r.fogOrRain && r.mincha && r.erevDay && r.he.length === 0, JSON.stringify(r));
 
   // ---------- no sun, moon or stars anywhere in the art ----------
   r = await page.evaluate(() => {
