@@ -211,7 +211,7 @@ const assert = require('assert');
     hint: Foods.list.find(f => f.shape === 'lasagna').hint
   }));
   check('kosher: the lasagna is labelled Meat/Cheese and says why',
-    r.name === 'Meat/Cheese Lasagna' && r.hint.indexOf('pareve meat lasagna') > 0, JSON.stringify(r));
+    r.name === 'Meat/Cheese Lasagna' && r.hint.indexOf('pareve imitation meat') > 0 && r.hint.indexOf('no cheese') > 0, JSON.stringify(r));
 
   await page.evaluate(() => { Game.quitToMenu(); Game.startGame('kosher'); Game.beginPlay();
     const s = Game.scene; s.items.length = 0; s.rushT = 0; s.rushTimer = 999;
@@ -516,6 +516,56 @@ const assert = require('assert');
     r.stuck.length === 0 && /[\u0590-\u05FF]/.test(r.combo) &&
     /[\u0590-\u05FF]/.test(r.badge) && /[\u0590-\u05FF]/.test(r.card),
     JSON.stringify(r));
+
+  // every card line has a Hebrew side: glossary terms and definitions, sources, notes, and the rav line
+  r = await page.evaluate(() => {
+    const prev = Lang.id();
+    Lang.set('he');
+    const he = s => /[֐-׿]/.test(Lang.t(s));
+    const missing = [];
+    Halacha.cards.forEach(c => {
+      [c.title, c.body, c.source].concat(c.note ? [c.note] : []).forEach(s => { if (!he(s)) missing.push(c.id + ': ' + s); });
+      (c.terms || []).forEach(t => t.forEach(s => { if (!he(s)) missing.push(c.id + ' term: ' + s); }));
+    });
+    const rav = Screens.RAV_LINE && he(Screens.RAV_LINE);
+    Lang.set(prev);
+    return { missing: missing.slice(0, 8), n: missing.length, rav };
+  });
+  check('lang: every card glossary line, source and note has Hebrew, and every card says to ask a rav',
+    r.n === 0 && r.rav === true, JSON.stringify(r));
+
+  // card facts the audit corrected
+  r = await page.evaluate(() => {
+    const t7 = Halacha.byId('t7'), s6 = Halacha.byId('s6'), g2 = Halacha.byId('g2');
+    const minyan = (s6.terms.find(t => t[0] === 'minyan') || [])[1] || '';
+    return {
+      topRungGift: t7.body.indexOf('not a gift') < 0 && t7.body.indexOf('a gift, a loan') > 0,
+      minyanMen: /ten Jewish men/.test(minyan) && !/adults/.test(minyan),
+      benAzzai: g2.body.indexOf('for the prize') < 0 && g2.source === 'Pirkei Avos 4:2'
+    };
+  });
+  check('halacha: Rambam\'s top rung can be a gift, a minyan is ten men, and Ben Azzai says only what Avos 4:2 says',
+    r.topRungGift && r.minyanMen && r.benAzzai, JSON.stringify(r));
+
+  // round 2 card facts (R-I Q176-Q181)
+  r = await page.evaluate(() => {
+    const b = id => Halacha.byId(id).body;
+    return {
+      m11: b('m11').indexOf('never set up right') < 0 && b('m11').indexOf('when you light') > 0,
+      s1: /by accident/.test(b('s1')) && Halacha.byId('s1').source.indexOf('108:1, 7') > 0,
+      s2: b('s2').indexOf('our God') < 0 && b('s2').indexOf('our G-d') > 0,
+      k1: /beef, lamb and goat/.test(b('k1')) && /may still benefit/.test(b('k1')),
+      p2: b('p2').indexOf('night before Erev Pesach') < 0 && /14th of Nissan/.test(b('p2')) && /ask what your family does/.test(b('p2')),
+      p6: b('p6').indexOf('what else is there') < 0 && /Vilna Gaon/.test(b('p6')) &&
+          Halacha.byId('p6').terms.some(t => t[0] === 'Vilna Gaon')
+    };
+  });
+  check('halacha: m11 setup, s1 tashlumin only by accident, s2 G-d, k1 benefit ban for beheimah, p2 night of the 14th, p6 the Gra',
+    Object.keys(r).every(k => r[k] === true), JSON.stringify(r));
+
+  // no star-drawing helper left in the art code (owner: wording is fine, pictures of sun/moon/stars are not)
+  r = await page.evaluate(() => ({ drawStar: typeof Draw.star }));
+  check('art: no star-drawing helper', r.drawStar === 'undefined', JSON.stringify(r));
 
   r = await page.evaluate(() => {
     window.MITZ_MODE = false; window.MITZ_NUSACH = undefined;
@@ -1074,7 +1124,7 @@ const assert = require('assert');
     hint: Foods.list.find(f => f.shape === 'lasagna').hint
   }));
   check('kitchen: the lasagna is labelled Meat/Cheese and says why',
-    r.name === 'Meat/Cheese Lasagna' && r.hint.indexOf('pareve meat lasagna') > 0, JSON.stringify(r));
+    r.name === 'Meat/Cheese Lasagna' && r.hint.indexOf('pareve imitation meat') > 0 && r.hint.indexOf('no cheese') > 0, JSON.stringify(r));
 
   r = await page.evaluate(() => {
     const s = Game.scene;
@@ -1521,8 +1571,27 @@ const assert = require('assert');
     s.night = 1; s.setupNight();
     return { all: all, some: some, one: one, none: none };
   });
-  check('menorah: grades are Mehadrin / Kosher / Me\'ikkar HaDin / not fulfilled',
+  check('menorah: grades are every light / still burning / one light / all dark (keys mehadrin, kosher, ikkar, none)',
     r.all === 'mehadrin' && r.some === 'kosher' && r.one === 'ikkar' && r.none === 'none', JSON.stringify(r));
+  // the night grades are game scores: they never state a halachic status (MB 673:25, OC 673:2)
+  r = await page.evaluate(() => {
+    const s = Game.scene; s.night = 5; s.setupNight();
+    const lights = s.candles.filter(c => c.active && !c.sham);
+    const out = [];
+    for (let k = lights.length; k >= 0; k--) {
+      lights.forEach((c, i) => { c.lit = i < k; c.broken = false; });
+      const g = s.gradeNight();
+      const prev = Lang.id(); Lang.apply('he');
+      const toast = Lang.t(g.name + ' - ' + g.note);
+      Lang.apply(prev);
+      out.push({ name: g.name, note: g.note, toast: toast });
+    }
+    s.night = 1; s.setupNight();
+    return out;
+  });
+  check('menorah: night grades are game scores - no KOSHER / IKKAR / FULFILLED / mitzvah verdicts, and every toast has Hebrew',
+    r.length >= 3 && r.every(g => !/KOSHER|IKKAR|FULFILL|MEHADRIN|mitzvah/i.test(g.name + ' ' + g.note)) &&
+    r.every(g => !/[A-Za-z]/.test(g.toast)), JSON.stringify(r));
   r = await page.evaluate(() => !!Halacha.byId('m10') && Halacha.byId('m10').body.indexOf('single light per household') > 0);
   check('menorah: the Me\'ikkar HaDin halacha card exists', r === true);
 
@@ -2098,6 +2167,42 @@ const assert = require('assert');
   check('shul: finishing walk 30 shows the congratulations screen',
     r.victory === true && r.state === 'GAME_OVER' && r.id === 'shul', JSON.stringify(r));
 
+  // a walk where the zman ran out is late - the clock refilling does not make it on time again
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay();
+    const s = Game.scene;
+    delete Profile.data.badges.b_zman;
+    s.lives = 3; s.mult = 1; s.zman = 0.001;
+    s.update(1 / 60);
+    const late = s.late, refilled = s.zman > 0;
+    s.arrive();
+    return { late, refilled, mult: s.mult, badge: Profile.hasBadge('b_zman'), lateCount: s.lateCount };
+  });
+  check('shul: a walk that missed the zman earns no multiplier and no Beat the Zman badge',
+    r.late === true && r.refilled && r.mult === 1 && r.badge === false && r.lateCount === 1, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay();
+    const s = Game.scene;
+    delete Profile.data.badges.b_zman;
+    s.mult = 1;
+    s.arrive();
+    return { late: s.late, mult: s.mult, badge: Profile.hasBadge('b_zman') };
+  });
+  check('shul: a walk that beat the zman still earns both',
+    r.mult === 1.5 && r.badge === true, JSON.stringify(r));
+
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('shul'); Game.beginPlay();
+    const s = Game.scene;
+    delete Profile.data.badges.b_walks;
+    s.level = 30; s.setupWalk(true); s.lateCount = 1;
+    s.arrive();
+    return { victory: !!s.victory, badge: Profile.hasBadge('b_walks'), late: Game.gameover && Game.gameover.late };
+  });
+  check('shul: all thirty with a late walk is a win, but not the "all thirty before the zman" badge',
+    r.victory === true && r.badge === false && r.late === 1, JSON.stringify(r));
+
   // ---------- MATZAH ----------
   await page.evaluate(() => { Game.quitToMenu(); Game.startGame('matzah'); Game.beginPlay();
     const s = Game.scene; s.chametz.length = 0;
@@ -2250,6 +2355,22 @@ const assert = require('assert');
   });
   check('matzah: finishing route 12 shows the congratulations screen',
     r.victory === true && r.state === 'GAME_OVER' && r.id === 'matzah', JSON.stringify(r));
+
+  // a route where the fourth hour ran out is late: no Special Delivery badge, no hour bonus
+  r = await page.evaluate(() => {
+    Game.quitToMenu(); Game.startGame('matzah'); Game.beginPlay();
+    const s = Game.scene;
+    delete Profile.data.badges.b_deliver;
+    s.spawnAir = 999; s.spawnRoad = 999; s.spawnCloud = 999; s.spawnPickup = 999;
+    s.chametz.length = 0; s.obstacles.length = 0; s.clouds.length = 0;
+    s.shield = 0; s.lives = 3; s.hour = 0.001;
+    s.update(1 / 60);
+    const late = s.late, refilled = s.hour > 0;
+    s.deliver();
+    return { late, refilled, badge: Profile.hasBadge('b_deliver'), lateCount: s.lateCount };
+  });
+  check('matzah: a delivery after the fourth hour ran out does not earn Special Delivery',
+    r.late === true && r.refilled && r.badge === false && r.lateCount === 1, JSON.stringify(r));
 
   // ---------- no sun, moon or stars anywhere in the art ----------
   r = await page.evaluate(() => {

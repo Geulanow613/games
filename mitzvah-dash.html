@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#05070f">
-<meta name="description" content="Mitzvah Dash - four fast arcade minigames that teach real Halacha.">
+<meta name="description" content="Mitzvah Dash - eight fast arcade minigames that teach real Halacha.">
 <title>Mitzvah Dash</title>
 <style>
   *{box-sizing:border-box;}
@@ -44,7 +44,9 @@ window.addEventListener('error', function (e) {
   try {
     var f = document.getElementById('fatal');
     f.style.display = 'block';
-    f.textContent = 'Mitzvah Dash hit an error:\n\n' + (e.message || e) +
+    var he = false;
+    try { he = typeof Lang !== 'undefined' && Lang.id() === 'he'; } catch (_) {}
+    f.textContent = (he ? 'מצווה דאש נתקל בשגיאה:' : 'Mitzvah Dash hit an error:') + '\n\n' + (e.message || e) +
       '\n' + (e.filename || '') + ':' + (e.lineno || '') + '\n\n' +
       (e.error && e.error.stack ? e.error.stack : '');
   } catch (_) {}
@@ -307,8 +309,8 @@ var Lang = {
       var words = { SHIFT: 'משמרות', NIGHT: 'לילות', WALK: 'הליכות', ROUTE: 'מסלולים', STREET: 'רחובות' };
       return words[m[1]] + '  -  ' + m[2] + ' מתוך ' + m[3] + ' פתוחים';
     }
-    m = /^(\d+) of (\d+) still burning - the mitzvah was kept\.$/.exec(s);
-    if (m) return m[1] + ' מתוך ' + m[2] + ' עדיין דולקים - המצווה התקיימה.';
+    m = /^(\d+) of (\d+) lights still burning when the clock ran out\.$/.exec(s);
+    if (m) return m[1] + ' מתוך ' + m[2] + ' נרות עדיין דולקים כשהזמן נגמר.';
     m = /^(\d+)\/(\d+) badges$/.exec(s);
     if (m) return m[1] + '/' + m[2] + ' אותות';
     m = /^(\d+) \/ (\d+) badges  •  (\d+) \/ (\d+) cards read$/.exec(s);
@@ -323,8 +325,8 @@ var Lang = {
     if (m) return 'רצף מפיות x' + m[1];
     m = /^NAPKIN FRENZY x2\s+([\d.]+)s$/.exec(s);
     if (m) return 'טירוף מפיות x2  ' + m[1] + 'ש׳';
-    m = /^MEHADRIN STREAK x(\d+)\s+\+(\d+)$/.exec(s);
-    if (m) return 'רצף מהדרין x' + m[1] + '  +' + m[2];
+    m = /^PERFECT STREAK x(\d+)\s+\+(\d+)$/.exec(s);
+    if (m) return 'רצף מושלם x' + m[1] + '  +' + m[2];
     m = /^NIGHT (\d+) UNLOCKED$/.exec(s);
     if (m) return 'לילה ' + m[1] + ' נפתח';
     m = /^SHIFT (\d+) UNLOCKED$/.exec(s);
@@ -350,7 +352,7 @@ var Lang = {
     if (m) return 'הכיוון ההפוך - החליקו ' + Lang.t(m[1]);
     m = / \(session save only\)$/.exec(s);
     if (m) return s.slice(0, m.index) + '  (נשמר רק בסשן הזה)';
-    m = /^(KOSHER L'MEHADRIN|KOSHER|ME'IKKAR HADIN|NOT FULFILLED) - (.*)$/.exec(s);
+    m = /^(EVERY LIGHT BURNING|STILL BURNING|ONE LIGHT LEFT|ALL DARK) - (.*)$/.exec(s);
     if (m) return Lang.t(m[1]) + ' - ' + Lang.t(m[2]);
     m = /^Total  (.+) MP  •  (.+)$/.exec(s);
     if (m) return 'סה״כ  ' + m[1] + ' נק״מ  •  ' + Lang.t(m[2]);
@@ -413,18 +415,18 @@ var Lang = {
     'PLAY AGAIN': 'עוד פעם',
     'BEAT YOUR SCORE': 'קבע שיא חדש',
     'Menorah Keeper': 'שומר המנורה',
-    'Chanukah survival': 'חנוכה',
+    'Chanukah survival': 'הישרדות בחנוכה',
     'Shul Crossing': 'לבית הכנסת',
     'Twelve-walk dash': 'שלושים הליכות',
     'Thirty-walk dash': 'שלושים הליכות',
-    'Kosher Sort': 'כשרות',
-    'Dual-belt dash': 'שתי מסועות',
+    'Kosher Sort': 'מיון כשרות',
+    'Dual-belt dash': 'שני מסועים',
     'Kitchen Match': 'במטבח',
     'Make a kosher plate': 'צלחת כשרה',
     'Matzah Havoc': 'מהומת מצה',
-    'Matzah Delivery Havoc': 'משלוח מצה',
+    'Matzah Delivery Havoc': 'מהומת משלוח מצה',
     'Twelve-route dash': 'שנים עשר מסלולים',
-    'Tzedaka Blast': 'צדקה',
+    'Tzedaka Blast': 'זריקת צדקה',
     'Into their hands': 'לתוך היד',
     'Chanukah': 'חנוכה',
     'Tefillah & Zmanim': 'תפילה וזמנים',
@@ -437,8 +439,8 @@ var Lang = {
     'Edot Hamizrach': 'עדות המזרח',
     'Chabad': 'חב״ד',
     'Halacha cards appear as you progress.': 'כרטיס הלכה בסוף כל שלב.',
-    'When you say the first line of Shema - Hear Israel, Hashem is our God, Hashem is One - lots of kids (and grown-ups) cover their eyes with a hand. It shuts out the room for a second so you can really mean the words. The mitzvah is saying Shema with your heart in it. Covering your eyes is the trick that helps you get there.': 'כשאומרים את השורה הראשונה של שמע - שמע ישראל, ה׳ אלוקינו, ה׳ אחד - הרבה ילדים (וגם גדולים) מכסים את העיניים ביד. זה סוגר את החדר לשנייה כדי באמת להתכוון למילים. המצווה היא לומר שמע עם הלב. כיסוי העיניים הוא הטריק שעוזר להגיע לשם.',
-    'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday - and you still have the reward of prayer, but not the reward of davening on time. After chatzos you do not say the morning Shemoneh Esrei. The makeup is a second Shemoneh Esrei at Mincha. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year. Families also argue about when that clock STARTS - sunrise, or a bit earlier at dawn - so two shuls on the same street can post different times. Follow yours.': 'הזמן הטוב לשמונה עשרה של שחרית הוא עד סוף השעה הרביעית. מי שפספס עדיין יכול להתפלל עד חצות, ויש לו שכר תפילה, אבל לא שכר של תפילה בזמנה. אחרי חצות לא אומרים שמונה עשרה של בוקר. התשלומין הם שמונה עשרה שנייה במנחה. ו״שעה״ כאן אינה שישים דקות: מחלקים את האור לשנים-עשר חלקים שווים, והזמן זז כל השנה. משפחות גם חולקות מתי השעון מתחיל, בזריחה או קצת קודם בעלות השחר. לכו לפי שלכם.',
+    'When you say the first line of Shema - Hear Israel, Hashem is our G-d, Hashem is One - lots of kids (and grown-ups) cover their eyes with a hand. It shuts out the room for a second so you can really mean the words. The mitzvah is saying Shema with your heart in it. Covering your eyes is the trick that helps you get there.': 'כשאומרים את השורה הראשונה של שמע - שמע ישראל, ה׳ אלוקינו, ה׳ אחד - הרבה ילדים (וגם גדולים) מכסים את העיניים ביד. זה סוגר את החדר לשנייה כדי באמת להתכוון למילים. המצווה היא לומר שמע עם הלב. כיסוי העיניים הוא הטריק שעוזר להגיע לשם.',
+    'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday - and you still have the reward of prayer, but not the reward of davening on time. After chatzos you do not say the morning Shemoneh Esrei. If you missed it by accident or could not help it, you make it up with a second Shemoneh Esrei at Mincha. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year. Families also argue about when that clock STARTS - sunrise, or a bit earlier at dawn - so two shuls on the same street can post different times. Follow yours.': 'הזמן הטוב לשמונה עשרה של שחרית הוא עד סוף השעה הרביעית. מי שפספס עדיין יכול להתפלל עד חצות, ויש לו שכר תפילה, אבל לא שכר של תפילה בזמנה. אחרי חצות לא אומרים שמונה עשרה של בוקר. מי שפספס בטעות או בגלל אונס משלים בשמונה עשרה שנייה במנחה. ו״שעה״ כאן אינה שישים דקות: מחלקים את האור לשנים-עשר חלקים שווים, והזמן זז כל השנה. משפחות גם חולקות מתי השעון מתחיל, בזריחה או קצת קודם בעלות השחר. לכו לפי שלכם.',
     'the ideal last time for morning Shemoneh Esrei': 'הזמן האידיאלי האחרון לשמונה עשרה של שחרית',
     '"Hear Israel" - the first line of Shema': '״שמע ישראל״ - השורה הראשונה של שמע',
     'meaning the words, not just saying them': 'להתכוון למילים, לא רק להגיד אותן',
@@ -468,7 +470,7 @@ var Lang = {
     'PAREVE WAITS ITS TURN': 'הפרווה מחכה לתור',
     'CASCADE!': 'רצף!',
     'TRIPLE!': 'שלוש!',
-    'MEHADRIN!': 'מהדרין!',
+    'SPOTLESS!': 'נקי!',
     'NICE!': 'יפה!',
     'STREAK!': 'רצף!',
     'TAP TO UNCOVER': 'לחצו על המכסה',
@@ -478,10 +480,11 @@ var Lang = {
     'Kashrus rushes': 'ריצות',
     'Not-together dumped': 'בשר בחלב לפח',
     'Treif dumped': 'טרף לפח',
-    'KOSHER L\'MEHADRIN': 'כשר למהדרין',
+    'EVERY LIGHT BURNING': 'כל הנרות דולקים',
     'KOSHER': 'כשר',
-    'ME\'IKKAR HADIN': 'מעיקר הדין',
-    'NOT FULFILLED': 'לא התקיימה',
+    'STILL BURNING': 'עדיין דולקים',
+    'ONE LIGHT LEFT': 'נר אחד נשאר',
+    'ALL DARK': 'הכל כבוי',
     'FIRST PLATES': 'צלחות ראשונות',
     'swap neighbours. three that can share a plate': 'החליפו שכנות. שלוש שיכולות לחלוק צלחת',
     'PAREVE MIXER': 'פרווה באמצע',
@@ -571,7 +574,7 @@ var Lang = {
     'Oil is pareve - swipe DOWN.': 'שמן זה פרווה. למטה.',
     'Basar b’chalav! Flick it UP to the disposal chute.': 'בשר בחלב! למעלה, לפח.',
     'Meat on a cheese pizza is a forbidden mixture - flick UP.': 'פיצה עם בשר וגבינה? למעלה.',
-    'Meat baked together with cheese - flick UP. A pareve meat lasagna would be fine; this one is not.': 'לזניה עם בשר וגבינה - למעלה. בלי גבינה הייתה בסדר.',
+    'Meat baked together with cheese - flick UP. Made with pareve imitation meat, or with no cheese, it would be fine; this one is not.': 'בשר שנאפה יחד עם גבינה - העיפו למעלה. עם תחליף בשר פרווה, או בלי גבינה, היא הייתה בסדר; זו לא.',
     'No fins, no scales - never kosher. Flick UP.': 'בלי סנפיר ובלי קשקשת - לא כשר. למעלה.',
     'Shellfish are not kosher - flick UP.': 'פירות ים לא כשרים. למעלה.',
     'A pig has split hooves but does not chew its cud - flick UP.': 'חזיר? פרסה שסועה, לא מעלה גרה. למעלה.',
@@ -672,12 +675,12 @@ var Lang = {
     'Mitzvah Points earned': 'נקודות מצווה',
     'Level reached': 'שלב שהגעתם',
     'Nights completed': 'לילות שסיימתם',
-    'Kosher L\'Mehadrin nights': 'לילות כשר למהדרין',
+    'Nights with every light burning': 'לילות שכל הנרות דלקו',
     'Windows closed on gusts': 'חלונות שנסגרו על הרוח',
     'Sputtering flames steadied': 'להבות רועדות שיוצבו',
     'Latke fires put out': 'שריפות לביבה שכבו',
     'Cats shooed / moths swatted': 'חתולים שגורשו / עשים שהופלו',
-    'Cups cracked': 'כוסות שהתפוצצו',
+    'Cups cracked': 'כוסות שנסדקו',
     'Relit from the shamash': 'הודלקו מהשמש',
     'Sufganiyot sliced from Jelly-Zilla': 'סופגניות שנחתכו מג\'לי־זילה',
     'Jelly-Zilla Slayer': 'מנצח ג\'לי־זילה',
@@ -730,7 +733,7 @@ var Lang = {
     'SHAMASH CUP CRACKED': 'כוס השמש נסדקה',
     'the glass is cracked': 'הכוס סדוקה',
     'GLASS IS CRACKING!': 'הכוס נסדקת!',
-    'A cup cracked from the heat': 'כוס התפוצצה מהחום',
+    'A cup cracked from the heat': 'כוס נסדקה מהחום',
     'That light is gone for the rest of the night': 'הנר הזה נגמר עד סוף הלילה',
     'No relighting from it tonight - what counts is the lights still burning': 'אין הדלקה ממנו הלילה - מה שחשוב זה הנרות שעדיין דולקים',
     'Never pour oil onto a grease fire! Swipe the latke off first': 'אל תמזגו שמן על שריפת שומן! קודם תעיפו את הלביבה',
@@ -748,8 +751,6 @@ var Lang = {
     'SHAMASH LIT': 'השמש דולק',
     'light the shamash first': 'קודם תדליקו את השמש',
     'FILL THIS CUP FIRST': 'קודם תמלאו את הכוס',
-    'THE MENORAH IS DARK': 'המנורה כבויה',
-    'relight before the half hour is up, or the night is lost': 'הדליקו מחדש לפני שחצי השעה נגמרת, או שהלילה אבוד',
     'A sputtering flame gives up unless you pour fresh oil in': 'להבה רועדת כבה אם לא מוזגים שמן חדש',
     'Refill it, then relight it from the shamash': 'מלאו שמן, ואז הדליקו מהשמש',
     'Tap the shamash, carry it over and hold it on the wick': 'לחצו על השמש, תעבירו והחזיקו על הפתיל',
@@ -771,9 +772,9 @@ var Lang = {
     'SHOOED +60': 'גורש +60',
     'FIRE OUT +': 'האש כבתה +',
     'POUR!': 'תמזגו!',
-    'Every light still burning - the way almost every family keeps Chanukah.': 'כל נר עדיין דולק - ככה כמעט כל משפחה מדליקה.',
-    'One light left - by the letter of the law that still fulfils the mitzvah.': 'נר אחד נשאר - מעיקר הדין המצווה התקיימה.',
-    'Every light was dark by the end of the half hour.': 'כל הנרות כבו עד סוף חצי השעה.',
+    'Every light was still burning when the clock ran out.': 'כל הנרות עוד דלקו כשהזמן נגמר.',
+    'One light was still burning when the clock ran out.': 'נר אחד עוד דלק כשהזמן נגמר.',
+    'Every light was dark when the clock ran out.': 'כל הנרות היו כבויים כשהזמן נגמר.',
     'Night 8 ran out with every light dark': 'לילה 8 נגמר וכל הנרות כבויים',
     'All the candles were extinguished': 'כל הנרות כבו',
     'Clear View': 'זכוכית נקייה',
@@ -788,7 +789,7 @@ var Lang = {
     'BLOCKED!': 'חסום!',
     'WEAVE!': 'תתחמקו!',
     'KEEP GOING!': 'תמשיכו!',
-    'ZERIZUS!': 'זריזות!',
+    'SPEEDY!': 'זריז!',
     'BUS!': 'אוטובוס!',
     'HOP ON!': 'קפצו!',
     'EXCUSE ME!': 'סליחה!',
@@ -1044,7 +1045,7 @@ var Lang = {
     'The lights are not decoration and they are not for you - they are an announcement. That is why they go by the doorway or in a window facing the street, low enough that somebody walking past actually notices and thinks: something happened here.': 'הנרות לא לקישוט ולא בשבילכם - הם הודעה. לכן שמים ליד הדלת או בחלון לרחוב, מספיק נמוך שמי שעובר באמת ישים לב ויחשוב: משהו קרה פה.',
     'There was a real argument about this. Beis Shammai said start with eight and count down. Beis Hillel said start with one and add one every night, because when it comes to holy things you go UP, you do not go down. Beis Hillel won - which is why night eight is the big one.': 'היתה מחלוקת אמיתית. בית שמאי אמרו להתחיל משמונה ולרדת. בית הלל אמרו להתחיל מאחד ולהוסיף כל לילה, כי בקדושה עולים, לא יורדים. בית הלל ניצחו - לכן לילה שמונה זה הגדול.',
     'Strictly speaking? A single light per household, per night. That is the whole mitzvah, done. Then people started making it more beautiful: one light for every person in the house. Then even more beautiful: adding one every night. That last version is what nearly everybody does now - but the basic rule underneath is still one single flame.': 'מעיקר הדין? נר אחד למשפחה, ללילה. זו כל המצווה. אחר כך התחילו לייפות: נר לכל אחד בבית. ואחר כך עוד יותר יפה: מוסיפים אחד כל לילה. ככה כמעט כולם עושים עכשיו - אבל מתחת לכל זה עדיין נר אחד.',
-    'The lights need a spot where they can burn quietly for their whole half hour without anyone knocking them, spilling them or setting the tablecloth on fire. Glass holders, away from the edge, away from flying elbows. A menorah you had to rescue halfway through was never set up right in the first place.': 'הנרות צריכים מקום שידלקו בשקט חצי שעה בלי שיפילו אותם, ישפכו או ידליקו את המפה. מעמדי זכוכית, רחוק מהקצה, רחוק ממרפקים. מנורה שהייתם צריכים להציל באמצע - לא הונחה כמו שצריך מההתחלה.',
+    'The lights need a spot where they can burn quietly for their whole half hour without anyone knocking them, spilling them or setting the tablecloth on fire. Glass holders, away from the edge, away from flying elbows. What counts is how you set it up when you light: put it where it really can last the half hour.': 'הנרות צריכים מקום שידלקו בשקט חצי שעה בלי שיפילו אותם, ישפכו או ידליקו את המפה. מעמדי זכוכית, רחוק מהקצה, רחוק ממרפקים. מה שקובע זה איך הצבתם אותה כשהדלקתם: שימו אותה במקום שבאמת יכולה לדלוק חצי שעה.',
     'When the Chashmonaim finally took the Beis HaMikdash back, the place was wrecked. They dug through the mess looking for oil and found exactly one small jug still sealed with the seal of the Kohen Gadol - untouched. Enough for one day. It burned for eight. The next year, those eight days became Chanukah.': 'כשהחשמונאים החזירו את בית המקדש, המקום היה הרוס. חיפשו שמן ומצאו פך אחד קטן חתום בחותם של הכהן הגדול - לא נגע בו. מספיק ליום אחד. הוא דלק שמונה. בשנה שאחרי זה, שמונת הימים האלה נהיו חנוכה.',
     'Can you light one Chanukah candle straight off another one? The Shulchan Aruch says yes - but not by lighting a stick first and carrying the flame over on that. The Rema records the custom to just avoid the whole question. Which is exactly what the shamash is for: it is the flame you carry from wick to wick.': 'אפשר להדליק נר חנוכה מנר חנוכה? השולחן ערוך אומר כן - אבל לא על ידי קיסם שמעבירים איתו. הרמ״א כותב את המנהג פשוט לא להיכנס לשאלה. בשביל זה יש שמש: זו האש שמעבירים מפתיל לפתיל.',
     'Light at nightfall (some families light right at sunset), and do not start a meal or get stuck into something in the half hour before - you will forget. Erev Shabbos (Friday afternoon) is different: we light BEFORE the Shabbos candles and before sunset, because you cannot light once Shabbos has started. And since the lights still have to last half an hour past nightfall, Friday needs extra oil.': 'מדליקים עם חשיכה (יש שמדליקים בשקיעה), ואל תתחילו ארוחה או משהו בחצי השעה שלפני - תשכחו. ערב שבת זה אחרת: מדליקים לפני נרות שבת ולפני השקיעה, כי אחרי כניסת שבת אי אפשר להדליק. והנרות עדיין צריכים לדלוק חצי שעה אחרי צאת הכוכבים, אז בשישי שמים יותר שמן.',
@@ -1054,7 +1055,7 @@ var Lang = {
     'Living far from shul is not bad luck - the Gemara counts the steps. Each one on the way to a mitzvah gets its own reward. So the long way round is worth more, not less.': 'לגור רחוק מבית הכנסת זה לא חוסר מזל - הגמרא סופרת את הצעדים. כל אחד בדרך למצווה מקבל שכר. אז הדרך הארוכה שווה יותר, לא פחות.',
     'Hashem never turns away the prayer of a whole community. So try hard to daven with a minyan - and to daven in the same regular spot, rather than wherever you happen to land.': 'השם לא מחזיר תפילה של ציבור. אז תשתדלו להתפלל במניין - ובאותו מקום קבוע, לא איפה שנחתתם.',
     'Shabbos is supposed to look different from Tuesday - nicer clothes, not the same old weekday outfit. A hat you keep looking sharp for shul is how lots of families do that honour. It is not a rule that every Jew must own a hat worn only on Shabbos. Still: turning up with a soaking wet hat is a sloppy look for the day. Watch the sprinklers.': 'שבת אמורה להיראות אחרת מיום שלישי - בגדים יותר יפים, לא אותה חול. כובע שמורים יפה לבית הכנסת זה איך הרבה משפחות עושות את הכבוד. זה לא כלל שכל יהודי חייב כובע רק לשבת. ובכל זאת: להגיע עם כובע ספוג זה מראה מרושל ליום. שימו לב לממטרות.',
-    'Meat and milk together is not one rule, it is three. You may not COOK them together. You may not EAT the mixture. And you may not get any BENEFIT from it at all - you cannot sell it, and you cannot even give it to your dog.': 'בשר וחלב זה לא כלל אחד, זה שלושה. אסור לבשל ביחד. אסור לאכול את התערובת. ואסור ליהנות מזה בכלל - אי אפשר למכור, ואי אפשר אפילו לתת לכלב.',
+    'Meat and milk together is not one rule, it is three. You may not COOK them together. You may not EAT the mixture. And you may not get any BENEFIT from it at all - you cannot sell it, and you cannot even give it to your dog. (That last rule is for beef, lamb and goat cooked in milk. Chicken in milk the Sages forbade to eat, but you may still benefit from it.)': 'בשר וחלב זה לא כלל אחד, זה שלושה. אסור לבשל ביחד. אסור לאכול את התערובת. ואסור ליהנות מזה בכלל - אי אפשר למכור, ואי אפשר אפילו לתת לכלב. (האיסור ליהנות הוא בבשר בהמה, כמו בקר, כבש ועז, שבושל בחלב. עוף בחלב חכמים אסרו לאכול, אבל מותר ליהנות ממנו.)',
     '"Do not cook a kid in its mother\'s milk" shows up three separate times in the Torah. The Sages asked the obvious question - why three? - and answered: one for cooking, one for eating, one for benefit. Nothing in the Torah is repeated for no reason.': '״לא תבשל גדי בחלב אמו״ מופיע שלוש פעמים בתורה. חכמים שאלו את השאלה הברורה - למה שלוש? - וענו: אחת לבישול, אחת לאכילה, אחת להנאה. כלום בתורה לא חוזר סתם.',
     'Eggs, fruit, vegetables and grains are neither meat nor milk. They are pareve, which means they can go with either side. Fish is pareve too, but it has extra rules: nobody eats fish and meat on the same plate. Fish with dairy depends on your family - lots of Ashkenazim do, Sephardim usually do not, and Chabad skip fish with milk. Ask at home.': 'ביצים, פרי, ירק ודגן הם לא בשר ולא חלב. הם פרווה - יכולים לשבת עם כל צד. דג גם פרווה, אבל יש לו כללים נוספים: אף אחד לא אוכל דג ובשר באותה צלחת. דג עם חלבי תלוי במשפחה - הרבה אשכנזים כן, ספרדים בדרך כלל לא, ובחב״ד מדלגים על דג עם חלב. תשאל בבית.',
     'After meat you wait before having anything dairy. Six hours is the most common custom; some families wait three, some one - it depends where your family is from, so ask. Going the other way (milk then meat) is much quicker. And hard cheese is the exception: many treat it like meat and wait the full time.': 'אחרי בשר מחכים לפני חלבי. שש שעות זה המנהג הכי נפוץ; יש משפחות שמחכות שלוש, יש שעה - תלוי מאיפה המשפחה, תשאל. הפוך (חלב ואז בשר) הרבה יותר מהר. וגבינה קשה היא החריג: הרבה מתייחסים אליה כמו בשר ומחכים את כל הזמן.',
@@ -1064,21 +1065,21 @@ var Lang = {
     'Swallowing one tiny bug can break several Torah prohibitions at the same time - which is a lot of trouble for something you did not even taste. That is why leafy greens, berries, and grains get washed and checked, usually against the light.': 'לבלוע חרק קטן יכול לשבור כמה איסורים בבת אחת - הרבה צרות על משהו שלא טעמתם. לכן עלים, פירות יער ודגנים שוטפים ובודקים, בדרך כלל מול האור.',
     'Pots and pans soak up the taste of whatever was cooked in them - invisibly, but really. So meat and dairy get their own pots, plates and cutlery. Lots of kitchens also keep two sinks or two counters - that is extra care, not the basic rule. The must-have is two sets of the things that touch the food.': 'סירים סופגים את הטעם של מה שבישלו בהם - בלי לראות, אבל באמת. אז לבשר ולחלבי יש סירים, צלחות וסכו״ם משלהם. בהרבה מטבחים גם שני כיורים או שני שיש - זה זהירות נוספת, לא הדין הבסיסי. מה שחייבים זה שתי מערכות של מה שנוגע באוכל.',
     'On Erev Pesach the clock runs out in two stages. You may EAT chametz until the end of the fourth halachic hour. You may still own it for one more hour. After that it has to be gone - burned, sold or destroyed. Your shul publishes the exact minutes every year, because they move.': 'בערב פסח השעון נגמר בשני שלבים. אפשר לאכול חמץ עד סוף השעה הרביעית. אפשר עוד להחזיק אותו שעה נוספת. אחר כך הוא צריך להיעלם - שרוף, מכור או מחוסל. בית הכנסת מפרסם את הדקות כל שנה, כי הן זזות.',
-    'The night before Erev Pesach you search the house for chametz - every pocket, every shelf, anywhere a crumb could have travelled during the year. The classic way is by the light of a candle, so you look at one small place at a time. Some families dim the big lights; a flashlight is fine too if that is what you use to see.': 'בלילה לפני ערב פסח מחפשים חמץ בבית - כל כיס, כל מדף, כל מקום שפירור יכול היה לטייל בשנה. הדרך הקלאסית היא לאור נר, כדי להסתכל על מקום קטן כל פעם. יש משפחות שמעמעמות את האורות הגדולים; פנס גם בסדר אם ככה רואים.',
+    'On the night of the 14th of Nissan, the evening that starts Erev Pesach, you search the house for chametz - every pocket, every shelf, anywhere a crumb could have travelled during the year. The classic way is by the light of a candle, so you look at one small place at a time. Some families dim the big lights. Many today allow a flashlight; ask what your family does.': 'בליל י״ד בניסן, הערב שבו מתחיל ערב פסח, מחפשים חמץ בבית - כל כיס, כל מדף, כל מקום שפירור יכול היה לטייל בשנה. הדרך הקלאסית היא לאור נר, כדי להסתכל על מקום קטן כל פעם. יש משפחות שמעמעמות את האורות הגדולים. רבים היום מתירים פנס; תשאלו מה עושים אצלכם.',
     'After the search - and again after the burning the next morning - you say a declaration: any chametz I did not find is not mine, it is like the dust of the ground. Because the problem on Pesach is not only eating chametz, it is OWNING it. So you stop owning it out loud.': 'אחרי החיפוש - ושוב אחרי הביעור בבוקר - אומרים: כל חמץ שלא מצאתי אינו שלי, הוא כעפר הארץ. כי הבעיה בפסח היא לא רק לאכול חמץ, אלא להחזיק אותו. אז מפסיקים להחזיק אותו בקול.',
     'Flour and water start turning into chametz once dough sits around unworked for the time it takes to walk a mil - which we hold is about eighteen minutes. That is why a matzah bakery is a sprint: mix, roll, bake, then stop everything and scrub every surface before the next batch.': 'קמח ומים מתחילים להיות חמץ כשהבצק יושב בלי עבודה כמה שלוקח ללכת מיל - אצלנו בערך שמונה עשרה דקות. לכן מאפיית מצה זה ספרינט: לשים, לרדד, לאפות, לעצור ולשפשף כל משטח לפני המנה הבאה.',
     'Shemura matzah is watched to keep it away from water - from the moment the wheat is cut, or at the latest from when it is ground. The point is that at no moment along the way could that grain have quietly started rising without anyone noticing.': 'מצה שמורה שומרים מהמים - מרגע שקוצרים את החיטה, או לפחות מהטחינה. הנקודה היא שבשום רגע בדרך התבואה לא יכלה להתחיל לתפוח בשקט בלי שאף אחד ישים לב.',
-    'On the first night of Pesach there is a Torah obligation to eat a kezayis of matzah at the Seder. Outside Israel we do a second Seder the next night too, and eat matzah then as well. Here is what surprises people: for the rest of Pesach there is no obligation to eat matzah at all. There is only the rule against chametz. You eat matzah the other days because, well, what else is there.': 'בלילה הראשון של פסח יש חיוב מהתורה לאכול כזית מצה בסדר. מחוץ לישראל עושים סדר שני בלילה הבא, ואוכלים מצה גם שם. מה שמפתיע: בשאר פסח אין חיוב לאכול מצה בכלל. יש רק את האיסור על חמץ. אוכלים מצה בשאר הימים כי... מה עוד יש.',
+    'On the first night of Pesach there is a Torah obligation to eat a kezayis of matzah at the Seder. Outside Israel we do a second Seder the next night too, and eat matzah then as well. Here is what surprises people: for the rest of Pesach there is no obligation to eat matzah at all. There is only the rule against chametz. Still, many follow the Vilna Gaon, who says every bit of matzah you eat during Pesach is a mitzvah - just not an obligation.': 'בלילה הראשון של פסח יש חיוב מהתורה לאכול כזית מצה בסדר. מחוץ לישראל עושים סדר שני בלילה הבא, ואוכלים מצה גם שם. מה שמפתיע: בשאר פסח אין חיוב לאכול מצה בכלל. יש רק את האיסור על חמץ. ובכל זאת, רבים הולכים בעקבות הגר״א, שאומר שכל מצה שאוכלים בפסח היא מצווה - רק לא חובה.',
     'If a Jew owned chametz right through Pesach, that chametz stays forbidden forever afterwards. The Sages made this rule as a deterrent - so nobody would think "I will just hide the crates for eight days and sell them on the ninth". Now the crates are worthless. Problem solved.': 'אם יהודי החזיק חמץ כל פסח, החמץ הזה נשאר אסור לעולם. חכמים תיקנו את זה כדי שאף אחד לא יחשוב ״אחביא את הארגזים לשמונה ימים ואמכור בתשיעי״. עכשיו הארגזים שווים אפס. הבעיה נפתרה.',
     'Two separate rules, both about simply HAVING chametz: it must not be seen in your space, and it must not be found there. Every other forbidden food you just do not eat - you can own it all day. Chametz on Pesach is the one where keeping it is itself the problem.': 'שני כללים, שניהם על עצם זה שיש לכם חמץ: אסור שיראו אותו אצלכם, ואסור שימצאו אותו. כל אוכל אסור אחר פשוט לא אוכלים - אפשר להחזיק כל היום. חמץ בפסח הוא היחיד שההחזקה עצמה היא הבעיה.',
     'The Sages had a whole debate: which is greater, learning or doing? They landed on learning - but only for one reason: learning is what leads you to do it right. A game is a small thing. But knowing WHY a mitzvah works the way it does is what makes it stay with you.': 'לחכמים היתה מחלוקת: מה גדול יותר, ללמוד או לעשות? הם נחתו על לימוד - אבל רק בגלל סיבה אחת: הלימוד הוא מה שמוביל לעשות נכון. משחק זה דבר קטן. אבל לדעת למה מצווה עובדת ככה - זה מה שנשאר איתכם.',
-    'Ben Azzai said: run to an easy mitzvah the same way you run to a hard one, because one mitzvah pulls the next one along behind it. And do not do it for the prize - the reward for a mitzvah IS the mitzvah.': 'בן עזאי אמר: רצים למצווה קלה כמו לקשה, כי מצווה אחת מושכת את הבאה אחריה. ואל תעשו בשביל הפרס - השכר של מצווה הוא המצווה.',
+    'Ben Azzai said: run to an easy mitzvah the same way you run to a hard one, because one mitzvah pulls the next one along behind it. The reward for a mitzvah IS the mitzvah.': 'בן עזאי אמר: רצים למצווה קלה כמו לקשה, כי מצווה אחת מושכת את הבאה אחריה. השכר של מצווה הוא המצווה.',
     'The Torah does not say "give some money". It says open your hand and give him dei machsoro - enough for what HE is missing. Not a fixed amount. What this person is short of. The Gemara pushes it to an extreme: someone who used to be rich and is now embarrassed to walk everywhere might need a horse - so you get him a horse.': 'התורה לא אומרת ״תנו קצת כסף״. היא אומרת לפתוח את היד ולתת די מחסורו - מה שהוא חסר. לא סכום קבוע. מה שחסר לאדם הזה. הגמרא דוחפת לקיצון: מי שהיה עשיר ועכשיו מתבייש ללכת ברגל אולי צריך סוס - אז משיגים לו סוס.',
     'Tzedakah is measured by what it does to the person getting it. A coin that lands in the dirt and has to be picked up in front of a street full of people has taken more from him than it gave. Get it into his hand.': 'צדקה נמדדת במה שהיא עושה למי שמקבל. מטבע שנפל לבוץ וצריך להרים מול רחוב מלא אנשים לקח ממנו יותר ממה שנתן. תכניסו ליד.',
     'Rambam lists eight levels of giving, best first, then down. The highest: a job, a loan, or a partnership, so he does not have to ask again. Next: the giver does not know who got it, and the receiver does not know who gave it. In the Beis HaMikdash there was a room for exactly this - the Chamber of Secrets. Quiet people put money in. Poor people from good families took money out. Nobody ever saw anybody.': 'הרמב״ם מונה שמונה מדרגות, מהגבוהה ולמטה. הכי למעלה: עבודה, הלוואה או שותפות, כדי שלא יצטרך לבקש שוב. אחר כך: הנותן לא יודע מי קיבל, והמקבל לא יודע מי נתן. בבית המקדש היה חדר לזה, לשכת חשאים. שקטים שמו כסף. עניים ממשפחות טובות לקחו. אף אחד לא ראה אף אחד.',
     'You cannot help everybody, so there is an order. Your own poor relatives come before other poor people. The poor of your own city come before the poor of somewhere else. This is not playing favourites - it is the opposite. If everyone is equally your job, then nobody actually is.': 'אי אפשר לעזור לכולם, אז יש סדר. העניים של המשפחה לפני עניים אחרים. עניי העיר לפני עניי מקום אחר. זה לא משחק מועדפים - זה ההפך. אם כולם באותה מידה התפקיד שלכם, אז אף אחד לא באמת.',
     'On Rambam\'s ladder, giving before someone asks ranks higher than giving after. Think about why. By the time a person has put his hand out and said the words, something has already been taken from him - and your money does not give that part back.': 'בסולם של הרמב״ם, לתת לפני שמבקשים זה גבוה יותר מאחרי. תחשבו למה. עד שאדם הוציא יד ואמר את המילים, כבר לקחו ממנו משהו - והכסף שלכם לא מחזיר את החלק הזה.',
-    'The highest of the eight levels is not a gift at all. It is a loan, a job, a partnership - a hand under someone\'s arm before he falls. Anything that ends with him not needing to ask again. Giving him money helps today. Giving him work means there is no tomorrow to worry about.': 'המדרגה הכי גבוהה משמונה היא בכלל לא מתנה. זה הלוואה, עבודה, שותפות - יד מתחת לזרוע לפני שנופל. כל דבר שנגמר בזה שהוא לא צריך לבקש שוב. כסף עוזר היום. עבודה אומרת שאין מחר לדאוג ממנו.',
+    'The highest of the eight levels is help that stands him on his own feet - a gift, a loan, a job, a partnership - a hand under someone\'s arm before he falls. Anything that ends with him not needing to ask again. Giving him money helps today. Giving him work means there is no tomorrow to worry about.': 'המדרגה הכי גבוהה משמונה היא עזרה שמעמידה אותו על הרגליים - מתנה, הלוואה, עבודה, שותפות - יד מתחת לזרוע לפני שנופל. כל דבר שנגמר בזה שהוא לא צריך לבקש שוב. כסף עוזר היום. עבודה אומרת שאין מחר לדאוג ממנו.',
     'A town fund is collected by two people and handed out by three. And its collectors have to be so trustworthy that nobody audits them - just like the Temple treasurers, about whom the verse says they did not check the accounts of the men they gave the money to. Give through an honest gabbai and you reach people you will never meet.': 'קופה של עיר אוספים שניים ומחלקים שלושה. והגבאים צריכים להיות כל כך נאמנים שאף אחד לא בודק אותם - כמו גזברי המקדש, שהפסוק אומר שלא בדקו את החשבון של מי שנתנו להם את הכסף. תנו דרך גבאי ישר ומגיעים לאנשים שלא תפגשו אף פעם.',
     'The Torah never tells a farmer to hand out food. It tells him to leave the corner of his field standing, leave whatever falls while harvesting, leave the sheaf he forgot - and walk away. The poor come and take it themselves. Nobody gives, nobody receives, and nobody has to say thank you.': 'התורה אף פעם לא אומרת לחקלאי לחלק אוכל. היא אומרת להשאיר את פינת השדה, להשאיר מה שנפל בקציר, להשאיר אלומה ששכח - וללכת. העניים באים ולוקחים לבד. אף אחד לא נותן, אף אחד לא מקבל, ואף אחד לא צריך להגיד תודה.',
     'Someone asks and your pockets are genuinely empty. You still do not walk past. Rambam says: settle him with words. And the Gemara counts it up - give a coin and you get six blessings, speak kindly to him and you get eleven. The one thing you may never do is nothing.': 'מישהו מבקש והכיסים באמת ריקים. עדיין לא עוברים ליד. הרמב״ם אומר: פייסו בדברים. והגמרא סופרת - מטבע אחד זה שש ברכות, מילה טובה זה אחת עשרה. הדבר היחיד שאסור זה כלום.',
@@ -1147,11 +1148,358 @@ var Lang = {
     'you can see the shul from here': 'מכאן רואים את בית הכנסת',
     'do not slow down now': 'אל תאטו עכשיו',
     'one more street': 'עוד רחוב אחד',
-    'the deadline is close. RUN': 'הזמן נגמר. רוצו',
+    'the deadline is close. RUN': 'הזמן כמעט נגמר. רוצו',
     'big buses. hop the gap - or grab a kosher ride': 'אוטובוסים גדולים. קפצו ברווח - או תפסו טרמפ כשר',
     'the bus is longer than it looks': 'האוטובוס ארוך ממה שנראה',
     'cones close a square. weave': 'קונוסים סוגרים משבצת. תתחמקו',
-    'weave. the scooter does not wait': 'תתחמקו. הקורקינט לא מחכה'
+    'weave. the scooter does not wait': 'תתחמקו. הקורקינט לא מחכה',
+    /* card glossary lines - every term and its definition, as the card band shows them */
+    'Ner Chanukah': 'נר חנוכה',
+    'the Chanukah light itself': 'האור של חנוכה עצמו',
+    'mitzvah': 'מצווה',
+    'a commandment - one of the things Hashem told us to do': 'ציווי - אחד הדברים שה׳ אמר לנו לעשות',
+    'Kavsah ein zakuk lah': 'כבתה אין זקוק לה',
+    '"it went out - you do not need it" - the rule on this card': '״כבה - לא צריך אותו״ - הכלל של הכרטיס הזה',
+    'Hadlakah osah mitzvah': 'הדלקה עושה מצווה',
+    '"the lighting does the mitzvah" - the moment you light is the moment it counts': '״ההדלקה היא המצווה״ - ברגע שמדליקים, זה כבר נחשב',
+    'bracha': 'ברכה',
+    'a blessing you say before doing a mitzvah': 'מה שאומרים לפני שעושים מצווה',
+    'Mishnah Berurah': 'משנה ברורה',
+    'a famous book of halacha by the Chofetz Chaim (about 100 years ago)': 'ספר הלכה מפורסם של החפץ חיים (לפני בערך מאה שנה)',
+    'menorah': 'מנורה',
+    'the eight-branched lamp we light on Chanukah': 'המנורה עם שמונה הקנים שמדליקים בחנוכה',
+    'halacha': 'הלכה',
+    'Jewish law - the rules for how to do things': 'הדין היהודי - הכללים איך עושים דברים',
+    'Shemen zayis': 'שמן זית',
+    'olive oil': 'השמן שסוחטים מזיתים',
+    'Beis HaMikdash': 'בית המקדש',
+    'the Temple in Jerusalem': 'המקום הקדוש שעמד בירושלים, שבו עבדו את ה׳',
+    'Shamash': 'שמש',
+    'the helper candle - it serves the others': 'הנר העוזר - הוא משרת את האחרים',
+    'gelt': 'דמי חנוכה',
+    'Yiddish for money; the coins kids get on Chanukah': 'הכסף שילדים מקבלים בחנוכה (ביידיש: גלט)',
+    'Pirsumei nisa': 'פרסומי ניסא',
+    '"publicising the miracle" - making sure people know about it': '״לפרסם את הנס״ - לדאוג שכולם יידעו עליו',
+    'Mosif v\'holech': 'מוסיף והולך',
+    '"adding as you go" - one more light each night': '״מוסיפים כל פעם״ - עוד נר בכל לילה',
+    'Beis Shammai / Beis Hillel': 'בית שמאי / בית הלל',
+    'two great schools of Sages who often disagreed; the halacha almost always follows Hillel': 'שתי קבוצות גדולות של חכמים שהרבה פעמים לא הסכימו; ההלכה כמעט תמיד כמו בית הלל',
+    'Ner ish u\'beiso': 'נר איש וביתו',
+    '"a light for a man and his household" - one per family': '״נר לאיש ולבית שלו״ - אחד לכל משפחה',
+    'Me\'ikkar hadin': 'מעיקר הדין',
+    '"by the basic law" - the minimum that actually counts': '״לפי הדין הבסיסי״ - המינימום שבאמת נחשב',
+    '"the beautifiers" - people who do a mitzvah in the fanciest way': '״המהדרים״ - מי שעושים מצווה בדרך הכי יפה',
+    'Mekom hanacha': 'מקום הנחה',
+    '"the place of setting down" - where the menorah stands': '״המקום שמניחים בו״ - איפה שהמנורה עומדת',
+    'Pach shemen': 'פך שמן',
+    'a small jug of oil': 'כד קטן של שמן',
+    'Chashmonaim': 'החשמונאים',
+    'the Maccabees - the family who led the fight': 'המכבים - המשפחה שהובילה את המלחמה',
+    'Kohen Gadol': 'כהן גדול',
+    'the High Priest; his seal proved the oil was pure': 'הכהן הראשי; החותם שלו הוכיח שהשמן טהור',
+    'Shulchan Aruch': 'שולחן ערוך',
+    'the main code of Jewish law, written by Rav Yosef Karo': 'ספר ההלכה המרכזי, שכתב רבי יוסף קארו',
+    'Rema': 'רמ״א',
+    'Rav Moshe Isserles, who added the Ashkenazi customs to it': 'רבי משה איסרליש, שהוסיף לו את מנהגי אשכנז',
+    'Zman hadlakah': 'זמן הדלקה',
+    'the time for lighting': 'מתי מדליקים',
+    'Erev Shabbos': 'ערב שבת',
+    'Friday - the day before Shabbos': 'יום שישי - היום שלפני שבת',
+    'Sof zman tefillah': 'סוף זמן תפילה',
+    'Shacharis': 'שחרית',
+    'the morning prayers': 'תפילת הבוקר',
+    'Shemoneh Esrei': 'שמונה עשרה',
+    'the central standing prayer, said quietly': 'התפילה המרכזית, שאומרים בעמידה ובשקט',
+    'Sha\'ah zmanis': 'שעה זמנית',
+    'a "halachic hour" - one twelfth of the daylight, not sixty minutes': '״שעה של הלכה״ - חלק אחד משתים עשרה של היום, לא שישים דקות',
+    'Mincha': 'מנחה',
+    'the afternoon prayer': 'תפילת אחר הצהריים',
+    'daven': 'דאוונען',
+    'Yiddish for pray': 'ביידיש: להתפלל',
+    'shul': 'שול',
+    'synagogue (Yiddish)': 'בית כנסת (ביידיש)',
+    'Shema Yisrael': 'שמע ישראל',
+    'kavanah': 'כוונה',
+    'Zerizin makdimin l\'mitzvos': 'זריזין מקדימין למצוות',
+    '"the eager get an early start on mitzvos"': '״הזריזים מקדימים לעשות מצוות״',
+    'Gemara': 'גמרא',
+    'the discussions of the Sages that make up the Talmud': 'הדיונים של החכמים, שמהם בנוי התלמוד',
+    'Beis haknesses': 'בית הכנסת',
+    'synagogue - literally "house of gathering"': 'המקום שמתפללים בו - מילה במילה ״בית שמתאספים בו״',
+    'Schar pesios': 'שכר פסיעות',
+    '"the reward of the steps" - you get credit for the walk itself': '״השכר על הצעדים״ - מקבלים שכר על ההליכה עצמה',
+    'Tefillah b\'tzibbur': 'תפילה בציבור',
+    'praying together with the community': 'להתפלל ביחד עם הקהל',
+    'minyan': 'מניין',
+    'ten Jewish men, age thirteen and up - the quorum needed for public prayer': 'עשרה גברים יהודים, מגיל שלוש עשרה ומעלה - מה שצריך כדי להתפלל בציבור',
+    'honouring Shabbos - treating it like the special day it is': 'לכבד את השבת - להתייחס אליה כמו אל היום המיוחד שהיא',
+    'Shul': 'שול',
+    'the place people go to daven (pray) together': 'המקום שבו מתפללים ביחד',
+    'Basar b\'chalav': 'בשר בחלב',
+    'meat in milk': 'בשר שבושל עם חלב',
+    'hana\'ah': 'הנאה',
+    'benefit - getting anything useful out of something': 'תועלת - לקבל משהו טוב מדבר מסוים',
+    'Lo sevashel gedi ba\'chalev imo': 'לא תבשל גדי בחלב אמו',
+    '"do not cook a kid in its mother\'s milk"': '״אל תבשל גדי בחלב של אמא שלו״',
+    'gedi': 'גדי',
+    'a young goat or lamb': 'עז או כבש צעירים',
+    'Pareve': 'פרווה',
+    'neutral - neither meat nor dairy (a Yiddish word)': 'ניטרלי - לא בשרי ולא חלבי (מילה ביידיש)',
+    'Ashkenazim / Sephardim': 'אשכנזים / ספרדים',
+    'Jews whose families come from Europe / from Spain, North Africa and the Middle East': 'יהודים שהמשפחות שלהם באו מאירופה / מספרד, מצפון אפריקה ומהמזרח התיכון',
+    'Hamtanah': 'המתנה',
+    'the waiting period': 'הזמן שמחכים',
+    'minhag': 'מנהג',
+    'a custom - something a family or community has always done': 'משהו שמשפחה או קהילה עושים תמיד',
+    'Snapir v\'kaskeses': 'סנפיר וקשקשת',
+    'fins and scales': 'סנפירים לשחות, וקשקשים שמכסים את העור',
+    'Mafreses parsah': 'מפרסת פרסה',
+    'having split hooves': 'יש לה פרסות שסועות',
+    'Ma\'alas gerah': 'מעלת גרה',
+    'chewing the cud - bringing food back up to chew again': 'מעלה את האוכל בחזרה לפה כדי ללעוס שוב',
+    'Hechsher': 'הכשר',
+    'a kosher certification - the symbol on the packet': 'אישור כשרות - הסמל על האריזה',
+    'mashgiach': 'משגיח',
+    'the person who supervises and checks the food': 'מי שמשגיח על האוכל ובודק אותו',
+    'Tola\'im': 'תולעים',
+    'worms or insects': 'תולעים או חרקים',
+    'aveirah': 'עבירה',
+    'a transgression - doing something the Torah says not to': 'לעשות משהו שהתורה אומרת לא לעשות',
+    'Keilim': 'כלים',
+    'vessels - pots, pans, plates, cutlery': 'סירים, מחבתות, צלחות וסכו״ם',
+    'bli\'ah': 'בליעה',
+    'absorption - the taste soaked into a pot wall': 'הטעם שנספג בדופן הסיר',
+    'Erev Pesach': 'ערב פסח',
+    'the day before Pesach begins': 'היום שלפני שפסח מתחיל',
+    'chametz': 'חמץ',
+    'anything leavened - bread, cake, pasta, beer': 'כל מה שתפח - לחם, עוגה, פסטה, בירה',
+    'sha\'ah zmanis': 'שעה זמנית',
+    'a "halachic hour" - one twelfth of the daylight': '״שעה של הלכה״ - חלק אחד משתים עשרה של היום',
+    'Bedikas chametz': 'בדיקת חמץ',
+    'the search for chametz': 'החיפוש אחרי חמץ',
+    'Nissan': 'ניסן',
+    'the Jewish month Pesach falls in': 'החודש העברי שבו חל פסח',
+    'Bittul': 'ביטול',
+    'nullifying - declaring something worthless and not yours': 'להכריז שמשהו לא שווה כלום ולא שלך',
+    'Kol chamira': 'כל חמירא',
+    'the opening words of that declaration': 'המילים הראשונות של ההכרזה הזאת',
+    'Passover - the spring festival when we remember leaving Egypt': 'חג האביב שבו זוכרים את היציאה ממצרים',
+    'Mil': 'מיל',
+    'an old distance measure; the time to walk it is about 18 minutes': 'מידת מרחק עתיקה; ללכת אותה לוקח בערך 18 דקות',
+    'matzah': 'מצה',
+    'flat unleavened bread - flour and water, baked fast': 'לחם שטוח שלא תפח - קמח ומים, אפויים מהר',
+    'Shemura': 'שמורה',
+    '"guarded" or "watched"': '״שומרים עליה״ - משגיחים עליה כל הזמן',
+    'Matzah shemura': 'מצה שמורה',
+    'matzah made from grain watched from harvest or grinding': 'מצה מתבואה ששמרו עליה מהקציר או מהטחינה',
+    'Kezayis': 'כזית',
+    '"like an olive" - a measure of food, roughly an olive\'s volume': '״כמו זית״ - שיעור של אוכל, בערך בגודל של זית',
+    'Seder': 'סדר',
+    'the Pesach night meal with the Haggadah': 'הסעודה של ליל פסח עם ההגדה',
+    'Chametz she\'avar alav haPesach': 'חמץ שעבר עליו הפסח',
+    'chametz that "Pesach passed over" while a Jew owned it': 'חמץ שהיה של יהודי בזמן שהפסח עבר',
+    'Chazal': 'חז״ל',
+    'the Sages of the Talmud': 'החכמים של התלמוד',
+    'Bal yeira\'eh': 'בל יראה',
+    '"it shall not be seen"': '״שלא יראו אותו״',
+    'Bal yimatzei': 'בל ימצא',
+    '"it shall not be found"': '״שלא ימצאו אותו״',
+    'Talmud gadol': 'תלמוד גדול',
+    '"study is greater" - the conclusion of that debate': '״הלימוד גדול יותר״ - המסקנה של הוויכוח הזה',
+    'Mitzvah goreres mitzvah': 'מצווה גוררת מצווה',
+    '"a mitzvah drags a mitzvah" - one leads to another': '״מצווה מושכת מצווה״ - אחת מובילה לשנייה',
+    'Pirkei Avos': 'פרקי אבות',
+    'a book of the Mishnah full of advice about how to live': 'מסכת במשנה מלאה בעצות איך לחיות',
+    'Ben Azzai': 'בן עזאי',
+    'Shimon ben Azzai, one of the Sages quoted in Pirkei Avos': 'שמעון בן עזאי, אחד החכמים שמובאים בפרקי אבות',
+    'Dei machsoro': 'די מחסורו',
+    '"enough for what he lacks" - you fill THIS person\'s gap': '״מספיק למה שחסר לו״ - ממלאים את מה שחסר לאדם הזה',
+    'giving to someone in need; the word means "justice", not "charity"': 'נתינה למי שצריך; המילה באה מ״צדק״, לא סתם נדבה',
+    'Rambam': 'רמב״ם',
+    'Rav Moshe ben Maimon (Maimonides), who wrote a huge code of Jewish law': 'רבי משה בן מימון, שכתב ספר הלכה ענק',
+    'Al yashuv dach nichlam': 'אל ישב דך נכלם',
+    '"let not the crushed one turn away ashamed"': '״שהמסכן לא יחזור מבויש״',
+    'Ani': 'עני',
+    'a poor person': 'אדם שאין לו מספיק',
+    'Matan b\'seter': 'מתן בסתר',
+    'giving in secret': 'לתת בסוד',
+    'Lishkas chasha\'im': 'לשכת חשאים',
+    '"the Chamber of the Secret Ones" - that room in the Temple': '״החדר של השקטים״ - החדר ההוא בבית המקדש',
+    'Aniyei ircha kodmin': 'עניי עירך קודמין',
+    '"the poor of your city come first"': '״העניים של העיר שלך קודמים״',
+    'kedimah': 'קדימה',
+    'priority - who goes first': 'מי קודם למי',
+    'Kodem sheyish\'al': 'קודם שישאל',
+    '"before he asks"': '״לפני שהוא מבקש״',
+    'madregah': 'מדרגה',
+    'a level or rung - Rambam\'s eight levels of giving': 'שלב בסולם - שמונה המדרגות של נתינה אצל הרמב״ם',
+    'L\'hachazik b\'yad': 'להחזיק ביד',
+    '"to strengthen the hand" - to steady someone before he falls': '״לחזק את היד״ - לתמוך במישהו לפני שהוא נופל',
+    'halva\'ah': 'הלוואה',
+    'a loan': 'כסף שנותנים ומקבלים בחזרה',
+    'Kupah': 'קופה',
+    'the community charity fund - literally "the box"': 'קופת הצדקה של הקהילה - מילה במילה ״התיבה״',
+    'Gabbai tzedakah': 'גבאי צדקה',
+    'the person who collects and hands out the fund': 'מי שאוסף את הכסף של הקופה ומחלק אותו',
+    'Pe\'ah': 'פאה',
+    'the corner of the field you leave unharvested': 'הפינה של השדה שלא קוצרים',
+    'Leket': 'לקט',
+    'stalks that drop while you are cutting - you leave them': 'שיבולים שנופלות בזמן הקציר - משאירים אותן',
+    'Shikchah': 'שכחה',
+    'a sheaf you forgot in the field - you do not go back for it': 'אלומה ששכחת בשדה - לא חוזרים לקחת אותה',
+    'U\'faysso bidvarim': 'ופייסו בדברים',
+    '"and appease him with words"': '״ותרגיע אותו במילים״',
+    'brachos': 'ברכות',
+    'blessings': 'דברים טובים שמקבלים מה׳',
+    'Matanos la\'evyonim': 'מתנות לאביונים',
+    '"gifts to the poor" - one of the four mitzvos of Purim': '״מתנות לעניים״ - אחת מארבע המצוות של פורים',
+    'evyon': 'אביון',
+    'a very poor person': 'אדם עני מאוד',
+    'Purim': 'פורים',
+    'the festival that remembers how the Jews were saved in the story of Esther': 'החג שזוכר איך היהודים ניצלו בסיפור של אסתר',
+    'Ma\'aser kesafim': 'מעשר כספים',
+    '"money tithe" - giving a tenth of your income': '״מעשר מהכסף״ - לתת עשירית ממה שמרוויחים',
+    'Chomesh': 'חומש',
+    'a fifth - the maximum the Sages allowed': 'חמישית - הכי הרבה שחכמים התירו',
+    'Evyon': 'אביון',
+    'somebody who really has nothing - the neediest word the Torah uses': 'מי שבאמת אין לו כלום - המילה הכי חזקה לעני שיש בתורה',
+    'a poor person - the one tzedaka money is meant for': 'אדם עני - בשבילו נועד כסף הצדקה',
+
+    /* card source lines, in standard Hebrew citation form */
+    'Shabbos 21b; Shulchan Aruch OC 672:2': 'שבת כ״א ע״ב; שולחן ערוך או״ח תרע״ב, ב',
+    'Shabbos 21a; Shulchan Aruch OC 673:2 with Mishnah Berurah': 'שבת כ״א ע״א; שולחן ערוך או״ח תרע״ג, ב ומשנה ברורה',
+    'Shulchan Aruch OC 673:2 with Mishnah Berurah 673:25': 'שולחן ערוך או״ח תרע״ג, ב ומשנה ברורה תרע״ג, כה',
+    'Shabbos 23a; OC 673:1; Rambam Hilchos Chanukah 4:6': 'שבת כ״ג ע״א; או״ח תרע״ג, א; רמב״ם הלכות חנוכה ד, ו',
+    'Shabbos 21b; OC 673:1': 'שבת כ״א ע״ב; או״ח תרע״ג, א',
+    'Shabbos 21b-22a; OC 671:5-7': 'שבת כ״א ע״ב - כ״ב ע״א; או״ח תרע״א, ה-ז',
+    'Shabbos 21b': 'שבת כ״א ע״ב',
+    'Shabbos 21b; OC 671:1-2': 'שבת כ״א ע״ב; או״ח תרע״א, א-ב',
+    'OC 673:2; Mishnah Berurah 673:25': 'או״ח תרע״ג, ב; משנה ברורה תרע״ג, כה',
+    'Shabbos 22a; OC 674:1 with Rema': 'שבת כ״ב ע״א; או״ח תרע״ד, א ורמ״א',
+    'OC 672:1, 679:1; Mishnah Berurah 672:1, 672:10': 'או״ח תרע״ב, א ותרע״ט, א; משנה ברורה תרע״ב, א; תרע״ב, י',
+    'Berachos 26a; OC 89:1; OC 108:1, 7': 'ברכות כ״ו ע״א; או״ח פ״ט, א; או״ח ק״ח, א, ז',
+    'Berachos 13b; OC 61:4-5': 'ברכות י״ג ע״ב; או״ח ס״א, ד-ה',
+    'Pesachim 4a': 'פסחים ד ע״א',
+    'Berachos 6b': 'ברכות ו ע״ב',
+    'Berachos 6b; Sotah 22a': 'ברכות ו ע״ב; סוטה כ״ב ע״א',
+    'Berachos 6b, 8a; OC 90:9, 90:19': 'ברכות ו ע״ב וח ע״א; או״ח צ, ט וצ, יט',
+    'Shabbos 113a; OC 262:2-3': 'שבת קי״ג ע״א; או״ח רס״ב, ב-ג',
+    'Chullin 115b; YD 87:1, 87:3': 'חולין קט״ו ע״ב; יו״ד פ״ז, א, ג',
+    'Shemos 23:19, 34:26; Devarim 14:21; Chullin 115b': 'שמות כ״ג, יט ול״ד, כו; דברים י״ד, כא; חולין קט״ו ע״ב',
+    'YD 87:3; OC 173:2': 'יו״ד פ״ז, ג; או״ח קע״ג, ב',
+    'Chullin 105a; YD 89:1-2 with Rema': 'חולין ק״ה ע״א; יו״ד פ״ט, א-ב ורמ״א',
+    'Vayikra 11:9-12': 'ויקרא י״א, ט-יב',
+    'Vayikra 11:3-7; Chullin 59a': 'ויקרא י״א, ג-ז; חולין נ״ט ע״א',
+    'YD 118; and the laws of absorbed taste, YD 92-99': 'יו״ד קי״ח; ודיני טעם בלוע, יו״ד צ״ב-צ״ט',
+    'Vayikra 11:41-43; YD 84': 'ויקרא י״א, מא-מג; יו״ד פ״ד',
+    'YD 88-89, 93': 'יו״ד פ״ח-פ״ט וצ״ג',
+    'Pesachim 11b; OC 443:1': 'פסחים י״א ע״ב; או״ח תמ״ג, א',
+    'Pesachim 2a; OC 431:1, 433:1-2; Yechave Da\'at 1:4': 'פסחים ב ע״א; או״ח תל״א, א ותל״ג, א-ב; יחווה דעת א, ד',
+    'Pesachim 6b; OC 434:2': 'פסחים ו ע״ב; או״ח תל״ד, ב',
+    'Pesachim 46a; OC 459:2 with Mishnah Berurah': 'פסחים מ״ו ע״א; או״ח תנ״ט, ב ומשנה ברורה',
+    'Pesachim 40a; OC 453:4': 'פסחים מ ע״א; או״ח תנ״ג, ד',
+    'Pesachim 120a; OC 475:1; Ma\'aseh Rav 185': 'פסחים ק״כ ע״א; או״ח תע״ה, א; מעשה רב קפ״ה',
+    'Vilna Gaon': 'הגר״א',
+    'Rav Eliyahu of Vilna, a great rabbi of about 250 years ago': 'רבי אליהו מווילנה, רב גדול לפני כמאתיים וחמישים שנה',
+    'Pesachim 29a; OC 448:3': 'פסחים כ״ט ע״א; או״ח תמ״ח, ג',
+    'Shemos 12:19, 13:7; Pesachim 5b': 'שמות י״ב, יט וי״ג, ז; פסחים ה ע״ב',
+    'Kiddushin 40b': 'קידושין מ ע״ב',
+    'Pirkei Avos 4:2': 'פרקי אבות ד, ב',
+    'Devarim 15:8; Kesubos 67b; Rambam Hilchos Matnos Aniyim 7:3': 'דברים ט״ו, ח; כתובות ס״ז ע״ב; רמב״ם הלכות מתנות עניים ז, ג',
+    'Tehillim 74:21; Rambam Matnos Aniyim 10:4-5': 'תהלים ע״ד, כא; רמב״ם מתנות עניים י, ד-ה',
+    'Rambam Matnos Aniyim 10:7-9; Shekalim 5:6; Bava Basra 10b': 'רמב״ם מתנות עניים י, ז-ט; שקלים ה, ו; בבא בתרא י ע״ב',
+    'Bava Metzia 71a; Shulchan Aruch YD 251:3': 'בבא מציעא ע״א ע״א; שולחן ערוך יו״ד רנ״א, ג',
+    'Rambam Matnos Aniyim 10:7-14': 'רמב״ם מתנות עניים י, ז-יד',
+    'Rambam Matnos Aniyim 10:7; Vayikra 25:35': 'רמב״ם מתנות עניים י, ז; ויקרא כ״ה, לה',
+    'Bava Basra 8b-9a; Melachim II 12:16; YD 256-257': 'בבא בתרא ח ע״ב - ט ע״א; מלכים ב י״ב, טז; יו״ד רנ״ו-רנ״ז',
+    'Vayikra 19:9-10; Devarim 24:19-21; Mishnah Peah 4:1-2': 'ויקרא י״ט, ט-י; דברים כ״ד, יט-כא; משנה פאה ד, א-ב',
+    'Bava Basra 9b; Rambam Matnos Aniyim 10:5; Devarim 15:7': 'בבא בתרא ט ע״ב; רמב״ם מתנות עניים י, ה; דברים ט״ו, ז',
+    'Megillah 7a-b; Rambam Hilchos Megillah 2:16-17; OC 694:3': 'מגילה ז ע״א-ע״ב; רמב״ם הלכות מגילה ב, טז-יז; או״ח תרצ״ד, ג',
+    'Kesubos 50a; Shulchan Aruch YD 249:1': 'כתובות נ ע״א; שולחן ערוך יו״ד רמ״ט, א',
+    'Devarim 15:7-8; Rambam Hilchos Matnos Aniyim 7:6; Bava Basra 9a': 'דברים ט״ו, ז-ח; רמב״ם הלכות מתנות עניים ז, ו; בבא בתרא ט ע״א',
+
+    /* card notes + the line every card ends on */
+    'Menorah Keeper grades each night by how many lights are still burning when the clock runs out. That is the game\'s scoring, not the halacha - once you lit properly, the mitzvah was already done.': 'שומר המנורה נותן ציון לכל לילה לפי כמה נרות עוד דולקים כשהשעון נגמר. זה הניקוד של המשחק, לא ההלכה - מי שהדליק כמו שצריך, כבר עשה את המצווה.',
+    'Shul Crossing lets you ride on trucks and scoop up coin boxes along the way - that part is just the game. On a real Shabbos you walk the whole way, and nobody picks up money.': 'במשחק אפשר לעלות על משאיות ולאסוף קופות בדרך - זה רק המשחק. בשבת אמיתית הולכים ברגל כל הדרך, ואף אחד לא מרים כסף.',
+    'Matzah Havoc races the fourth hour to get the shemura matzah delivered. That clock is the game\'s idea: the real fourth-hour deadline on Erev Pesach is for eating chametz, not for delivering matzah.': 'במהומת משלוח מצה מתחרים בשעה הרביעית כדי להביא את המצה השמורה. השעון הזה הוא רעיון של המשחק: סוף השעה הרביעית בערב פסח הוא הזמן האחרון לאכול חמץ, לא להביא מצה.',
+    'Real-life question? Ask your rav.': 'שאלה למעשה? שואלים את הרב.',
+
+    /* in-play callouts, stats rows and victory quotes */
+    'Run complete': 'הסיבוב הסתיים',
+    'SWIPE': 'החליקו',
+    'A sputtering flame dies on its own - pour fresh oil in to steady it.': 'להבה שמהבהבת נכבית לבד - מזגו שמן חדש כדי לייצב אותה.',
+    'A hard gust - it takes two swipes to shut the window on it.': 'משב רוח חזק - צריך שתי החלקות כדי לסגור עליו את החלון.',
+    'The cat is after the oil jugs - swipe it away.': 'החתול הולך על פכי השמן - החליקו אותו הצידה.',
+    'Moths are diving for the flames - tap them out of the air.': 'עשים צוללים אל הלהבות - לחצו עליהם באוויר.',
+    'Fill its jug first, then relight it from the shamash': 'קודם מלאו את הפך שלו, ואז הדליקו אותו מהשמש',
+    'whoa!': 'וואו!',
+    'off the truck!': 'ירדתם מהמשאית!',
+    'Arrivals at shul': 'הגעות לבית הכנסת',
+    'Forward hops': 'קפיצות קדימה',
+    'Kosher truck rides': 'טרמפים על משאית כשרה',
+    'Spotless arrivals': 'הגעות בלי כתם',
+    'Pushkas dropped in': 'קופות צדקה ששמתם בהן',
+    'Close calls': 'כמעט נפגעתם',
+    'The Gemara says: hurry on the way TO shul, then stroll home. Running toward something says you wanted to be there. You got there before the zman \u2014 all thirty walks.': 'הגמרא אומרת: ממהרים בדרך אל בית הכנסת, ובחזרה הולכים רגוע. לרוץ אל משהו אומר שרציתם להיות שם. הגעתם לפני סוף הזמן - כל שלושים ההליכות.',
+    'The Gemara says: hurry on the way TO shul, then stroll home. Running toward something says you wanted to be there. You got there \u2014 all thirty walks.': 'הגמרא אומרת: ממהרים בדרך אל בית הכנסת, ובחזרה הולכים רגוע. לרוץ אל משהו אומר שרציתם להיות שם. הגעתם - כל שלושים ההליכות.',
+    'DISPOSAL': 'פח',
+    'Sorted correctly': 'מוינו נכון',
+    'Dishes uncovered': 'מכסים שהורמו',
+    'Reached the end': 'הגיעו לסוף המסוע',
+    'Meat left, dairy right, pareve down, and anything mixed or not kosher up the chute. You kept every belt clear for all twelve shifts.': 'בשרי שמאלה, חלבי ימינה, פרווה למטה, וכל תערובת או לא כשר - למעלה לפח. שמרתם על כל המסועים נקיים בכל שתים עשרה המשמרות.',
+    'Pareve can sit with meat or with dairy. Meat and milk cannot share a plate - not to cook, not to eat, and for beef, lamb and goat not even to benefit from. You kept them apart for all twelve kitchens.': 'פרווה יכול לשבת עם בשרי או עם חלבי. בשר וחלב לא חולקים צלחת - לא לבשל, לא לאכול, ובבשר בהמה אפילו לא ליהנות. שמרתם אותם בנפרד בכל שנים עשר המטבחים.',
+    'Chametz on the cargo!': 'חמץ על המטען!',
+    'Crashed into traffic': 'התנגשתם בתנועה',
+    'Hit a pothole': 'נפלתם לבור',
+    'Hit a crate': 'פגעתם בארגז',
+    'Hit a cart': 'פגעתם בעגלה',
+    'Hit a cone': 'פגעתם בקונוס',
+    'Yeast on the shemura!': 'שמרים על המצה השמורה!',
+    'Deliveries made': 'משלוחים שהגיעו',
+    'Chametz sliced': 'חמץ שנחתך',
+    'Giant croissants': 'קרואסונים ענקיים',
+    'Yeast clouds cleared': 'ענני שמרים שפוזרו',
+    'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there before the fourth hour \u2014 that is the whole job.': 'מצה שמורה שומרים מהקציר, כדי שהתבואה אף פעם לא תתחיל לתפוח בשקט. הבאתם אותה לפני השעה הרביעית - זו כל העבודה.',
+    'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there \u2014 that is the whole job.': 'מצה שמורה שומרים מהקציר, כדי שהתבואה אף פעם לא תתחיל לתפוח בשקט. הבאתם אותה - זו כל העבודה.',
+    'BIRD SNACK!': 'חטיף לציפור!',
+    'BONK!': 'בום!',
+    'JUST IN TIME!': 'ברגע האחרון!',
+    'ON THE STREET!': 'נפל לרחוב!',
+    'TAP!': 'לחצו!',
+    'NO THANK YOU': 'לא תודה',
+    'YASHAR KOACH!': 'יישר כוח!',
+    'WHAT A MENSCH!': 'איזה מענטש!',
+    'YOU ROCK!': 'אתם אלופים!',
+    'HE GOT AWAY!': 'הוא הלך!',
+    'next one - you got this': 'הבא בתור - אתם יכולים',
+    'HE\'S BACK IN BUSINESS!': 'הוא חזר לעבוד!',
+    'you lent him gold - he can fix the cart himself': 'הלוויתם לו זהב - עכשיו הוא מתקן את העגלה בעצמו',
+    'that is the jackpot - drop it in the palm': 'זה הזהב - תנחיתו בכף היד',
+    'tiny slot. clink!': 'חריץ קטן. קלינג!',
+    'wide open. dunk it!': 'פתוח לרווחה. תכניסו!',
+    'lend him GOLD. he pays you back. top move!': 'תלוו לו זהב. הוא מחזיר לכם. מהלך מעולה!',
+    'I DRIVE A PORSCHE': 'אני נוהג בפורשה',
+    'I\'M RICH, RICH I TELL YOU!': 'אני עשיר, עשיר אני אומר לכם!',
+    'I\'M THE CEO': 'אני המנכ״ל',
+    'I DON\'T EVEN PUMP MY OWN GAS': 'אני אפילו לא מתדלק לבד',
+    'I DON\'T LOOK AT PRICE TAGS': 'אני לא מסתכל על מחירים',
+    'I DON\'T CARRY COINS': 'אני לא מחזיק מטבעות',
+    'PLATINUM STATUS': 'מעמד פלטינום',
+    'I ONLY FLY FIRST CLASS': 'אני טס רק במחלקה ראשונה',
+    'I SUMMER IN THE HAMPTONS': 'את הקיץ אני מעביר בהמפטונס',
+    'I BOUGHT BITCOIN AT 3 CENTS': 'קניתי ביטקוין ב־3 סנט',
+    'MY HOUSE HAS MORE THAN 1 POOL': 'בבית שלי יש יותר מבריכה אחת',
+    'I INVENTED THE TACO': 'אני המצאתי את הטאקו',
+    'MY NAME IS ON THAT BUILDING, BRO': 'השם שלי על הבניין הזה, אחי',
+    'People helped': 'אנשים שעזרתם להם',
+    'Sacks stuffed': 'מטבעות בשקים',
+    'Got there before they asked': 'הגעתם לפני שביקשו',
+    'Carts back in business': 'עגלות שחזרו לעבוד',
+    'Landed in a big wind': 'נחתו ברוח חזקה',
+    'Gifts after the purse ran dry': 'מתנות אחרי שהארנק התרוקן',
+    'Coins that hit the street': 'מטבעות שנפלו לרחוב',
+    'Coins wasted on a fancy coat': 'מטבעות שהלכו על מעיל מפואר',
+    'Rambam teaches: giving one coin a thousand times to different people is better than giving a thousand coins to one person once \u2014 because every act of giving changes you.': 'הרמב״ם מלמד: לתת מטבע אחד אלף פעמים לאנשים שונים עדיף מלתת אלף מטבעות לאדם אחד בפעם אחת - כי כל נתינה משנה אתכם.'
   }
 };
 
@@ -1932,18 +2280,6 @@ var Draw = {
     size = size || 30;
     for (var i = 0; i < max; i++) Draw.heart(ctx, x + i * (size + 8), y, size, i < cur);
   },
-  star: function (ctx, x, y, r, points, inner) {
-    points = points || 5;
-    inner = inner || r * 0.46;
-    ctx.beginPath();
-    for (var i = 0; i < points * 2; i++) {
-      var rad = i % 2 === 0 ? r : inner;
-      var a = (i / (points * 2)) * TAU - Math.PI / 2;
-      var px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-  },
   magenDavid: function (ctx, x, y, r, color, lw) {
     ctx.save();
     ctx.strokeStyle = color || C.gold;
@@ -2203,10 +2539,11 @@ var Halacha = {
       terms:[['Ner ish u\'beiso','"a light for a man and his household" - one per family'],
              ['Me\'ikkar hadin','"by the basic law" - the minimum that actually counts'],
              ['Mehadrin','"the beautifiers" - people who do a mitzvah in the fanciest way']],
-      source:'Shabbos 21b; OC 671:1-2' },
+      source:'Shabbos 21b; OC 671:1-2',
+      note:'Menorah Keeper grades each night by how many lights are still burning when the clock runs out. That is the game\'s scoring, not the halacha - once you lit properly, the mitzvah was already done.' },
     { id:'m11', game:'menorah', icon:'oil', title:'Set It Up Somewhere Safe',
       hebrew:'מְקוֹם הַנָּחָה',
-      body:'The lights need a spot where they can burn quietly for their whole half hour without anyone knocking them, spilling them or setting the tablecloth on fire. Glass holders, away from the edge, away from flying elbows. A menorah you had to rescue halfway through was never set up right in the first place.',
+      body:'The lights need a spot where they can burn quietly for their whole half hour without anyone knocking them, spilling them or setting the tablecloth on fire. Glass holders, away from the edge, away from flying elbows. What counts is how you set it up when you light: put it where it really can last the half hour.',
       terms:[['Mekom hanacha','"the place of setting down" - where the menorah stands']],
       source:'OC 673:2; Mishnah Berurah 673:25' },
     { id:'m12', game:'menorah', icon:'oil', title:'The One Sealed Jug',
@@ -2214,34 +2551,39 @@ var Halacha = {
       body:'When the Chashmonaim finally took the Beis HaMikdash back, the place was wrecked. They dug through the mess looking for oil and found exactly one small jug still sealed with the seal of the Kohen Gadol - untouched. Enough for one day. It burned for eight. The next year, those eight days became Chanukah.',
       terms:[['Pach shemen','a small jug of oil'],
              ['Chashmonaim','the Maccabees - the family who led the fight'],
-             ['Kohen Gadol','the High Priest; his seal proved the oil was pure']],
+             ['Kohen Gadol','the High Priest; his seal proved the oil was pure'],
+             ['Beis HaMikdash','the Temple in Jerusalem']],
       source:'Shabbos 21b' },
     { id:'m9', game:'menorah', icon:'candle', title:'Lighting One From Another',
       hebrew:'מַדְלִיקִין נֵר מִנֵּר',
       body:'Can you light one Chanukah candle straight off another one? The Shulchan Aruch says yes - but not by lighting a stick first and carrying the flame over on that. The Rema records the custom to just avoid the whole question. Which is exactly what the shamash is for: it is the flame you carry from wick to wick.',
       terms:[['Shulchan Aruch','the main code of Jewish law, written by Rav Yosef Karo'],
-             ['Rema','Rav Moshe Isserles, who added the Ashkenazi customs to it']],
+             ['Rema','Rav Moshe Isserles, who added the Ashkenazi customs to it'],
+             ['Shamash','the helper candle - it serves the others']],
       source:'Shabbos 22a; OC 674:1 with Rema' },
     { id:'m8', game:'menorah', icon:'clock', title:'When to Light',
       hebrew:'זְמַן הַהַדְלָקָה',
       body:'Light at nightfall (some families light right at sunset), and do not start a meal or get stuck into something in the half hour before - you will forget. Erev Shabbos (Friday afternoon) is different: we light BEFORE the Shabbos candles and before sunset, because you cannot light once Shabbos has started. And since the lights still have to last half an hour past nightfall, Friday needs extra oil.',
       terms:[['Zman hadlakah','the time for lighting'],
              ['Erev Shabbos','Friday - the day before Shabbos']],
-      source:'OC 672:1, 679:1; Mishnah Berurah 672:1' },
+      source:'OC 672:1, 679:1; Mishnah Berurah 672:1, 672:10' },
 
     /* ---- Zmanim / Shul Crossing ---------------------------------------- */
     { id:'s1', game:'shul', icon:'clock', title:'The Morning Deadline',
       hebrew:'סוֹף זְמַן תְּפִלָּה',
-      body:'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday - and you still have the reward of prayer, but not the reward of davening on time. After chatzos you do not say the morning Shemoneh Esrei. The makeup is a second Shemoneh Esrei at Mincha. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year. Families also argue about when that clock STARTS - sunrise, or a bit earlier at dawn - so two shuls on the same street can post different times. Follow yours.',
+      body:'The best time for Shacharis Shemoneh Esrei is by the end of the fourth hour of the day. If you missed that, you can still daven until chatzos - midday - and you still have the reward of prayer, but not the reward of davening on time. After chatzos you do not say the morning Shemoneh Esrei. If you missed it by accident or could not help it, you make it up with a second Shemoneh Esrei at Mincha. And "hour" here is not sixty minutes: you take the daylight and chop it into twelve equal pieces, so the deadline moves all year. Families also argue about when that clock STARTS - sunrise, or a bit earlier at dawn - so two shuls on the same street can post different times. Follow yours.',
       terms:[['Sof zman tefillah','the ideal last time for morning Shemoneh Esrei'],
              ['Chatzos','halachic midday'],
              ['Shacharis','the morning prayers'],
              ['Shemoneh Esrei','the central standing prayer, said quietly'],
-             ['Sha\'ah zmanis','a "halachic hour" - one twelfth of the daylight, not sixty minutes']],
-      source:'Berachos 26a; OC 89:1; OC 108:1' },
+             ['Sha\'ah zmanis','a "halachic hour" - one twelfth of the daylight, not sixty minutes'],
+             ['Mincha','the afternoon prayer'],
+             ['daven','Yiddish for pray'],
+             ['shul','synagogue (Yiddish)']],
+      source:'Berachos 26a; OC 89:1; OC 108:1, 7' },
     { id:'s2', game:'shul', icon:'people', title:'Cover Your Eyes',
       hebrew:'שְׁמַע יִשְׂרָאֵל',
-      body:'When you say the first line of Shema - Hear Israel, Hashem is our God, Hashem is One - lots of kids (and grown-ups) cover their eyes with a hand. It shuts out the room for a second so you can really mean the words. The mitzvah is saying Shema with your heart in it. Covering your eyes is the trick that helps you get there.',
+      body:'When you say the first line of Shema - Hear Israel, Hashem is our G-d, Hashem is One - lots of kids (and grown-ups) cover their eyes with a hand. It shuts out the room for a second so you can really mean the words. The mitzvah is saying Shema with your heart in it. Covering your eyes is the trick that helps you get there.',
       terms:[['Shema Yisrael','"Hear Israel" - the first line of Shema'],
              ['kavanah','meaning the words, not just saying them']],
       source:'Berachos 13b; OC 61:4-5' },
@@ -2255,34 +2597,39 @@ var Halacha = {
       hebrew:'לָרוּץ לְבֵית הַכְּנֶסֶת',
       body:'The Gemara says: hurry on the way TO shul, but walk home calmly. Why? Because if you sprint out afterwards it looks like you could not wait to escape. Running toward something says you wanted to be there.',
       terms:[['Gemara','the discussions of the Sages that make up the Talmud'],
-             ['Beis haknesses','synagogue - literally "house of gathering"']],
+             ['Beis haknesses','synagogue - literally "house of gathering"'],
+             ['shul','synagogue (Yiddish)']],
       source:'Berachos 6b' },
     { id:'s5', game:'shul', icon:'steps', title:'Every Step Counts',
       hebrew:'שְׂכַר פְּסִיעוֹת',
       body:'Living far from shul is not bad luck - the Gemara counts the steps. Each one on the way to a mitzvah gets its own reward. So the long way round is worth more, not less.',
-      terms:[['Schar pesios','"the reward of the steps" - you get credit for the walk itself']],
+      terms:[['Schar pesios','"the reward of the steps" - you get credit for the walk itself'],
+             ['Gemara','the discussions of the Sages that make up the Talmud'],
+             ['shul','synagogue (Yiddish)'],
+             ['mitzvah','a commandment - one of the things Hashem told us to do']],
       source:'Berachos 6b; Sotah 22a' },
     { id:'s6', game:'shul', icon:'people', title:'Daven With Everyone Else',
       hebrew:'תְּפִלָּה בְּצִבּוּר',
       body:'Hashem never turns away the prayer of a whole community. So try hard to daven with a minyan - and to daven in the same regular spot, rather than wherever you happen to land.',
       terms:[['Tefillah b\'tzibbur','praying together with the community'],
-             ['minyan','a group of ten Jewish adults - the quorum needed for public prayer'],
+             ['minyan','ten Jewish men, age thirteen and up - the quorum needed for public prayer'],
              ['daven','Yiddish for pray']],
-      source:'Berachos 8a; OC 90:9' },
+      source:'Berachos 6b, 8a; OC 90:9, 90:19' },
     { id:'s7', game:'shul', icon:'clothes', title:'Your Shabbos Hat',
       hebrew:'כְּבוֹד שַׁבָּת',
       body:'Shabbos is supposed to look different from Tuesday - nicer clothes, not the same old weekday outfit. A hat you keep looking sharp for shul is how lots of families do that honour. It is not a rule that every Jew must own a hat worn only on Shabbos. Still: turning up with a soaking wet hat is a sloppy look for the day. Watch the sprinklers.',
       terms:[['Kavod Shabbos','honouring Shabbos - treating it like the special day it is'],
              ['Shul','the place people go to daven (pray) together']],
-      source:'Shabbos 113a; OC 262:2-3' },
+      source:'Shabbos 113a; OC 262:2-3',
+      note:'Shul Crossing lets you ride on trucks and scoop up coin boxes along the way - that part is just the game. On a real Shabbos you walk the whole way, and nobody picks up money.' },
 
     /* ---- Kashrus / Kosher Sort ------------------------------------------ */
     { id:'k1', game:'kosher', icon:'split', title:'Meat and Milk: Three Rules',
-      hebrew:'בָּשָׂר בְחָלָב',
-      body:'Meat and milk together is not one rule, it is three. You may not COOK them together. You may not EAT the mixture. And you may not get any BENEFIT from it at all - you cannot sell it, and you cannot even give it to your dog.',
+      hebrew:'בָּשָׂר בְּחָלָב',
+      body:'Meat and milk together is not one rule, it is three. You may not COOK them together. You may not EAT the mixture. And you may not get any BENEFIT from it at all - you cannot sell it, and you cannot even give it to your dog. (That last rule is for beef, lamb and goat cooked in milk. Chicken in milk the Sages forbade to eat, but you may still benefit from it.)',
       terms:[['Basar b\'chalav','meat in milk'],
              ['hana\'ah','benefit - getting anything useful out of something']],
-      source:'Chullin 115b; YD 87:1' },
+      source:'Chullin 115b; YD 87:1, 87:3' },
     { id:'k2', game:'kosher', icon:'book', title:'Written Three Times',
       hebrew:'לֹא תְבַשֵּׁל גְּדִי בַּחֲלֵב אִמּוֹ',
       body:'"Do not cook a kid in its mother\'s milk" shows up three separate times in the Torah. The Sages asked the obvious question - why three? - and answered: one for cooking, one for eating, one for benefit. Nothing in the Torah is repeated for no reason.',
@@ -2292,7 +2639,8 @@ var Halacha = {
     { id:'k3', game:'kosher', icon:'leaf', title:'Pareve: The Neutral Team',
       hebrew:'פַּרְוֶה',
       body:'Eggs, fruit, vegetables and grains are neither meat nor milk. They are pareve, which means they can go with either side. Fish is pareve too, but it has extra rules: nobody eats fish and meat on the same plate. Fish with dairy depends on your family - lots of Ashkenazim do, Sephardim usually do not, and Chabad skip fish with milk. Ask at home.',
-      terms:[['Pareve','neutral - neither meat nor dairy (a Yiddish word)']],
+      terms:[['Pareve','neutral - neither meat nor dairy (a Yiddish word)'],
+             ['Ashkenazim / Sephardim','Jews whose families come from Europe / from Spain, North Africa and the Middle East']],
       source:'YD 87:3; OC 173:2' },
     { id:'k4', game:'kosher', icon:'clock', title:'The Wait In Between',
       hebrew:'הַמְתָּנָה בֵּין בָּשָׂר לְחָלָב',
@@ -2301,7 +2649,7 @@ var Halacha = {
              ['minhag','a custom - something a family or community has always done']],
       source:'Chullin 105a; YD 89:1-2 with Rema' },
     { id:'k5', game:'kosher', icon:'fish', title:'Fins and Scales',
-      hebrew:'סְנַפִּיר וְקַשְׂקֶּשֶׂת',
+      hebrew:'סְנַפִּיר וְקַשְׂקֶשֶׂת',
       body:'A fish is kosher only if it has BOTH fins and scales. Shrimp, lobster, crab, squid and octopus have neither, so no cooking trick in the world makes them kosher. Salmon and tuna have both. Easy test.',
       terms:[['Snapir v\'kaskeses','fins and scales']],
       source:'Vayikra 11:9-12' },
@@ -2312,7 +2660,7 @@ var Halacha = {
              ['Ma\'alas gerah','chewing the cud - bringing food back up to chew again']],
       source:'Vayikra 11:3-7; Chullin 59a' },
     { id:'k7', game:'kosher', icon:'stamp', title:'Why a Hechsher',
-      hebrew:'הֶכְשֵּׁר',
+      hebrew:'הֶכְשֵׁר',
       body:'On a factory snack, reading the ingredients is often not enough. What machine was it made on? What was made on that machine yesterday? What is hiding inside the word "flavouring"? A hechsher is somebody whose job is to go and actually look. Food from a kosher kitchen at home does not need a stamp on the bowl.',
       terms:[['Hechsher','a kosher certification - the symbol on the packet'],
              ['mashgiach','the person who supervises and checks the food']],
@@ -2336,25 +2684,31 @@ var Halacha = {
       body:'On Erev Pesach the clock runs out in two stages. You may EAT chametz until the end of the fourth halachic hour. You may still own it for one more hour. After that it has to be gone - burned, sold or destroyed. Your shul publishes the exact minutes every year, because they move.',
       terms:[['Erev Pesach','the day before Pesach begins'],
              ['chametz','anything leavened - bread, cake, pasta, beer'],
-             ['sha\'ah zmanis','a "halachic hour" - one twelfth of the daylight']],
-      source:'Pesachim 11b; OC 443:1' },
+             ['sha\'ah zmanis','a "halachic hour" - one twelfth of the daylight'],
+             ['shul','synagogue (Yiddish)']],
+      source:'Pesachim 11b; OC 443:1',
+      note:'Matzah Havoc races the fourth hour to get the shemura matzah delivered. That clock is the game\'s idea: the real fourth-hour deadline on Erev Pesach is for eating chametz, not for delivering matzah.' },
     { id:'p2', game:'matzah', icon:'candle', title:'The Search by Candlelight',
       hebrew:'בְּדִיקַת חָמֵץ',
-      body:'The night before Erev Pesach you search the house for chametz - every pocket, every shelf, anywhere a crumb could have travelled during the year. The classic way is by the light of a candle, so you look at one small place at a time. Some families dim the big lights; a flashlight is fine too if that is what you use to see.',
+      body:'On the night of the 14th of Nissan, the evening that starts Erev Pesach, you search the house for chametz - every pocket, every shelf, anywhere a crumb could have travelled during the year. The classic way is by the light of a candle, so you look at one small place at a time. Some families dim the big lights. Many today allow a flashlight; ask what your family does.',
       terms:[['Bedikas chametz','the search for chametz'],
-             ['Nissan','the Jewish month Pesach falls in']],
-      source:'Pesachim 2a; OC 431:1, 433:1' },
+             ['Nissan','the Jewish month Pesach falls in'],
+             ['Erev Pesach','the day before Pesach begins']],
+      source:'Pesachim 2a; OC 431:1, 433:1-2; Yechave Da\'at 1:4' },
     { id:'p3', game:'matzah', icon:'scroll', title:'Saying It Is Not Mine',
       hebrew:'בִּיטּוּל חָמֵץ',
       body:'After the search - and again after the burning the next morning - you say a declaration: any chametz I did not find is not mine, it is like the dust of the ground. Because the problem on Pesach is not only eating chametz, it is OWNING it. So you stop owning it out loud.',
       terms:[['Bittul','nullifying - declaring something worthless and not yours'],
-             ['Kol chamira','the opening words of that declaration']],
+             ['Kol chamira','the opening words of that declaration'],
+             ['chametz','anything leavened - bread, cake, pasta, beer'],
+             ['Pesach','Passover - the spring festival when we remember leaving Egypt']],
       source:'Pesachim 6b; OC 434:2' },
     { id:'p4', game:'matzah', icon:'clock', title:'Eighteen Minutes',
       hebrew:'שִׁיעוּר מִיל',
       body:'Flour and water start turning into chametz once dough sits around unworked for the time it takes to walk a mil - which we hold is about eighteen minutes. That is why a matzah bakery is a sprint: mix, roll, bake, then stop everything and scrub every surface before the next batch.',
       terms:[['Mil','an old distance measure; the time to walk it is about 18 minutes'],
-             ['matzah','flat unleavened bread - flour and water, baked fast']],
+             ['matzah','flat unleavened bread - flour and water, baked fast'],
+             ['chametz','anything leavened - bread, cake, pasta, beer']],
       source:'Pesachim 46a; OC 459:2 with Mishnah Berurah' },
     { id:'p5', game:'matzah', icon:'matzah', title:'Guarded Matzah',
       hebrew:'מַצָּה שְׁמוּרָה',
@@ -2364,10 +2718,14 @@ var Halacha = {
       source:'Pesachim 40a; OC 453:4' },
     { id:'p6', game:'matzah', icon:'matzah', title:'One Kezayis',
       hebrew:'כְּזַיִת מַצָּה',
-      body:'On the first night of Pesach there is a Torah obligation to eat a kezayis of matzah at the Seder. Outside Israel we do a second Seder the next night too, and eat matzah then as well. Here is what surprises people: for the rest of Pesach there is no obligation to eat matzah at all. There is only the rule against chametz. You eat matzah the other days because, well, what else is there.',
+      body:'On the first night of Pesach there is a Torah obligation to eat a kezayis of matzah at the Seder. Outside Israel we do a second Seder the next night too, and eat matzah then as well. Here is what surprises people: for the rest of Pesach there is no obligation to eat matzah at all. There is only the rule against chametz. Still, many follow the Vilna Gaon, who says every bit of matzah you eat during Pesach is a mitzvah - just not an obligation.',
       terms:[['Kezayis','"like an olive" - a measure of food, roughly an olive\'s volume'],
-             ['Seder','the Pesach night meal with the Haggadah']],
-      source:'Pesachim 120a; OC 475:1' },
+             ['Seder','the Pesach night meal with the Haggadah'],
+             ['matzah','flat unleavened bread - flour and water, baked fast'],
+             ['chametz','anything leavened - bread, cake, pasta, beer'],
+             ['Pesach','Passover - the spring festival when we remember leaving Egypt'],
+             ['Vilna Gaon','Rav Eliyahu of Vilna, a great rabbi of about 250 years ago']],
+      source:'Pesachim 120a; OC 475:1; Ma\'aseh Rav 185' },
     { id:'p7', game:'matzah', icon:'ban', title:'Chametz After Pesach',
       hebrew:'חָמֵץ שֶׁעָבַר עָלָיו הַפֶּסַח',
       body:'If a Jew owned chametz right through Pesach, that chametz stays forbidden forever afterwards. The Sages made this rule as a deterrent - so nobody would think "I will just hide the crates for eight days and sell them on the ninth". Now the crates are worthless. Problem solved.',
@@ -2378,7 +2736,9 @@ var Halacha = {
       hebrew:'בַּל יֵרָאֶה וּבַל יִמָּצֵא',
       body:'Two separate rules, both about simply HAVING chametz: it must not be seen in your space, and it must not be found there. Every other forbidden food you just do not eat - you can own it all day. Chametz on Pesach is the one where keeping it is itself the problem.',
       terms:[['Bal yeira\'eh','"it shall not be seen"'],
-             ['Bal yimatzei','"it shall not be found"']],
+             ['Bal yimatzei','"it shall not be found"'],
+             ['chametz','anything leavened - bread, cake, pasta, beer'],
+             ['Pesach','Passover - the spring festival when we remember leaving Egypt']],
       source:'Shemos 12:19, 13:7; Pesachim 5b' },
 
     /* ---- General -------------------------------------------------------- */
@@ -2390,9 +2750,10 @@ var Halacha = {
       source:'Kiddushin 40b' },
     { id:'g2', game:'general', icon:'rosette', title:'One Mitzvah Drags Another',
       hebrew:'מִצְוָה גוֹרֶרֶת מִצְוָה',
-      body:'Ben Azzai said: run to an easy mitzvah the same way you run to a hard one, because one mitzvah pulls the next one along behind it. And do not do it for the prize - the reward for a mitzvah IS the mitzvah.',
+      body:'Ben Azzai said: run to an easy mitzvah the same way you run to a hard one, because one mitzvah pulls the next one along behind it. The reward for a mitzvah IS the mitzvah.',
       terms:[['Mitzvah goreres mitzvah','"a mitzvah drags a mitzvah" - one leads to another'],
-             ['Pirkei Avos','a book of the Mishnah full of advice about how to live']],
+             ['Pirkei Avos','a book of the Mishnah full of advice about how to live'],
+             ['Ben Azzai','Shimon ben Azzai, one of the Sages quoted in Pirkei Avos']],
       source:'Pirkei Avos 4:2' },
 
     /* ---- Tzedakah / Tzedaka Blast -------------------------------------- */
@@ -2401,7 +2762,8 @@ var Halacha = {
       body:'The Torah does not say "give some money". It says open your hand and give him dei machsoro - enough for what HE is missing. Not a fixed amount. What this person is short of. The Gemara pushes it to an extreme: someone who used to be rich and is now embarrassed to walk everywhere might need a horse - so you get him a horse.',
       terms:[['Dei machsoro','"enough for what he lacks" - you fill THIS person\'s gap'],
              ['Tzedakah','giving to someone in need; the word means "justice", not "charity"'],
-             ['Rambam','Rav Moshe ben Maimon (Maimonides), who wrote a huge code of Jewish law']],
+             ['Rambam','Rav Moshe ben Maimon (Maimonides), who wrote a huge code of Jewish law'],
+             ['Gemara','the discussions of the Sages that make up the Talmud']],
       source:'Devarim 15:8; Kesubos 67b; Rambam Hilchos Matnos Aniyim 7:3' },
     { id:'t2', game:'tzedaka', icon:'hand', title:'Into His Hand, Not the Dust',
       hebrew:'אַל יָשֹׁב דַּךְ נִכְלָם',
@@ -2413,7 +2775,9 @@ var Halacha = {
       hebrew:'מַתָּן בַּסֵּתֶר',
       body:'Rambam lists eight levels of giving, best first, then down. The highest: a job, a loan, or a partnership, so he does not have to ask again. Next: the giver does not know who got it, and the receiver does not know who gave it. In the Beis HaMikdash there was a room for exactly this - the Chamber of Secrets. Quiet people put money in. Poor people from good families took money out. Nobody ever saw anybody.',
       terms:[['Matan b\'seter','giving in secret'],
-             ['Lishkas chasha\'im','"the Chamber of the Secret Ones" - that room in the Temple']],
+             ['Lishkas chasha\'im','"the Chamber of the Secret Ones" - that room in the Temple'],
+             ['Rambam','Rav Moshe ben Maimon (Maimonides), who wrote a huge code of Jewish law'],
+             ['Beis HaMikdash','the Temple in Jerusalem']],
       source:'Rambam Matnos Aniyim 10:7-9; Shekalim 5:6; Bava Basra 10b' },
     { id:'t5', game:'tzedaka', icon:'people', title:'Who Comes First',
       hebrew:'עֲנִיֵּי עִירְךָ קוֹדְמִין',
@@ -2425,11 +2789,12 @@ var Halacha = {
       hebrew:'קֹדֶם שֶׁיִּשְׁאַל',
       body:'On Rambam\'s ladder, giving before someone asks ranks higher than giving after. Think about why. By the time a person has put his hand out and said the words, something has already been taken from him - and your money does not give that part back.',
       terms:[['Kodem sheyish\'al','"before he asks"'],
-             ['madregah','a level or rung - Rambam\'s eight levels of giving']],
+             ['madregah','a level or rung - Rambam\'s eight levels of giving'],
+             ['Rambam','Rav Moshe ben Maimon (Maimonides), who wrote a huge code of Jewish law']],
       source:'Rambam Matnos Aniyim 10:7-14' },
     { id:'t7', game:'tzedaka', icon:'lift', title:'The Very Top Rung',
       hebrew:'לְהַחֲזִיק בְּיַד יִשְׂרָאֵל',
-      body:'The highest of the eight levels is not a gift at all. It is a loan, a job, a partnership - a hand under someone\'s arm before he falls. Anything that ends with him not needing to ask again. Giving him money helps today. Giving him work means there is no tomorrow to worry about.',
+      body:'The highest of the eight levels is help that stands him on his own feet - a gift, a loan, a job, a partnership - a hand under someone\'s arm before he falls. Anything that ends with him not needing to ask again. Giving him money helps today. Giving him work means there is no tomorrow to worry about.',
       terms:[['L\'hachazik b\'yad','"to strengthen the hand" - to steady someone before he falls'],
              ['halva\'ah','a loan']],
       source:'Rambam Matnos Aniyim 10:7; Vayikra 25:35' },
@@ -2438,7 +2803,7 @@ var Halacha = {
       body:'A town fund is collected by two people and handed out by three. And its collectors have to be so trustworthy that nobody audits them - just like the Temple treasurers, about whom the verse says they did not check the accounts of the men they gave the money to. Give through an honest gabbai and you reach people you will never meet.',
       terms:[['Kupah','the community charity fund - literally "the box"'],
              ['Gabbai tzedakah','the person who collects and hands out the fund']],
-      source:'Bava Basra 8b; Melachim II 12:16; YD 257' },
+      source:'Bava Basra 8b-9a; Melachim II 12:16; YD 256-257' },
     { id:'t9', game:'tzedaka', icon:'leaf', title:'Leave the Corner',
       hebrew:'פֵּאָה, לֶקֶט, שִׁכְחָה',
       body:'The Torah never tells a farmer to hand out food. It tells him to leave the corner of his field standing, leave whatever falls while harvesting, leave the sheaf he forgot - and walk away. The poor come and take it themselves. Nobody gives, nobody receives, and nobody has to say thank you.',
@@ -2450,13 +2815,17 @@ var Halacha = {
       hebrew:'וּפַיְּיסוֹ בִּדְבָרִים',
       body:'Someone asks and your pockets are genuinely empty. You still do not walk past. Rambam says: settle him with words. And the Gemara counts it up - give a coin and you get six blessings, speak kindly to him and you get eleven. The one thing you may never do is nothing.',
       terms:[['U\'faysso bidvarim','"and appease him with words"'],
-             ['brachos','blessings']],
+             ['brachos','blessings'],
+             ['Gemara','the discussions of the Sages that make up the Talmud'],
+             ['Rambam','Rav Moshe ben Maimon (Maimonides), who wrote a huge code of Jewish law']],
       source:'Bava Basra 9b; Rambam Matnos Aniyim 10:5; Devarim 15:7' },
     { id:'t11', game:'tzedaka', icon:'pushka', title:'On Purim, No Questions',
       hebrew:'מַתָּנוֹת לָאֶבְיוֹנִים',
       body:'Normally you can look into a claim before handing over money (though never before handing over food). On Purim that stops completely: whoever puts out a hand, you give, no questions asked. Two gifts to two poor people is the actual obligation - and Rambam says this is the better place to spend your Purim money than on the party.',
       terms:[['Matanos la\'evyonim','"gifts to the poor" - one of the four mitzvos of Purim'],
-             ['evyon','a very poor person']],
+             ['evyon','a very poor person'],
+             ['Rambam','Rav Moshe ben Maimon (Maimonides), who wrote a huge code of Jewish law'],
+             ['Purim','the festival that remembers how the Jews were saved in the story of Esther']],
       source:'Megillah 7a-b; Rambam Hilchos Megillah 2:16-17; OC 694:3' },
     { id:'t12', game:'tzedaka', icon:'coin', title:'A Tenth, Not a Half',
       hebrew:'מַעֲשֵׂר כְּסָפִים',
@@ -2470,7 +2839,8 @@ var Halacha = {
       body:'Here is a question worth asking: is tzedaka for ANYBODY? No. The Torah says achicha ha\'evyon - your brother who is in need. The man strolling past in the fine coat with a silver-topped stick is not short of anything, and a coin thrown at him is a coin you no longer have for the person who is. If someone you do not know says he is hungry, you feed him right away. You do not check first. If he asks for clothes, you may check, unless you already know him.',
       terms:[['Evyon','somebody who really has nothing - the neediest word the Torah uses'],
              ['Ani','a poor person - the one tzedaka money is meant for'],
-             ['Tzedakah','giving to someone in need; the word means "justice", not "charity"']],
+             ['Tzedakah','giving to someone in need; the word means "justice", not "charity"'],
+             ['Purim','the festival that remembers how the Jews were saved in the story of Esther']],
       note:'Purim is different. Everyone who puts out a hand gets something, no checking. The hungry-or-clothes rule is for the rest of the year.',
       source:'Devarim 15:7-8; Rambam Hilchos Matnos Aniyim 7:6; Bava Basra 9a' }
   ],
@@ -3012,6 +3382,7 @@ var Game = {
       sliced: scene.sliced || 0,
       deliveries: scene.deliveries || 0,
       hops: scene.hops || 0,
+      late: scene.lateCount || 0,
       plates: scene.platesTotal || scene.plates || 0,
       sorted: scene.sortedTotal || 0
     };
@@ -3457,18 +3828,21 @@ var Screens = {
         size: 20, color: best > 0 ? C.gold : 'rgba(255,255,255,.4)', align: 'center', weight: '800'
       });
     } else {
-      Icons.draw(ctx, g.icon, x + w / 2, y + h * 0.30, Math.min(56, h * 0.38), g.color);
+      /* stack from the bottom up - BEST pill, tagline, name, then the icon in
+         whatever is left - so nothing is drawn under anything else at any tile height */
+      var pillH = 26, pillY = y + h - pillH - 8;
+      var tagY = pillY - 10;
+      var nameY = g.tag ? tagY - 21 : pillY - 16;
+      var iconS = Math.min(56, nameY - 11 - y - 10);
+      Icons.draw(ctx, g.icon, x + w / 2, y + 5 + iconS / 2, iconS, g.color);
+      Draw.textFit(ctx, g.name, x + w / 2, nameY, w - 28,
+        { size: 22, color: C.cream, align: 'center', weight: '900' });
       if (g.tag) {
-        Draw.textFit(ctx, g.name, x + w / 2, y + h * 0.58, w - 28,
-          { size: 22, color: C.cream, align: 'center', weight: '900' });
-        Draw.textFit(ctx, g.tag, x + w / 2, y + h * 0.72, w - 28,
+        Draw.textFit(ctx, g.tag, x + w / 2, tagY, w - 28,
           { size: 15, color: 'rgba(255,255,255,.55)', align: 'center', weight: '600' });
-      } else {
-        Draw.textFit(ctx, g.name, x + w / 2, y + h * 0.64, w - 28,
-          { size: 22, color: C.cream, align: 'center', weight: '900' });
       }
-      Draw.panel(ctx, x + 22, y + h - 42, w - 44, 30, { fill: 'rgba(0,0,0,.4)', radius: 10 });
-      Draw.text(ctx, 'BEST  ' + fmt(best), x + w / 2, y + h - 27, {
+      Draw.panel(ctx, x + 22, pillY, w - 44, pillH, { fill: 'rgba(0,0,0,.4)', radius: 10 });
+      Draw.text(ctx, 'BEST  ' + fmt(best), x + w / 2, pillY + pillH / 2, {
         size: 16, color: best > 0 ? C.gold : 'rgba(255,255,255,.4)', align: 'center', weight: '800'
       });
     }
@@ -4088,6 +4462,25 @@ Screens.renderPause = function (ctx) {
 };
 
 /* ------------------------------------------------- HALACHA FLASH CARD */
+/* Cards teach, they do not pasken - every card says where a real question goes. */
+Screens.RAV_LINE = 'Real-life question? Ask your rav.';
+
+/* One glossary row: the term, then its definition beside it - or under it when
+   the term is too wide to leave the definition a sensible column. popupLayout
+   measures with this and renderPopupScroll draws with it, so the band is always
+   exactly as tall as what is drawn inside it. */
+Screens.termRow = function (ctx, term, bodyW) {
+  var lab = Lang.t(term[0]);
+  var def = '\u2014 ' + Lang.t(term[1]);
+  var labW = Draw.measure(ctx, lab, 20, '900') + 8;
+  var fullW = bodyW - 46;
+  var stacked = labW > fullW * 0.5;
+  var defW = stacked ? fullW : fullW - labW;
+  var defH = Draw.paraHeight(ctx, def, defW, { size: 20, lineHeight: 27, weight: '700' });
+  return { lab: lab, def: def, labW: labW, defW: defW, stacked: stacked,
+    h: (stacked ? 27 : 0) + defH + 6 };
+};
+
 Screens.popupLayout = function (ctx, card) {
   var w = 620, x = (CFG.W - w) / 2;
   var bodyW = w - 88;
@@ -4102,14 +4495,12 @@ Screens.popupLayout = function (ctx, card) {
   }
   var termsH = 0, ti;
   if (card.terms && card.terms.length) {
-    termsH = 14;
-    for (ti = 0; ti < card.terms.length; ti++) {
-      termsH += Draw.paraHeight(ctx, Lang.t(card.terms[ti][0]) + ' - ' + Lang.t(card.terms[ti][1]),
-        bodyW - 30, { size: 20, lineHeight: 27, weight: '700' }) + 6;
-    }
-    termsH += 14;
+    termsH = 9;
+    for (ti = 0; ti < card.terms.length; ti++) termsH += Screens.termRow(ctx, card.terms[ti], bodyW).h;
+    termsH += 10;
   }
-  var sourceH = Draw.paraHeight(ctx, card.source, w - 72, { size: 20, lineHeight: 26, weight: '700' }) + 20;
+  var sourceH = Draw.paraHeight(ctx, card.source, bodyW, { size: 20, lineHeight: 26, weight: '700' }) + 20;
+  sourceH += Draw.paraHeight(ctx, Screens.RAV_LINE, bodyW, { size: 18, lineHeight: 24, weight: '700' }) + 6;
 
   var scrollContentH = 28 + bodyH;
   if (termsH) scrollContentH += 12 + termsH;
@@ -4154,13 +4545,15 @@ Screens.renderPopupScroll = function (ctx, card, L, scroll) {
     ctx.fill();
     ctx.restore();
     var wy2 = ty + 9;
+    /* Hebrew reads from the right: term at the right edge, definition to its left */
+    var rtl = Lang.rtl(), edge = rtl ? x + 44 + bodyW - 18 : x + 62, side = rtl ? -1 : 1;
     for (ti = 0; ti < card.terms.length; ti++) {
-      var lab = Lang.t(card.terms[ti][0]);
-      var labW = Draw.measure(ctx, lab, 20, '900') + 8;
-      Draw.text(ctx, lab, x + 62, wy2 + 12, { size: 20, color: '#1f6a5c', weight: '900' });
-      wy2 = Draw.para(ctx, '\u2014 ' + Lang.t(card.terms[ti][1]), x + 62 + labW, wy2, bodyW - 46 - labW, {
-        size: 20, lineHeight: 27, color: '#3d4f42', weight: '700', baseline: 'top'
-      }) + 6;
+      var row = Screens.termRow(ctx, card.terms[ti], bodyW);
+      Draw.text(ctx, row.lab, edge, wy2 + 12, { size: 20, color: '#1f6a5c', weight: '900', align: rtl ? 'right' : 'left' });
+      Draw.para(ctx, row.def, row.stacked ? edge : edge + side * row.labW, wy2 + (row.stacked ? 27 : 0), row.defW, {
+        size: 20, lineHeight: 27, color: '#3d4f42', weight: '700', baseline: 'top', align: rtl ? 'right' : 'left'
+      });
+      wy2 += row.h;
     }
     ty += th;
   }
@@ -4181,8 +4574,11 @@ Screens.renderPopupScroll = function (ctx, card, L, scroll) {
     ty += nh + 22;
   }
   ty += 8;
-  Draw.para(ctx, card.source, x + 44, ty, bodyW, {
+  ty = Draw.para(ctx, card.source, x + 44, ty, bodyW, {
     size: 20, lineHeight: 26, color: '#7a5a22', weight: '700', baseline: 'top'
+  });
+  Draw.para(ctx, Screens.RAV_LINE, x + 44, ty + 6, bodyW, {
+    size: 18, lineHeight: 24, color: '#8a6a2f', weight: '700', baseline: 'top'
   });
 };
 
@@ -4404,7 +4800,9 @@ Screens.renderMatzahVictory = function (ctx, o) {
   var w = 620, x = (CFG.W - w) / 2;
   var bodyW = w - 88;
   var sliced = o.sliced || 0;
-  var quote = 'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there before the fourth hour \u2014 that is the whole job.';
+  var quote = o.late
+    ? 'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there \u2014 that is the whole job.'
+    : 'Shemura matzah is watched from the harvest so the grain never quietly starts rising. You got it there before the fourth hour \u2014 that is the whole job.';
   var quoteH = Draw.paraHeight(ctx, quote, bodyW, { size: 22, lineHeight: 30, weight: '600' });
   var h = Math.min(430 + quoteH, CFG.H - View.safe.t - View.safe.b - 290);
   var y = View.safe.t + Math.max(24, (CFG.H - View.safe.t - View.safe.b - h - 270) / 2);
@@ -4472,7 +4870,9 @@ Screens.renderShulVictory = function (ctx, o) {
   var w = 620, x = (CFG.W - w) / 2;
   var bodyW = w - 88;
   var hops = o.hops || 0;
-  var quote = 'The Gemara says: hurry on the way TO shul, then stroll home. Running toward something says you wanted to be there. You got there before the zman \u2014 all thirty walks.';
+  var quote = o.late
+    ? 'The Gemara says: hurry on the way TO shul, then stroll home. Running toward something says you wanted to be there. You got there \u2014 all thirty walks.'
+    : 'The Gemara says: hurry on the way TO shul, then stroll home. Running toward something says you wanted to be there. You got there before the zman \u2014 all thirty walks.';
   var quoteH = Draw.paraHeight(ctx, quote, bodyW, { size: 22, lineHeight: 30, weight: '600' });
   var h = Math.min(430 + quoteH, CFG.H - View.safe.t - View.safe.b - 290);
   var y = View.safe.t + Math.max(24, (CFG.H - View.safe.t - View.safe.b - h - 270) / 2);
@@ -4607,7 +5007,7 @@ Screens.renderKosherVictory = function (ctx, o) {
   var w = 620, x = (CFG.W - w) / 2;
   var bodyW = w - 88;
   var plates = o.plates || 0;
-  var quote = 'Pareve can sit with meat or with dairy. Meat and milk cannot share a plate - not to cook, not to eat, not even to benefit from. You kept them apart for all twelve kitchens.';
+  var quote = 'Pareve can sit with meat or with dairy. Meat and milk cannot share a plate - not to cook, not to eat, and for beef, lamb and goat not even to benefit from. You kept them apart for all twelve kitchens.';
   var quoteH = Draw.paraHeight(ctx, quote, bodyW, { size: 22, lineHeight: 30, weight: '600' });
   var h = Math.min(430 + quoteH, CFG.H - View.safe.t - View.safe.b - 290);
   var y = View.safe.t + Math.max(24, (CFG.H - View.safe.t - View.safe.b - h - 270) / 2);
@@ -5696,21 +6096,24 @@ MenorahKeeper.prototype.gradeNight = function () {
   var lights = this.candles.filter(function (c) { return c.active && !c.sham; });
   var burning = lights.filter(function (c) { return c.lit && !c.broken; }).length;
   var total = lights.length;
-  if (burning === total) return { key: 'mehadrin', name: 'KOSHER L\'MEHADRIN', mult: 1,
-    note: 'Every light still burning - the way almost every family keeps Chanukah.', color: C.gold, burning: burning, total: total };
-  if (burning >= 2) return { key: 'kosher', name: 'KOSHER', mult: 0.6,
-    note: burning + ' of ' + total + ' still burning - the mitzvah was kept.', color: C.teal, burning: burning, total: total };
-  if (burning === 1) return { key: 'ikkar', name: 'ME\'IKKAR HADIN', mult: 0.35,
-    note: 'One light left - by the letter of the law that still fulfils the mitzvah.', color: '#ffab26', burning: burning, total: total };
-  return { key: 'none', name: 'NOT FULFILLED', mult: 0,
-    note: 'Every light was dark by the end of the half hour.', color: C.red, burning: 0, total: total };
+  /* These are game scores, not halachic verdicts: once the lights were lit
+     properly the mitzvah is done (MB 673:25), and a light that goes out
+     afterwards does not undo it (OC 673:2). The keys stay for saves/tests. */
+  if (burning === total) return { key: 'mehadrin', name: 'EVERY LIGHT BURNING', mult: 1,
+    note: 'Every light was still burning when the clock ran out.', color: C.gold, burning: burning, total: total };
+  if (burning >= 2) return { key: 'kosher', name: 'STILL BURNING', mult: 0.6,
+    note: burning + ' of ' + total + ' lights still burning when the clock ran out.', color: C.teal, burning: burning, total: total };
+  if (burning === 1) return { key: 'ikkar', name: 'ONE LIGHT LEFT', mult: 0.35,
+    note: 'One light was still burning when the clock ran out.', color: '#ffab26', burning: burning, total: total };
+  return { key: 'none', name: 'ALL DARK', mult: 0,
+    note: 'Every light was dark when the clock ran out.', color: C.red, burning: 0, total: total };
 };
 
 MenorahKeeper.prototype.completeNight = function () {
   var self = this;
   /* Night 8 is graded first and only THEN turns into the Jelly-Pocalypse. A
-     menorah that went dark has not been kept, and no boss fight can rescue a
-     half hour that already ended with nothing burning. */
+     night that ends all dark ends the run (game design), and no boss fight can
+     rescue a half hour that already ended with nothing burning. */
   var grade = this.gradeNight();
   this.grades[grade.key]++;
   this.lastGrade = grade;
@@ -5728,7 +6131,7 @@ MenorahKeeper.prototype.completeNight = function () {
     this.startBoss();
     return;
   }
-  /* a night that was not fulfilled is not a night you completed */
+  /* a night that ended all dark is not a night you completed (game scoring) */
   if (grade.key !== 'none') {
     this.nightsDone++;
     Profile.noteBest('nights', this.nightsDone);
@@ -5748,8 +6151,8 @@ MenorahKeeper.prototype.completeNight = function () {
   }
   Game.toast(grade.name + ' - ' + grade.note, 'lamp', grade.color);
 
-  /* Not fulfilled is not a bad night, it is the end of the run. The half hour
-     passed with nothing burning, and there is no partial credit for that. */
+  /* All dark is not a bad night, it is the end of the run (game design). The
+     half hour passed with nothing burning, and there is no partial credit for that. */
   if (grade.key === 'none') {
     this.lives = 0;
     this.failReason = 'Night ' + this.night + ' ran out with every light dark';
@@ -5944,7 +6347,7 @@ MenorahKeeper.prototype.handle = function (ev) {
 MenorahKeeper.prototype.stats = function () {
   return [
     ['Nights completed', this.nightsDone],
-    ['Kosher L\'Mehadrin nights', this.grades.mehadrin],
+    ['Nights with every light burning', this.grades.mehadrin],
     ['Windows closed on gusts', this.blocks],
     ['Sputtering flames steadied', this.steadied],
     ['Latke fires put out', this.latkesOff],
@@ -7998,7 +8401,7 @@ ShulCrossing.prototype.reset = function () {
   this.score = 0; this.lives = 3; this.maxLives = 3; this.combo = 0;
   this.level = 1; this.elapsed = 0; this.mult = 1;
   this.hops = 0; this.arrivals = 0; this.rides = 0; this.dry = 0; this.pushkas = 0;
-  this.closeCalls = 0;
+  this.closeCalls = 0; this.lateCount = 0;
   this.metStall = false; this.metMinyan = false; this.metBus = false;
   this.setupWalk(true);
 };
@@ -8022,6 +8425,9 @@ ShulCrossing.prototype.setupWalk = function (fresh) {
     this.generatedTo = here;
   }
   this.zmanMax = t.zman; this.zman = t.zman;
+  /* once the zman has run out, this walk is late - the clock refilling to
+     keep the walk going does not make it on time again */
+  this.late = false;
   this.hat = 1;
   this.invuln = 0;
   this.riding = null;
@@ -8210,7 +8616,7 @@ ShulCrossing.prototype.hop = function (dc, dr) {
     if (this.combo === 4) FX.text(this.px * ShulCrossing.CELL + 40, this.rowY(this.py) - 70, 'NICE!', C.teal, 26, 2.4);
     else if (this.combo === 8) FX.text(this.px * ShulCrossing.CELL + 40, this.rowY(this.py) - 70, 'STREAK!', C.gold, 28, 2.4);
     else if (this.combo === 12) FX.text(this.px * ShulCrossing.CELL + 40, this.rowY(this.py) - 70, 'KEEP GOING!', C.gold, 30, 2.4);
-    else if (this.combo === 16) FX.text(this.px * ShulCrossing.CELL + 40, this.rowY(this.py) - 70, 'ZERIZUS!', C.gold, 32, 2.6);
+    else if (this.combo === 16) FX.text(this.px * ShulCrossing.CELL + 40, this.rowY(this.py) - 70, 'SPEEDY!', C.gold, 32, 2.6);
   } else if (dr <= 0) {
     this.breakCombo();
   }
@@ -8417,6 +8823,7 @@ ShulCrossing.prototype.update = function (dt) {
   }
   if (this.zman <= 0) {
     this.zman = this.zmanMax * 0.7;
+    this.late = true;
     this.damage('Missed the zman', playerX, this.rowY(this.py) - 60);
   }
   this._justLanded = false;
@@ -8440,7 +8847,8 @@ ShulCrossing.prototype.tryCloseCall = function (row, playerX) {
 ShulCrossing.prototype.arrive = function () {
   var self = this;
   this.arrivals++;
-  var inTime = this.zman > 0;
+  var inTime = !this.late;
+  if (!inTime) this.lateCount++;
   var bonus = 300 + this.level * 120;
   if (inTime) { this.mult = Math.min(4, this.mult + 0.5); this.award('b_zman'); }
   if (this.hat >= 0.999) { bonus += 250; this.dry++; this.award('b_dry'); }
@@ -8454,7 +8862,8 @@ ShulCrossing.prototype.arrive = function () {
 
   if (this.level >= ShulCrossing.WALKS) {
     this.victory = true;
-    this.award('b_walks');
+    /* "all thirty walks before the zman" - so not if any walk was late */
+    if (!this.lateCount) this.award('b_walks');
     this.finish('You made it all thirty!');
     return;
   }
@@ -8981,7 +9390,7 @@ var Foods = {
     { k:'pareve', name:'Falafel',      shape:'falafel',  hint:'Falafel is pareve - swipe DOWN.' },
     { k:'mixed',  name:'Cheeseburger', shape:'burger',   hint:'Basar b’chalav! Flick it UP to the disposal chute.' },
     { k:'mixed',  name:'Meat Pizza',   shape:'pizza',    hint:'Meat on a cheese pizza is a forbidden mixture - flick UP.' },
-    { k:'mixed',  name:'Meat/Cheese Lasagna', shape:'lasagna', hint:'Meat baked together with cheese - flick UP. A pareve meat lasagna would be fine; this one is not.' },
+    { k:'mixed',  name:'Meat/Cheese Lasagna', shape:'lasagna', hint:'Meat baked together with cheese - flick UP. Made with pareve imitation meat, or with no cheese, it would be fine; this one is not.' },
     { k:'treif',  name:'Shrimp',       shape:'shrimp',   hint:'No fins, no scales - never kosher. Flick UP.' },
     { k:'treif',  name:'Lobster',      shape:'lobster',  hint:'Shellfish are not kosher - flick UP.' },
     { k:'treif',  name:'Pork',         shape:'pig',      hint:'A pig has split hooves but does not chew its cud - flick UP.' },
@@ -9265,7 +9674,7 @@ var Foods = {
         ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, TAU); ctx.fill();
       });
     },
-    /* Whole ribbed fruit - never a star slice. */
+    /* Whole ribbed fruit, drawn uncut. */
     starfruit: function (ctx) {
       ctx.fillStyle = '#d6d24a';
       ctx.beginPath();
@@ -9492,7 +9901,7 @@ KosherSort.prototype.sortItem = function (item, dir) {
     if (this.combo > 0 && this.combo % 10 === 0) {
       var streakBonus = this.combo * 12;
       this.score += streakBonus;
-      FX.text(CFG.W / 2, 620, 'MEHADRIN STREAK x' + this.combo + '  +' + streakBonus, C.gold, 34);
+      FX.text(CFG.W / 2, 620, 'PERFECT STREAK x' + this.combo + '  +' + streakBonus, C.gold, 34);
       FX.flash(C.gold, 0.25);
       Sound.sfx('badge'); Haptics.win();
     }
@@ -9500,7 +9909,7 @@ KosherSort.prototype.sortItem = function (item, dir) {
     Profile.noteBest('streak', this.combo);
     if (this.combo === 3) FX.text(CFG.W / 2, 560, 'NICE!', C.teal, 28);
     else if (this.combo === 5) FX.text(CFG.W / 2, 560, 'STREAK!', C.gold, 30);
-    else if (this.combo === 8) FX.text(CFG.W / 2, 560, 'MEHADRIN!', C.gold, 32);
+    else if (this.combo === 8) FX.text(CFG.W / 2, 560, 'SPOTLESS!', C.gold, 32);
     if (this.sortedThisLevel >= (this.need || 12)) this.levelUp();
   } else {
     this.wrong++;
@@ -10716,7 +11125,7 @@ KitchenMatch.prototype.resolve = function (opts) {
     if (!silent) {
       if (n === 2) this.popFx(CFG.W / 2, 540, 'CASCADE!', C.teal, 30);
       else if (n === 3) this.popFx(CFG.W / 2, 540, 'TRIPLE!', C.gold, 32);
-      else if (n >= 4) this.popFx(CFG.W / 2, 540, 'MEHADRIN!', C.gold, 34);
+      else if (n >= 4) this.popFx(CFG.W / 2, 540, 'SPOTLESS!', C.gold, 34);
     }
     this.gravity();
     /* the next beat only looks where dishes fell, so a line the player never
@@ -10730,11 +11139,11 @@ KitchenMatch.prototype.resolve = function (opts) {
       Profile.noteBest('streak', this.combo);
       if (this.combo === 3) this.popFx(CFG.W / 2, 560, 'NICE!', C.teal, 28);
       else if (this.combo === 5) this.popFx(CFG.W / 2, 560, 'STREAK!', C.gold, 30);
-      else if (this.combo === 8) this.popFx(CFG.W / 2, 560, 'MEHADRIN!', C.gold, 32);
+      else if (this.combo === 8) this.popFx(CFG.W / 2, 560, 'SPOTLESS!', C.gold, 32);
       if (this.combo > 0 && this.combo % 10 === 0) {
         var bonus = this.combo * 12;
         this.score += bonus;
-        this.popFx(CFG.W / 2, 620, 'MEHADRIN STREAK x' + this.combo + '  +' + bonus, C.gold, 34);
+        this.popFx(CFG.W / 2, 620, 'PERFECT STREAK x' + this.combo + '  +' + bonus, C.gold, 34);
         FX.flash(C.gold, 0.25);
         Sound.sfx('badge'); Haptics.win();
       }
@@ -11456,6 +11865,7 @@ MatzahHavoc.prototype.reset = function () {
   this.score = 0; this.lives = 3; this.maxLives = 3; this.combo = 0;
   this.level = 1; this.elapsed = 0;
   this.sliced = 0; this.giants = 0; this.cloudsBusted = 0; this.shieldsTaken = 0; this.deliveries = 0;
+  this.lateCount = 0;
   this.metYeast = false; this.metGiant = false; this.metDough = false;
   this.metSlick = false; this.metWind = false; this.metDump = false; this.metBlock = false;
   this.setupRoute();
@@ -11468,6 +11878,7 @@ MatzahHavoc.prototype.setupRoute = function (keepCargo) {
   this.dist = 0;
   this.goal = t.goal;
   this.hourMax = t.hour; this.hour = t.hour;
+  this.late = false;   /* set once the hour runs out on this route; the refill does not undo it */
   this.cargo = keepCargo ? Math.min(1, (this.cargo || 0.6) + 0.3) : 1;
   this.shield = 0;
   this.chametz = [];
@@ -11860,6 +12271,7 @@ MatzahHavoc.prototype.update = function (dt) {
     if (this.shield > 0) {
       FX.text(this.truckX, MatzahHavoc.TRUCK_Y - 120, 'THE AFIKOMAN HELD THE HOUR', C.gold, 26, 3);
     } else {
+      this.late = true;
       this.damage('The fourth hour passed', this.truckX, MatzahHavoc.TRUCK_Y - 120);
       if (this.lives <= 0) return;
     }
@@ -11923,9 +12335,10 @@ MatzahHavoc.prototype.cargoHit = function (amount, msg, x, y) {
 MatzahHavoc.prototype.deliver = function () {
   var self = this;
   this.deliveries++;
-  var inTime = this.hour > 0;
+  var inTime = !this.late;
   if (inTime) this.award('b_deliver');
-  var bonus = 400 + this.level * 150 + Math.round(this.hour * 8) + Math.round(this.cargo * 200);
+  else this.lateCount++;
+  var bonus = 400 + this.level * 150 + (inTime ? Math.round(this.hour * 8) : 0) + Math.round(this.cargo * 200);
   this.score += bonus;
   Sound.sfx('levelup'); Haptics.win();
   FX.flash(C.gold, 0.45);

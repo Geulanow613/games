@@ -113,10 +113,11 @@ function fmtHours(mins) {
   return Lang.t(h + (h === 1 ? ' hour' : ' hours'));
 }
 /* the same wait, but said the way a kid actually gets it: not "4 hours,"
-   but "how many more plates before milchig" */
+   but "how many more plates before milchig" - pareve or fish, any plate
+   counts, because each one is two hours of camp */
 function fmtMeals(n) {
   n = Math.max(0, n);
-  return Lang.t(n + (n === 1 ? ' pareve meal to go' : ' pareve meals to go'));
+  return Lang.t(n + (n === 1 ? ' plate to go' : ' plates to go'));
 }
 /* which meal of the day the clock is in - breakfast, lunch, supper, and the
    night seder snack. It is the same boys at all of them. */
@@ -244,12 +245,14 @@ var HE = {
     'אחרי חלבי: נטילה, שתייה, ומשהו פרווה',
   'Rinse between fish and meat': 'שוטפים את הפה בין דגים לבשר',
   'Rinse between meat and fish': 'שוטפים את הפה בין בשר לדגים',
+  'Wash and rinse between fish and meat': 'נוטלים ידיים ושותים בין דגים לבשר',
+  'Wash and rinse between meat and fish': 'נוטלים ידיים ושותים בין בשר לדגים',
   'Rinse between fish and dairy': 'שוטפים את הפה בין דגים לחלבי',
   'Rinse between dairy and fish': 'שוטפים את הפה בין חלבי לדגים',
   'FISH & DAIRY!': 'דגים וחלבי!',
   'DUAL BONUS': 'בונוס כפול',
   'Yay, we\'re Ashkenazim!': 'יש! אנחנו אשכנזים!',
-  'Fish and dairy, yum! Thanks, Rema!': 'דגים וחלבי, טעים! תודה רמ״א!',
+  'Fish and dairy, yum!': 'דגים וחלבי, טעים!',
 
   /* the meal, and the sitting of boys eating it */
   'BENTCH': 'ברכת המזון',
@@ -270,9 +273,9 @@ var HE = {
   '3 hours': 'שלוש שעות',
   '4 hours': 'ארבע שעות',
   '5 hours': 'חמש שעות',
-  '1 pareve meal to go': 'עוד ארוחה אחת פרווה',
-  '2 pareve meals to go': 'עוד שתי ארוחות פרווה',
-  '3 pareve meals to go': 'עוד שלוש ארוחות פרווה',
+  '1 plate to go': 'עוד צלחת אחת',
+  '2 plates to go': 'עוד שתי צלחות',
+  '3 plates to go': 'עוד שלוש צלחות',
   '6 hours': 'שש שעות',
   'The boys are starving': 'הבחורים גוועים ברעב',
   'I am starving!': 'אני גווע ברעב!',
@@ -291,7 +294,7 @@ var HE = {
   'Edot HaMizrach': 'עדות המזרח',
   'Chabad': 'חב״ד',
   'Fish may be eaten with dairy': 'אפשר לאכול דג עם חלבי',
-  'Fish may not be eaten with dairy': 'אסור לאכול דג עם חלבי',
+  'Fish is kept apart from dairy': 'דג נשאר בנפרד מחלבי',
   'Fish may not be eaten with milk': 'אסור לאכול דג עם חלב',
 
   /* food names */
@@ -311,7 +314,7 @@ var HE = {
   'Egg': 'ביצה',
   'Olive': 'זית',
   'Shrimp': 'שרימפס',
-  'Bacon': 'חזיר',
+  'Bacon': 'בייקון',
   'Cheeseburger': 'המבורגר גבינה'
 };
 
@@ -1020,7 +1023,7 @@ var UI = {
 var NUSACHS = [
   { id: 'ashkenaz', name: 'Ashkenaz',       note: 'Fish may be eaten with dairy' },
   { id: 'sefard',   name: 'Nusach Sefard',  note: 'Fish may be eaten with dairy' },
-  { id: 'mizrach',  name: 'Edot HaMizrach', note: 'Fish may not be eaten with dairy' },
+  { id: 'mizrach',  name: 'Edot HaMizrach', note: 'Fish is kept apart from dairy' },
   { id: 'chabad',   name: 'Chabad',         note: 'Fish may not be eaten with milk' }
 ];
 
@@ -1084,7 +1087,9 @@ var FOODS = [
   { name: 'Tuna',         cat: 'fish',   art: 'tuna' },
 
   { name: 'Apple',        cat: 'pareve', art: 'apple' },
-  { name: 'Carrot',       cat: 'pareve', art: 'carrot' },
+  /* a vegetable is pareve, but it is not the wiping between milchig and
+     fleishig: it sticks to the gums (YD 89:2, "chutz mi-kimcha v'tamri v'yarka") */
+  { name: 'Carrot',       cat: 'pareve', art: 'carrot', vegetable: true },
   /* bread is the one food that needs netilas yadayim before it is eaten */
   { name: 'Challah',      cat: 'pareve', art: 'challah', bread: true },
   { name: 'Egg',          cat: 'pareve', art: 'egg' },
@@ -1118,11 +1123,13 @@ var CAT = {
    Every refusal comes back with the reason, because the reason is the lesson.
    ========================================================================== */
 function emptyPlate() {
-  return { meat: 0, dairy: 0, fish: 0, pareve: 0, liquidMilk: 0, n: 0 };
+  return { meat: 0, dairy: 0, fish: 0, pareve: 0, liquidMilk: 0, wipe: 0, n: 0 };
 }
 function addToPlate(plate, food) {
   plate[food.cat] = (plate[food.cat] || 0) + 1;
   if (food.liquidMilk) plate.liquidMilk++;
+  /* what can wipe the mouth after milchig: pareve food, but not vegetables */
+  if (food.cat === 'pareve' && !food.vegetable) plate.wipe = (plate.wipe || 0) + 1;
   plate.n++;
   return plate;
 }
@@ -1357,21 +1364,30 @@ Art.milk = function (ctx) {
   ctx.restore();
 };
 Art.cheese = function (ctx) {
-  /* wedge with holes */
-  shade(ctx, 0, -30, 0, 60, '#ffd75e', '#e0a01c');
-  blob(ctx, [[-36, 26], [-36, -22], [30, -6], [34, 26]]);
+  /* a soft cheese: a wide, low tub of white cheese, open, no holes. The game
+     lets meat follow it after wash, rinse and pareve, which is right for a
+     soft cheese. A hard, aged (holey) cheese would need the six-hour wait for
+     Ashkenaz, Sefard and Chabad (Rema YD 89:2), so it is not drawn here. */
+  /* the tub */
+  shade(ctx, 0, -8, 0, 40, '#fbf8ef', '#d9d0bb');
+  blob(ctx, [[-38, -8], [-31, 28], [31, 28], [38, -8]]);
   ctx.fill();
-  outline(ctx, 'rgba(120,70,0,.5)', 3.5);
-  /* top face */
-  ctx.fillStyle = '#ffe89a';
-  blob(ctx, [[-36, -22], [30, -6], [34, 2], [-36, -14]]);
+  outline(ctx, 'rgba(110,95,60,.5)', 3.5);
+  /* a pale yellow label band, so it reads as cheese and not yogurt */
+  ctx.fillStyle = 'rgba(255,215,94,.75)';
+  blob(ctx, [[-36, 4], [-34, 16], [34, 16], [36, 4]]);
   ctx.fill();
-  ctx.fillStyle = 'rgba(170,105,0,.45)';
-  var holes = [[-18, 6, 6], [2, 12, 5], [16, 4, 4], [-6, -2, 4.5], [22, 16, 3.5]];
-  for (var i = 0; i < holes.length; i++) {
-    ctx.beginPath(); ctx.arc(holes[i][0], holes[i][1], holes[i][2], 0, TAU); ctx.fill();
-  }
-  gloss(ctx, -20, -14, 12, 4, 0.15, 0.35);
+  /* the open top: soft white cheese with a spread swirl */
+  ctx.fillStyle = '#f4efe2';
+  ctx.beginPath(); ctx.ellipse(0, -8, 38, 11, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(110,95,60,.5)'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.strokeStyle = 'rgba(200,185,150,.85)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.ellipse(-2, -8, 22, 5.5, 0, 0.3, Math.PI * 1.6); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(2, -8, 10, 2.8, 0, Math.PI, Math.PI * 2.6); ctx.stroke();
+  /* the lid line under the rim */
+  ctx.strokeStyle = 'rgba(110,95,60,.35)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-36, -1); ctx.lineTo(36, -1); ctx.stroke();
+  gloss(ctx, -22, 10, 4, 9, 0.1, 0.4);
 };
 Art.yogurt = function (ctx) {
   /* cup with a swirl and a berry */
@@ -2017,33 +2033,47 @@ var TEACH = {
   },
   wait: {
     title: 'Wait it out with pareve',
-    body: 'Meat leaves its taste in your mouth, so milk cannot follow right away. This game follows the most common practice - wait six hours - but customs differ: some families wait three, some one. You do not just stand there: every plate you serve is two hours of camp, so serve three pareve plates (or more meat, or fish) and the six hours are up on their own.',
+    body: 'Meat leaves its taste in your mouth, so milk cannot follow right away. This game follows the most common practice - wait six hours - but customs differ: some families wait three, some one. You do not just stand there: every plate you serve is two hours of camp, so serve three plates of pareve or fish and the six hours are up on their own. Another meat plate starts the six hours again.',
     source: 'Chullin 105a - Shulchan Aruch, Yoreh Deah 89:1',
-    note: 'Watch the counter: it counts down one pareve meal at a time.'
+    terms: [['Pareve', 'neither meat nor milk: fruit, vegetables, eggs, bread']],
+    note: 'Watch the counter: it counts down one plate at a time. In real life the six hours are counted on the clock from the last meat - here every plate stands for two of them.'
   },
   bentch: {
     title: 'Bentch first',
     body: 'Milchig is not served at a fleishig meal at all, even once the six hours are up - the bread on that table belongs to the fleishig meal. The boys bentch, the table is cleared, and then a new meal can be milchig.',
     source: 'Shulchan Aruch, Yoreh Deah 89:1',
+    terms: [['Milchig', 'milk food, or anything cooked with it'],
+            ['Fleishig', 'meat food, or anything cooked with it'],
+            ['Bentch', 'say the blessing after a meal with bread']],
     note: 'BENTCH is free, but it only helps once the six hours are done.'
   },
   rinse: {
     title: 'After milchig',
-    body: 'Milchig before fleishig is quicker, because milk leaves no taste behind: rinse your mouth, wash your hands, and eat something pareve first. Many families also wait half an hour or an hour.',
-    source: 'Shulchan Aruch, Yoreh Deah 89:2',
-    note: 'WASH and RINSE are free. The pareve plate costs a move.'
+    body: 'Milchig before fleishig is quicker, because most milk foods leave no taste behind: eat something pareve, like bread (not vegetables), rinse your mouth, and wash your hands. Many families also wait half an hour or an hour, and some bentch and start a new meal. Hard, aged cheese is different: Ashkenazim, Chassidim and Chabad wait six hours after it, just like after meat. Edot HaMizrach, following Rav Ovadia Yosef, clean the mouth and hands, and some wait.',
+    source: 'Shulchan Aruch, Yoreh Deah 89:2 with Rema; Mishnah Berurah 494:16; Yalkut Yosef, Yoreh Deah 89',
+    terms: [['Milchig', 'milk food, or anything cooked with it'],
+            ['Fleishig', 'meat food, or anything cooked with it'],
+            ['Pareve', 'neither meat nor milk: fruit, vegetables, eggs, bread'],
+            ['Bentch', 'say the blessing after a meal with bread'],
+            ['Chassidim', 'Jews of the Chassidic movement'],
+            ['Rav Ovadia Yosef', 'the great Sephardi rabbi whose rulings Edot HaMizrach follow']],
+    note: 'WASH and RINSE are free. The pareve plate costs a move - carrots alone do not count.'
   },
   wash: {
     title: 'Before challah',
-    body: 'Bread is never eaten with unwashed hands. Fill the two-handled cup, twice on each hand, and then the boys can eat the challah. One washing covers the whole meal, more challah included - until they bentch.',
-    source: 'Shulchan Aruch, Orach Chaim 158:1',
+    body: 'Bread is never eaten with unwashed hands. Fill the two-handled cup and pour at least twice on each hand (Chabad: three times), say the blessing al netilas yadayim, and then the boys can eat the challah. One washing covers the whole meal, more challah included - until they bentch.',
+    source: 'Shulchan Aruch, Orach Chaim 158:1; Mishnah Berurah 162:21',
+    terms: [['Al netilas yadayim', '"on washing the hands" - the blessing said after washing'],
+            ['Challah', 'the bread of the meal'],
+            ['Bentch', 'say the blessing after a meal with bread']],
     note: 'Tap WASH. It does not cost a move.'
   },
   fishmeat: {
     title: 'Fish and meat',
-    body: 'Chazal tell us that fish and meat eaten together are a danger to a person, so they are never served on one plate - and not straight after each other either. Everyone rinses their mouth in between, whichever one came first.',
-    source: 'Pesachim 76b - Shulchan Aruch, Orach Chaim 173:2',
-    note: 'Tap RINSE and the boys drink.'
+    body: 'Chazal tell us that fish and meat eaten together are a danger to a person, so they are never served on one plate - and not straight after each other either. In between, everyone eats a bite of something and drinks, and Edot HaMizrach also wash their hands, as the Shulchan Aruch writes.',
+    source: 'Pesachim 76b - Shulchan Aruch, Orach Chaim 173:2; Mishnah Berurah 173:4',
+    terms: [['Chazal', 'the rabbis of the Mishnah and the Gemara']],
+    note: 'Tap RINSE and the boys drink. Edot HaMizrach: tap WASH too.'
   },
   simcha: {
     title: 'Keep them happy',
@@ -2054,13 +2084,19 @@ var TEACH = {
     title: 'Fish and dairy',
     body: 'Fish with meat is out for everyone. Fish with dairy is a machlokes: the Beis Yosef writes not to, the Taz says that line was a misprint, so Ashkenazim eat them together, Edot HaMizrach keep them apart, and Chabad allows fish with cheese but never with milk.',
     source: 'Beis Yosef and Taz, Yoreh Deah 87:3',
+    terms: [['Machlokes', 'a real disagreement between rabbis'],
+            ['Beis Yosef', 'Rav Yosef Karo, who wrote the Shulchan Aruch'],
+            ['Taz', 'Rav David HaLevi Segal, who explained the Shulchan Aruch'],
+            ['Nusach', 'your family\'s way of davening and its customs']],
     note: 'Your nusach is set in the menu.'
   },
   fishdairy: {
     title: 'Fish and dairy, apart',
-    body: 'Edot HaMizrach never put fish and dairy on one plate, and many keep going the way they do for fish and meat: a rinse in between, whichever one came to the table first.',
-    source: 'Ben Ish Chai, Pinchas; Kaf HaChaim, Yoreh Deah 87',
-    note: 'Most Sephardim rinse between fish and dairy. Tap RINSE.'
+    body: 'Edot HaMizrach, following Rav Ovadia Yosef, keep fish away from milk and cheese. Fish with butter depends on the family\'s custom - this game keeps it apart too. Many, following the Kaf HaChaim, also clean out in between: a drink, and some wash their hands.',
+    source: 'Ben Ish Chai, Behaalotecha 15; Yechave Da\'at 6:48; Kaf HaChaim, Orach Chaim 473:3',
+    terms: [['Rav Ovadia Yosef', 'the great Sephardi rabbi whose rulings Edot HaMizrach follow'],
+            ['Kaf HaChaim', 'Rav Yaakov Chaim Sofer\'s book of Sephardi halacha']],
+    note: 'Tap RINSE to clean out between them.'
   },
   treif: {
     title: 'Not kosher',
@@ -2094,6 +2130,8 @@ var WHY_CARD = {
   'After milchig: wash, drink, then something pareve': 'rinse',
   'Rinse between fish and meat': 'fishmeat',
   'Rinse between meat and fish': 'fishmeat',
+  'Wash and rinse between fish and meat': 'fishmeat',
+  'Wash and rinse between meat and fish': 'fishmeat',
   'Rinse between fish and dairy': 'fishdairy',
   'Rinse between dairy and fish': 'fishdairy',
   'Wash your hands before challah': 'wash',
@@ -2118,12 +2156,40 @@ var HE_TEACH = {
     'שמות כ״ג י״ט - שולחן ערוך, יורה דעה פ״ז א׳',
   'Split them into two plates.': 'תחלק אותם לשתי צלחות.',
   'Wait it out with pareve': 'מחכים עם פרווה',
-  'Meat leaves its taste in your mouth, so milk cannot follow right away. This game follows the most common practice - wait six hours - but customs differ: some families wait three, some one. You do not just stand there: every plate you serve is two hours of camp, so serve three pareve plates (or more meat, or fish) and the six hours are up on their own.':
-    'בשר משאיר טעם בפה, אז חלב לא יכול לבוא מיד אחריו. המשחק הולך אחרי המנהג הכי נפוץ - לחכות שש שעות - אבל המנהגים שונים: יש משפחות שמחכות שלוש, יש שעה. אתה לא סתם עומד ומחכה: כל צלחת שאתה מגיש היא שעתיים בקעמפ, אז תגיש שלוש צלחות פרווה (או עוד בשר, או דגים) ושש השעות עוברות מעצמן.',
+  'Meat leaves its taste in your mouth, so milk cannot follow right away. This game follows the most common practice - wait six hours - but customs differ: some families wait three, some one. You do not just stand there: every plate you serve is two hours of camp, so serve three plates of pareve or fish and the six hours are up on their own. Another meat plate starts the six hours again.':
+    'בשר משאיר טעם בפה, אז חלב לא יכול לבוא מיד אחריו. המשחק הולך אחרי המנהג הכי נפוץ - לחכות שש שעות - אבל המנהגים שונים: יש משפחות שמחכות שלוש, יש שעה. אתה לא סתם עומד ומחכה: כל צלחת שאתה מגיש היא שעתיים בקעמפ, אז תגיש שלוש צלחות של פרווה או דגים ושש השעות עוברות מעצמן. עוד צלחת בשר מתחילה את שש השעות מחדש.',
   'Chullin 105a - Shulchan Aruch, Yoreh Deah 89:1':
-    'חולין ק״ה - שולחן ערוך, יורה דעה פ״ט א׳',
-  'Watch the counter: it counts down one pareve meal at a time.':
-    'עקוב אחרי המספר - הוא יורד עם כל ארוחת פרווה.',
+    'חולין ק״ה ע״א - שולחן ערוך, יורה דעה פ״ט א׳',
+  'Watch the counter: it counts down one plate at a time. In real life the six hours are counted on the clock from the last meat - here every plate stands for two of them.':
+    'עקוב אחרי המספר - הוא יורד עם כל צלחת. באמת סופרים את שש השעות על השעון מהבשר האחרון - כאן כל צלחת היא שעתיים.',
+  /* glossary lines (FRUM rules 5: every Hebrew word on the card gets one) */
+  'Pareve': 'פרווה',
+  'neither meat nor milk: fruit, vegetables, eggs, bread': 'לא בשר ולא חלב: פירות, ירקות, ביצים, לחם',
+  'Milchig': 'חלבי',
+  'milk food, or anything cooked with it': 'אוכל של חלב, או מה שבושל איתו',
+  'Fleishig': 'בשרי',
+  'meat food, or anything cooked with it': 'אוכל של בשר, או מה שבושל איתו',
+  'Bentch': 'לבנטש',
+  'say the blessing after a meal with bread': 'לברך אחרי ארוחה עם לחם',
+  'Chassidim': 'חסידים',
+  'Jews of the Chassidic movement': 'יהודים מתנועת החסידות',
+  'Rav Ovadia Yosef': 'הרב עובדיה יוסף',
+  'the great Sephardi rabbi whose rulings Edot HaMizrach follow': 'הרב הספרדי הגדול שעדות המזרח הולכים לפי פסקיו',
+  'Al netilas yadayim': 'על נטילת ידיים',
+  '"on washing the hands" - the blessing said after washing': 'הברכה שאומרים אחרי שנוטלים ידיים',
+  'the bread of the meal': 'הלחם של הסעודה',
+  'Chazal': 'חז״ל',
+  'the rabbis of the Mishnah and the Gemara': 'חכמי המשנה והגמרא',
+  'Machlokes': 'מחלוקת',
+  'a real disagreement between rabbis': 'כשרבנים חולקים באמת',
+  'Beis Yosef': 'בית יוסף',
+  'Rav Yosef Karo, who wrote the Shulchan Aruch': 'רבי יוסף קארו, שכתב את השולחן ערוך',
+  'Taz': 'ט״ז',
+  'Rav David HaLevi Segal, who explained the Shulchan Aruch': 'רבי דוד הלוי סגל, שפירש את השולחן ערוך',
+  'Nusach': 'נוסח',
+  'your family\'s way of davening and its customs': 'הדרך והמנהגים של המשפחה שלך',
+  'Kaf HaChaim': 'כף החיים',
+  'Rav Yaakov Chaim Sofer\'s book of Sephardi halacha': 'ספר ההלכה הספרדי של רבי יעקב חיים סופר',
   'Bentch first': 'קודם מבנטשים',
   'Milchig is not served at a fleishig meal at all, even once the six hours are up - the bread on that table belongs to the fleishig meal. The boys bentch, the table is cleared, and then a new meal can be milchig.':
     'חלבי לא מגישים בסעודה בשרית בכלל, גם כששש השעות נגמרו - הלחם שעל השולחן הוא חלק מהסעודה הבשרית. הבחורים מבנטשים, מפנים את השולחן, ואז סעודה חדשה יכולה להיות חלבית.',
@@ -2131,22 +2197,23 @@ var HE_TEACH = {
   'BENTCH is free, but it only helps once the six hours are done.':
     'ברכת המזון בחינם, אבל היא עוזרת רק כששש השעות נגמרו.',
   'After milchig': 'אחרי חלבי',
-  'Milchig before fleishig is quicker, because milk leaves no taste behind: rinse your mouth, wash your hands, and eat something pareve first. Many families also wait half an hour or an hour.':
-    'מחלבי לבשרי זה מהר יותר, כי חלב לא משאיר טעם: שוטפים את הפה, נוטלים ידיים, ואוכלים משהו פרווה. הרבה משפחות גם מחכות חצי שעה או שעה.',
-  'Shulchan Aruch, Yoreh Deah 89:2': 'שולחן ערוך, יורה דעה פ״ט ב׳',
-  'WASH and RINSE are free. The pareve plate costs a move.':
-    'נטילה ושתייה בחינם. הצלחת הפרווה עולה מהלך.',
+  'Milchig before fleishig is quicker, because most milk foods leave no taste behind: eat something pareve, like bread (not vegetables), rinse your mouth, and wash your hands. Many families also wait half an hour or an hour, and some bentch and start a new meal. Hard, aged cheese is different: Ashkenazim, Chassidim and Chabad wait six hours after it, just like after meat. Edot HaMizrach, following Rav Ovadia Yosef, clean the mouth and hands, and some wait.':
+    'מחלבי לבשרי זה מהר יותר, כי רוב המאכלים החלביים לא משאירים טעם: אוכלים משהו פרווה, כמו לחם (לא ירקות), שוטפים את הפה ונוטלים ידיים. הרבה משפחות גם מחכות חצי שעה או שעה, ויש שמברכים ברכת המזון ומתחילים סעודה חדשה. גבינה קשה וישנה זה סיפור אחר: אשכנזים, חסידים וחב״ד מחכים אחריה שש שעות, כמו אחרי בשר. עדות המזרח, לפי הרב עובדיה יוסף, מנקים את הפה והידיים, ויש שמחכים.',
+  'Shulchan Aruch, Yoreh Deah 89:2 with Rema; Mishnah Berurah 494:16; Yalkut Yosef, Yoreh Deah 89':
+    'שולחן ערוך, יורה דעה פ״ט ב׳ ורמ״א; משנה ברורה תצ״ד ט״ז; ילקוט יוסף, יורה דעה פ״ט',
+  'WASH and RINSE are free. The pareve plate costs a move - carrots alone do not count.':
+    'נטילה ושתייה בחינם. הצלחת הפרווה עולה מהלך - גזר לבד לא נחשב.',
   'Before challah': 'לפני חלה',
-  'Bread is never eaten with unwashed hands. Fill the two-handled cup, twice on each hand, and then the boys can eat the challah. One washing covers the whole meal, more challah included - until they bentch.':
-    'לא אוכלים לחם בלי נטילת ידיים. תמלא את הכלי עם שתי הידיות, פעמיים על כל יד, ואז הבחורים יכולים לאכול את החלה. נטילה אחת מספיקה לכל הסעודה, גם לעוד חלה - עד שמבנטשים.',
-  'Shulchan Aruch, Orach Chaim 158:1': 'שולחן ערוך, אורח חיים קנ״ח א׳',
+  'Bread is never eaten with unwashed hands. Fill the two-handled cup and pour at least twice on each hand (Chabad: three times), say the blessing al netilas yadayim, and then the boys can eat the challah. One washing covers the whole meal, more challah included - until they bentch.':
+    'לא אוכלים לחם בלי נטילת ידיים. תמלא את הכלי עם שתי הידיות ותשפוך לפחות פעמיים על כל יד (בחב״ד: שלוש), תברך על נטילת ידיים, ואז הבחורים יכולים לאכול את החלה. נטילה אחת מספיקה לכל הסעודה, גם לעוד חלה - עד שמבנטשים.',
+  'Shulchan Aruch, Orach Chaim 158:1; Mishnah Berurah 162:21': 'שולחן ערוך, אורח חיים קנ״ח א׳; משנה ברורה קס״ב כ״א',
   'Tap WASH. It does not cost a move.': 'הקש נטילה. זה לא עולה מהלך.',
   'Fish and meat': 'דגים ובשר',
-  'Chazal tell us that fish and meat eaten together are a danger to a person, so they are never served on one plate - and not straight after each other either. Everyone rinses their mouth in between, whichever one came first.':
-    'חז״ל אומרים שדגים ובשר ביחד זה סכנה, ולכן הם לא מוגשים באותה צלחת - וגם לא אחד מיד אחרי השני. שוטפים את הפה בין לבין, לא משנה מה יצא ראשון.',
-  'Pesachim 76b - Shulchan Aruch, Orach Chaim 173:2':
-    'פסחים ע״ו - שולחן ערוך, אורח חיים קע״ג ב׳',
-  'Tap RINSE and the boys drink.': 'הקש שתייה והבחורים שותים.',
+  'Chazal tell us that fish and meat eaten together are a danger to a person, so they are never served on one plate - and not straight after each other either. In between, everyone eats a bite of something and drinks, and Edot HaMizrach also wash their hands, as the Shulchan Aruch writes.':
+    'חז״ל אומרים שדגים ובשר ביחד זה סכנה, ולכן הם לא מוגשים באותה צלחת - וגם לא אחד מיד אחרי השני. בין לבין כולם אוכלים משהו ושותים, ועדות המזרח גם נוטלים ידיים, כמו שכתוב בשולחן ערוך.',
+  'Pesachim 76b - Shulchan Aruch, Orach Chaim 173:2; Mishnah Berurah 173:4':
+    'פסחים ע״ו ע״ב - שולחן ערוך, אורח חיים קע״ג ב׳; משנה ברורה קע״ג ד׳',
+  'Tap RINSE and the boys drink. Edot HaMizrach: tap WASH too.': 'הקש שתייה והבחורים שותים. עדות המזרח: הקש גם נטילה.',
   'Keep them happy': 'תשמור עליהם שמחים',
   'Hungry boys are not happy boys. The simcha bar slides down the whole time you are standing there thinking, and jumps when a plate lands - the longer the plate, the bigger the jump. Empty the bar and the week is over.':
     'בחורים רעבים הם לא בחורים שמחים. מד השמחה יורד כל הזמן שאתה עומד וחושב, וקופץ כשצלחת נוחתת - וככל שהצלחת ארוכה יותר הקפיצה גדולה יותר. אם המד מתרוקן - נגמר השבוע.',
@@ -2157,12 +2224,13 @@ var HE_TEACH = {
     'דג עם בשר אסור אצל כולם. דג עם חלבי זו מחלוקת: הבית יוסף כותב שלא, הט״ז אומר שזו טעות דפוס, ולכן אשכנזים אוכלים ביחד, עדות המזרח מפרידים, וחב״ד מתירים דג עם גבינה אבל לא עם חלב.',
   'Beis Yosef and Taz, Yoreh Deah 87:3': 'בית יוסף וט״ז, יורה דעה פ״ז ג׳',
   'Fish and dairy, apart': 'דגים וחלבי, בנפרד',
-  'Edot HaMizrach never put fish and dairy on one plate, and many keep going the way they do for fish and meat: a rinse in between, whichever one came to the table first.':
-    'עדות המזרח לא שמים דגים וחלבי באותה צלחת, ורבים ממשיכים כמו בדגים ובשר: שוטפים את הפה באמצע, מי שהגיע קודם לא משנה.',
-  'Ben Ish Chai, Pinchas; Kaf HaChaim, Yoreh Deah 87': 'בן איש חי, פנחס; כף החיים, יורה דעה פ״ז',
-  'Most Sephardim rinse between fish and dairy. Tap RINSE.':
-    'רוב הספרדים שוטפים בין דג לחלבי. הקש על שתייה.',
+  'Edot HaMizrach, following Rav Ovadia Yosef, keep fish away from milk and cheese. Fish with butter depends on the family\'s custom - this game keeps it apart too. Many, following the Kaf HaChaim, also clean out in between: a drink, and some wash their hands.':
+    'עדות המזרח, לפי הרב עובדיה יוסף, לא אוכלים דג עם חלב או גבינה. דג עם חמאה תלוי במנהג המשפחה - במשחק הזה גם היא בנפרד. רבים, לפי הכף החיים, גם מנקים בין לבין: שותים, ויש שגם נוטלים ידיים.',
+  'Ben Ish Chai, Behaalotecha 15; Yechave Da\'at 6:48; Kaf HaChaim, Orach Chaim 473:3': 'בן איש חי, בהעלותך ט״ו; יחווה דעת ו׳ מ״ח; כף החיים, אורח חיים תע״ג ג׳',
+  'Tap RINSE to clean out between them.':
+    'הקש על שתייה כדי לנקות בין לבין.',
   'Your nusach is set in the menu.': 'את הנוסח בוחרים בתפריט.',
+  "Your nusach comes from the app's settings.": 'הנוסח שלך נקבע בהגדרות של האפליקציה.',
   'Not kosher': 'לא כשר',
   'A fish is kosher only with fins and scales, and a pig is not kosher at all. Shrimp and bacon can never join a plate, however they are cooked.':
     'דג כשר רק אם יש לו סנפיר וקשקשת, וחזיר לא כשר בכלל. שרימפס ובייקון לא מצטרפים לשום צלחת, לא משנה איך מבשלים אותם.',
@@ -2442,9 +2510,17 @@ function Play(levelIndex) {
   this.needWash = false;      /* hands, after milchig and before fleishig */
   this.needDrink = false;     /* a drink, after milchig or fish and before fleishig */
   this.needPareve = false;    /* something pareve, after milchig and before fleishig */
+  /* the drink that is owed is the one after milchig, not after fish - so a
+     meat plate turned away for it says "after milchig", not "fish and meat" */
+  this.drinkAfterDairy = false;
   /* fish and meat go both ways round: whichever came first, everyone rinses
      before the other one is served */
   this.needFishDrink = false; /* a drink, after fleishig and before fish */
+  /* Edot HaMizrach also wash their hands between fish and meat, whichever
+     came first (SA OC 173:2). Ashkenaz, Sefard and Chabad eat and drink only
+     (MB 173:4), so these two never turn on outside of mizrach. */
+  this.needFishWash = false;  /* hands, after fish and before meat (mizrach) */
+  this.needMeatWash = false;  /* hands, after meat and before fish (mizrach) */
   /* Edot HaMizrach never share a plate with fish and dairy, and many also
      rinse between them the rest of the way round - the same as fish and
      meat. Everyone else's nusach lets the two ride together, so these two
@@ -2565,11 +2641,13 @@ Play.prototype.gate = function (food) {
     if (this.needDairyRinse) return 'Rinse between fish and dairy';
   }
   if (food.cat === 'meat') {
-    if (this.needWash || this.needPareve) {
+    if (this.needWash || this.needPareve || (this.needDrink && this.drinkAfterDairy)) {
       return 'After milchig: wash, drink, then something pareve';
     }
+    if (this.needFishWash) return 'Wash and rinse between fish and meat';
     if (this.needDrink) return 'Rinse between fish and meat';
   }
+  if (food.cat === 'fish' && this.needMeatWash) return 'Wash and rinse between meat and fish';
   if (food.cat === 'fish' && this.needFishDrink) return 'Rinse between meat and fish';
   if (food.cat === 'fish' && this.needFishRinse) return 'Rinse between dairy and fish';
   if (food.bread && !this.washed) return 'Wash your hands before challah';
@@ -2596,7 +2674,8 @@ Play.prototype.blocked = function (tile) {
 Play.prototype.syncGates = function () {
   this.waitMoves = Math.ceil(this.waitLeft / 120);
   this.needRinse = this.needWash || this.needDrink || this.needPareve ||
-    this.needFishDrink || this.needFishRinse || this.needDairyRinse;
+    this.needFishDrink || this.needFishRinse || this.needDairyRinse ||
+    this.needFishWash || this.needMeatWash;
 };
 
 /* ------------------------------------------------------- the free actions */
@@ -2605,8 +2684,11 @@ Play.prototype.syncGates = function () {
 Play.prototype.doWash = function () {
   if (this.over) return false;
   var mattered = !this.washed || this.needWash;
+  if (this.needFishWash || this.needMeatWash) mattered = true;
   this.washed = true;
   this.needWash = false;
+  this.needFishWash = false;
+  this.needMeatWash = false;
   this.syncGates();
   if (mattered) this.simchaAdd(1);
   Kids.order(this, 'wash');
@@ -2650,6 +2732,7 @@ Play.prototype.doRinse = function () {
   var mattered = this.needDrink || this.needFishDrink ||
     this.needFishRinse || this.needDairyRinse;
   this.needDrink = false;
+  this.drinkAfterDairy = false;
   this.needFishDrink = false;
   this.needFishRinse = false;
   this.needDairyRinse = false;
@@ -2913,12 +2996,16 @@ Play.prototype.serve = function () {
        needs a rinse, the same as meat after fish. */
     this.waitLeft = 360;
     this.needDrink = false; this.needWash = false; this.needPareve = false;
+    this.drinkAfterDairy = false;
     this.needFishDrink = true;
+    this.needFishWash = false;
+    this.needMeatWash = (Nusach.id === 'mizrach');
   }
   if (this.plate.dairy) {
     /* hands and mouth before any meat. The washing for challah still holds:
        eating does not undo a netilas yadayim, only bentching does. */
     this.needWash = true; this.needDrink = true; this.needPareve = true;
+    this.drinkAfterDairy = true;
     this.needDairyRinse = false;
     /* Edot HaMizrach never got this far with fish already on the plate -
        plateAccepts would have refused it - so this is milchig alone, and
@@ -2927,11 +3014,15 @@ Play.prototype.serve = function () {
   }
   if (this.plate.fish) {
     this.needDrink = true;
+    /* fish on its own: the drink now owed is the fish one */
+    if (!this.plate.dairy) this.drinkAfterDairy = false;
     this.needFishDrink = false;
     this.needFishRinse = false;
     if (Nusach.id === 'mizrach') this.needDairyRinse = true;
+    this.needMeatWash = false;
+    this.needFishWash = (Nusach.id === 'mizrach');
   }
-  if (!this.plate.meat && !this.plate.dairy && !this.plate.fish && this.needPareve) {
+  if (!this.plate.meat && !this.plate.dairy && !this.plate.fish && this.needPareve && this.plate.wipe > 0) {
     this.needPareve = false;
     FX.text(CFG.W / 2, this.board.by - 22, 'PAREVE', PAL.pareve, 26, 1.0);
   }
@@ -3106,13 +3197,15 @@ Play.prototype.useHint = function () {
     path = this.withFreeActions(function () { return self.findHint(); });
     needsButton = !!path;
   }
-  this.hintCooldown = 180;
   if (path) {
+    /* the cooldown is for a hint that was given - "try again in a moment"
+       below has to mean a moment */
+    this.hintCooldown = 180;
     this.hint = path;
     this.hintT = 3.5;
     if (needsButton) {
       this.reason = {
-        why: this.freeHintWhy(),
+        why: this.freeHintWhy(path),
         age: 0, at: this.t, x: CFG.W / 2, y: this.board.by + this.board.bh / 2, calm: true
       };
     }
@@ -3130,27 +3223,38 @@ Play.prototype.withFreeActions = function (fn) {
   var w = this.washed, nw = this.needWash, nd = this.needDrink, nr = this.needRinse;
   var nf = this.needFishDrink, ms = this.mealSide;
   var nfr = this.needFishRinse, ndr = this.needDairyRinse;
+  var nfw = this.needFishWash, nmw = this.needMeatWash;
   this.washed = true; this.needWash = false; this.needDrink = false;
   this.needFishDrink = false;
   this.needFishRinse = false; this.needDairyRinse = false;
+  this.needFishWash = false; this.needMeatWash = false;
   this.needRinse = this.needPareve;
   if (this.mealAte > 0) this.mealSide = null;
   var out = fn();
   this.washed = w; this.needWash = nw; this.needDrink = nd; this.needRinse = nr;
   this.needFishDrink = nf; this.mealSide = ms;
   this.needFishRinse = nfr; this.needDairyRinse = ndr;
+  this.needFishWash = nfw; this.needMeatWash = nmw;
   return out;
 };
 
-/* the button the player is missing, when a hint needs one first */
-Play.prototype.freeHintWhy = function () {
-  if (this.mealAte > 0 && this.mealSide === 'meat') return 'Bentch first - milchig needs its own meal';
-  if (!this.washed) return 'Wash your hands before challah';
-  if (this.needWash || this.needPareve) return 'After milchig: wash, drink, then something pareve';
-  if (this.needDrink) return 'Rinse between fish and meat';
-  if (this.needFishDrink) return 'Rinse between meat and fish';
-  if (this.needDairyRinse) return 'Rinse between fish and dairy';
-  if (this.needFishRinse) return 'Rinse between dairy and fish';
+/* the button the player is missing, when a hint needs one first - named from
+   the plate the hint actually found, so a fish plate after meat asks for the
+   rinse and not for bentching */
+Play.prototype.freeHintWhy = function (path) {
+  path = path || [];
+  var has = function (c) { return path.some(function (t) { return t.f.cat === c; }); };
+  if (has('dairy') && this.mealAte > 0 && this.mealSide === 'meat') return 'Bentch first - milchig needs its own meal';
+  if (has('meat') && (this.needWash || this.needPareve || (this.needDrink && this.drinkAfterDairy))) {
+    return 'After milchig: wash, drink, then something pareve';
+  }
+  if (has('meat') && this.needFishWash) return 'Wash and rinse between fish and meat';
+  if (has('meat') && this.needDrink) return 'Rinse between fish and meat';
+  if (has('fish') && this.needMeatWash) return 'Wash and rinse between meat and fish';
+  if (has('fish') && this.needFishDrink) return 'Rinse between meat and fish';
+  if (has('dairy') && this.needDairyRinse) return 'Rinse between fish and dairy';
+  if (has('fish') && this.needFishRinse) return 'Rinse between dairy and fish';
+  if (path.some(function (t) { return t.f.bread; }) && !this.washed) return 'Wash your hands before challah';
   return 'Wash and drink first';
 };
 
@@ -3766,7 +3870,7 @@ var KID_HUNGRY = ['I am starving!', 'Nu, is there food?', 'We are still waiting!
   'My stomach hurts', 'Did they forget us?'];
 /* what one boy calls out when fish just rode in beside dairy - Ashkenaz and
    Sefard only, since that is the plate that just happened */
-var KID_DUAL = ['Yay, we\'re Ashkenazim!', 'Fish and dairy, yum! Thanks, Rema!'];
+var KID_DUAL = ['Yay, we\'re Ashkenazim!', 'Fish and dairy, yum!'];
 /* how long each thing a boy does takes */
 var KID_LEN = { wash: 2.4, eat: 1.7, bentch: 2.8, cheer: 1.2, drink: 1.2, wave: 1.2 };
 
@@ -4817,8 +4921,9 @@ Play.prototype.drawStatus = function (ctx, x, y, w) {
     });
     return;
   }
-  if (this.needWash || this.needPareve) {
-    /* the three things owed after milchig, ticked off as they are done */
+  if (this.needWash || this.needPareve || (this.needDrink && this.drinkAfterDairy)) {
+    /* the three things owed after milchig, ticked off as they are done -
+       still up while the drink is the last one left */
     Draw.panel(ctx, x, y, w, h, {
       fill: 'rgba(6,10,20,.9)', stroke: PAL.pareve, strokeW: 2, radius: 21
     });
@@ -4850,13 +4955,16 @@ Play.prototype.drawStatus = function (ctx, x, y, w) {
     }
     return;
   }
-  if (this.needDrink || this.needFishDrink) {
+  if (this.needDrink || this.needFishDrink || this.needFishWash || this.needMeatWash) {
     Draw.panel(ctx, x, y, w, h, {
       fill: 'rgba(6,10,20,.9)', stroke: PAL.dairy, strokeW: 2, radius: 21,
       glow: PAL.dairy, glowBlur: 8 + 8 * pulse(t, 1.1)
     });
-    Draw.textFit(ctx, this.needDrink ? 'Rinse between fish and meat'
-        : 'Rinse between meat and fish', x + w / 2, y + 21, w - 40, {
+    /* Edot HaMizrach: the WASH step shows while the hands are still owed */
+    var fm = this.needFishWash ? 'Wash and rinse between fish and meat'
+      : this.needMeatWash ? 'Wash and rinse between meat and fish'
+      : this.needDrink ? 'Rinse between fish and meat' : 'Rinse between meat and fish';
+    Draw.textFit(ctx, fm, x + w / 2, y + 21, w - 40, {
       size: 16, color: PAL.dairy, align: 'center', weight: '800'
     });
     return;
@@ -4901,7 +5009,7 @@ Play.prototype.drawStatus = function (ctx, x, y, w) {
 Play.prototype.drawActions = function (ctx, t) {
   /* WASH only calls for attention when something is actually waiting on it:
      after milchig, or when a challah has just been turned away. */
-  var needW = !!(this.needWash ||
+  var needW = !!(this.needWash || this.needFishWash || this.needMeatWash ||
     (!this.washed && this.reason && this.reason.why === 'Wash your hands before challah'));
   var needR = this.needDrink || this.needFishDrink ||
     this.needFishRinse || this.needDairyRinse;
@@ -5017,17 +5125,14 @@ var Progress = {
   }
 };
 
-function drawStar(ctx, x, y, r, filled) {
+/* The table rating is a Magen David, never a five-pointed star
+   (FRUM-GAME-RULES: no star imagery, not even a star rating). The save still
+   keeps the count under its old key, Progress.stars. */
+function drawMagen(ctx, x, y, r, filled) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.beginPath();
-  for (var i = 0; i < 10; i++) {
-    var a = -Math.PI / 2 + i * Math.PI / 5;
-    var rr = (i % 2 === 0) ? r : r * 0.45;
-    var px = Math.cos(a) * rr, py = Math.sin(a) * rr;
-    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
+  starPath(ctx, 0, 0, r);
+  ctx.lineJoin = 'round';
   if (filled) {
     ctx.fillStyle = PAL.gold; ctx.fill();
     ctx.strokeStyle = PAL.goldDeep; ctx.lineWidth = 1.6; ctx.stroke();
@@ -5290,7 +5395,7 @@ Menu.prototype.render = function (ctx) {
 
   var stars = Progress.totalStars();
   if (stars > 0) {
-    drawStar(ctx, CFG.W / 2 - 36, cy + 318, 16, true);
+    drawMagen(ctx, CFG.W / 2 - 36, cy + 318, 16, true);
     Draw.text(ctx, String(stars), CFG.W / 2 + 6, cy + 318, {
       size: 25, color: PAL.gold, align: 'left', weight: '900'
     });
@@ -5402,7 +5507,7 @@ var STORY = [
   { title: 'Feed them',
     body: 'Drag through the food that belongs on one plate and serve it. The longer the plate, the more boys eat, and the simcha bar climbs.' },
   { title: 'Keep it kosher',
-    body: 'Fleishig and milchig never share a plate, and never share a meal. Wash before challah. Between fish and meat, everyone drinks.' },
+    body: 'Fleishig and milchig never share a plate, and milchig never joins a fleishig meal. Wash before challah. Between fish and meat, everyone drinks.' },
   { title: 'Six weeks',
     body: 'Every plate is two hours of camp, and the boys get hungry while you stand there. Get through the week with them still singing and you have done your job.' }
 ];
@@ -5414,8 +5519,8 @@ var HE_STORY = {
   'Drag through the food that belongs on one plate and serve it. The longer the plate, the more boys eat, and the simcha bar climbs.':
     'גרור דרך המאכלים שיושבים באותה צלחת ותגיש. ככל שהצלחת ארוכה יותר יותר בחורים אוכלים, ומד השמחה עולה.',
   'Keep it kosher': 'תשמור על כשרות',
-  'Fleishig and milchig never share a plate, and never share a meal. Wash before challah. Between fish and meat, everyone drinks.':
-    'בשרי וחלבי לא באותה צלחת, וגם לא באותה סעודה. נטילת ידיים לפני חלה. בין דגים לבשר כולם שותים.',
+  'Fleishig and milchig never share a plate, and milchig never joins a fleishig meal. Wash before challah. Between fish and meat, everyone drinks.':
+    'בשרי וחלבי לא באותה צלחת, וחלבי לא מצטרף לסעודה בשרית. נטילת ידיים לפני חלה. בין דגים לבשר כולם שותים.',
   'Six weeks': 'שישה שבועות',
   'Every plate is two hours of camp, and the boys get hungry while you stand there. Get through the week with them still singing and you have done your job.':
     'כל צלחת היא שעתיים בקעמפ, והבחורים נהיים רעבים בזמן שאתה עומד. תעבור את השבוע עם בחורים ששרים - עשית את העבודה.',
@@ -5617,7 +5722,7 @@ LevelSelect.prototype.render = function (ctx) {
         drawFood(ctx, foodByName(orderFoodName(ords[k].kind)), kx, c.y + c.h * 0.62, iw, 40 + k);
       }
       for (var s = 0; s < 3; s++) {
-        drawStar(ctx, c.x + c.w / 2 + (s - 1) * 28, c.y + c.h * 0.85, 12, s < st);
+        drawMagen(ctx, c.x + c.w / 2 + (s - 1) * 28, c.y + c.h * 0.85, 12, s < st);
       }
     } else {
       /* padlock */
@@ -5662,16 +5767,38 @@ Teach.prototype.build = function () {
   var ctx = View.ctx;
   var bw = Math.min(360, CFG.W - 140);
   this.w = Math.min(560, CFG.W - 60 - safe.l - safe.r);
+  /* inside the app the nusach comes from the host and the in-game picker is
+     hidden, so the card cannot send the player to a menu that is not there */
+  var note = this.card.note;
+  if (this.key === 'nusach' && Nusach.locked()) note = "Your nusach comes from the app's settings.";
   /* the text is measured here, not in render, so the button can sit right
-     under the card however long the Hebrew turns out to be */
-  this.lines = Draw.wrap(ctx, this.card.body, this.w - 64, 24, '700');
-  this.noteLines = Draw.wrap(ctx, this.card.note, this.w - 64, 19, '800');
-  /* where it comes from, on the cards that are halacha and not game rules */
-  this.srcLines = this.card.source
-    ? Draw.wrap(ctx, this.card.source, this.w - 70, 17, '700') : [];
-  this.artH = this.art.length ? 116 : 0;
-  this.cardH = 150 + this.artH + this.lines.length * 34 +
-    this.srcLines.length * 26 + this.noteLines.length * 28;
+     under the card however long the Hebrew turns out to be. A long card
+     steps its body text down a size or two so it still fits the screen. */
+  var room = CFG.H - View.safe.t - View.safe.b - 80 - 44 - 86;
+  var sizes = [24, 22, 20, 18];
+  for (var si = 0; si < sizes.length; si++) {
+    var bs = sizes[si];
+    this.bodySize = bs; this.bodyLH = Math.round(bs * 1.42);
+    this.lines = Draw.wrap(ctx, this.card.body, this.w - 64, bs, '700');
+    /* the glossary band: every Hebrew word on the card gets its own line
+       (FRUM rules 5), "term - plain English" */
+    this.termLines = [];
+    var terms = this.card.terms || [];
+    for (var ti = 0; ti < terms.length; ti++) {
+      var row = Lang.t(terms[ti][0]) + ' - ' + Lang.t(terms[ti][1]);
+      var wr = Draw.wrap(ctx, row, this.w - 70, 17, '700');
+      for (var wi = 0; wi < wr.length; wi++) this.termLines.push({ s: wr[wi], first: wi === 0 });
+    }
+    this.noteLines = Draw.wrap(ctx, note, this.w - 64, 19, '800');
+    /* where it comes from, on the cards that are halacha and not game rules */
+    this.srcLines = this.card.source
+      ? Draw.wrap(ctx, this.card.source, this.w - 70, 17, '700') : [];
+    this.artH = this.art.length ? 116 : 0;
+    this.cardH = 150 + this.artH + this.lines.length * this.bodyLH +
+      (this.termLines.length ? this.termLines.length * 24 + 14 : 0) +
+      this.srcLines.length * 26 + this.noteLines.length * 28;
+    if (this.cardH <= room) break;
+  }
   this.cardY = View.band(this.cardH + 44 + 86, 40, 40);
   this.btns = [new Button({
     x: (CFG.W - bw) / 2, y: this.cardY + this.cardH + 44, w: bw, h: 86,
@@ -5732,12 +5859,24 @@ Teach.prototype.render = function (ctx) {
   }
 
   var ty = y + 84 + artH + 34;
+  var blh = this.bodyLH || 34;
   for (var i = 0; i < lines.length; i++) {
-    Draw.text(ctx, lines[i], CFG.W / 2, ty + i * 34, {
-      size: 24, color: PAL.cream, align: 'center', weight: '700'
+    Draw.text(ctx, lines[i], CFG.W / 2, ty + i * blh, {
+      size: this.bodySize || 24, color: PAL.cream, align: 'center', weight: '700'
     });
   }
-  var sy = ty + 12 + lines.length * 34;
+  var sy = ty + 12 + lines.length * blh;
+  /* the glossary band, between the body and the source */
+  var tl = this.termLines || [];
+  if (tl.length) {
+    sy += 4;
+    for (i = 0; i < tl.length; i++) {
+      Draw.text(ctx, tl[i].s, CFG.W / 2, sy + i * 24, {
+        size: 17, color: 'rgba(255,240,214,.78)', align: 'center', weight: '700'
+      });
+    }
+    sy += tl.length * 24 + 10;
+  }
   for (i = 0; i < this.srcLines.length; i++) {
     Draw.text(ctx, this.srcLines[i], CFG.W / 2, sy + i * 26, {
       size: 17, color: 'rgba(255,207,92,.62)', align: 'center', weight: '700'
@@ -5947,9 +6086,9 @@ Result.prototype.render = function (ctx) {
     for (var s = 0; s < 3; s++) {
       var pop = clamp((t - 0.35 - s * 0.18) / 0.3, 0, 1);
       var on = s < this.stars;
-      /* each earned star lands with a little overshoot */
+      /* each earned Magen David lands with a little overshoot */
       var r = on ? 30 * (0.5 + 0.6 * easeOut(pop) - 0.1 * easeOut(pop) * (1 - pop)) : 30;
-      drawStar(ctx, CFG.W / 2 + (s - 1) * 76, y + 176, r, on && pop > 0);
+      drawMagen(ctx, CFG.W / 2 + (s - 1) * 76, y + 176, r, on && pop > 0);
     }
   } else {
     /* show what is still missing so the retry has a plan */
@@ -6139,7 +6278,7 @@ window.KC = {
   Game: Game, Play: Play, Board: Board, Nusach: Nusach, Lang: Lang, View: View,
   FOODS: FOODS, LEVELS: LEVELS, Progress: Progress, TEACH: TEACH, NUSACHS: NUSACHS,
   WHY_CARD: WHY_CARD, KID_LINES: KID_LINES, KID_HUNGRY: KID_HUNGRY,
-  CFG: CFG, Sprite: Sprite,
+  CFG: CFG, Sprite: Sprite, Teach: Teach,
   plateAccepts: plateAccepts, emptyPlate: emptyPlate, addToPlate: addToPlate,
   plateSide: plateSide, foodByName: foodByName,
   /* the icon builder paints the same food art the game uses */

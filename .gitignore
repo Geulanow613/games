@@ -1,3 +1,11 @@
 node_modules/
 test-results/
 .cursor/
+
+# Scratch / temporary files
+_*
+*.png
+_to_delete
+__pycache__/
+*.claude-merge-conflict
+.kotlin/
