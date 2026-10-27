@@ -3679,7 +3679,7 @@ var GAMES = [
   /* own engine - the Play tab host swaps HTML; standalone opens the sibling.
      Wide leftover tile under the six arcade pairs. */
   { id:'sukkah',  name:'Sukkah Scramble', tag:'', icon:'sukkah', color:'#d1975a', external: true },
-  { id:'shabbat', name:'Shabbat Sprint', tag:'Help Needy Families get their Shabbat necessities!', icon:'surf', color:'#e0b15a', external: true }
+  { id:'shabbat', name:'Shabbat Sprint', tag:'Help Needy Families get their Shabbat necessities!', icon:'surf', color:'#e0b15a', external: true, isNew: true }
 ];
 /* what the Play tab grid actually shows */
 var VISIBLE_GAMES = GAMES.filter(function (g) { return !g.hidden; });
@@ -3853,6 +3853,23 @@ var Screens = {
       Draw.text(ctx, 'BEST  ' + fmt(best), x + w / 2, pillY + pillH / 2, {
         size: 16, color: best > 0 ? C.gold : 'rgba(255,255,255,.4)', align: 'center', weight: '800'
       });
+    }
+    /* a bright green NEW! flag on a game that just arrived (top right corner) */
+    if (g.isNew) {
+      var bw = 84, bh = 34, bx = b.x + b.w - bw + 8, by = b.y - 10;
+      var pul = 1 + Math.sin(t * 5) * 0.05;
+      ctx.save();
+      ctx.translate(bx + bw / 2, by + bh / 2);
+      ctx.rotate(0.12);
+      ctx.scale(pul, pul);
+      ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+      Draw.rr(ctx, -bw / 2, -bh / 2, bw, bh, 12);
+      ctx.fillStyle = '#2cff5a';
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.lineWidth = 3; ctx.strokeStyle = '#0a5a1c'; ctx.stroke();
+      Draw.text(ctx, Lang.id() === 'he' ? 'חדש!' : 'NEW!', 0, 1, { size: 22, color: '#04310f', align: 'center', weight: '900' });
+      ctx.restore();
     }
     ctx.restore();
   },
