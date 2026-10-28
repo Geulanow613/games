@@ -6307,6 +6307,13 @@ SS.World = {
     var bunch = floaty && SS.Sim.skin(s, 'balloons') !== 'jetpack' ? Math.min(1, s.py / 3) : 0;
     W.camBunch = (W.camBunch || 0) + (bunch - (W.camBunch || 0)) * Math.min(1, dt * 4);
     var ty = (title ? 1.9 : 3.25) + s.py * (floaty ? 0.95 : 0.55) + (s.giantT > 0 ? 1.4 : 0) + (s.sled ? 0.4 : 0) + W.camBunch * 1.6;
+    /* the secret plank bridge is a ceiling over the street: while he is near or under it the camera stays below it,
+       so the deck never hides him (flying on the hoverboard or balloons used to put the camera above the deck) */
+    for (var li = 0; li < s.solids.length && !title; li++) {
+      var lo = s.solids[li];
+      if (!lo.loft || lo.dead || lo.z1 < s.z - 9 || lo.z0 > s.z + 7) continue;
+      ty = Math.min(ty, lo.y0 - 0.3);
+    }
     W.camX += (tx - W.camX) * Math.min(1, dt * 7);
     W.camY += (ty - W.camY) * Math.min(1, dt * 6);
     var baseFov = W.camera.aspect < 0.7 ? 62 : 52;
