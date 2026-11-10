@@ -3333,6 +3333,10 @@ var Game = {
 
   /* ------------------------------------------------------ game lifecycle */
   startGame: function (id) {
+    if (id === 'chaimcraft') {
+      MitzHost.open('chaimcraft');
+      return;
+    }
     if (id === 'chain') {
       MitzHost.open('kosher-chain');
       return;
@@ -3698,6 +3702,7 @@ MiniGame.prototype.interstitial = function (cb) {
    16. SCREENS - MAIN MENU + HALACHA GALLERY
    ========================================================================== */
 var GAMES = [
+  { id:'chaimcraft', name:'ChaimCraft', tag:'Build. Explore. Do mitzvos!', icon:'sukkah', color:'#5ee0c0', external: true, isNew: true },
   { id:'menorah', name:'Menorah Keeper', tag:'Chanukah survival',         icon:'lamp',  color:'#ffcf5c' },
   { id:'shul',    name:'Shul Crossing',  tag:'Thirty-walk dash',          icon:'run',   color:'#7fc8ff' },
   { id:'kosher',  name:'Kosher Sort',    tag:'Dual-belt dash',            icon:'split', color:'#8ee06a' },
@@ -3721,6 +3726,10 @@ var MitzHost = {
   open: function (game) {
     if (window.MITZ_MODE === true) {
       try { location.href = 'mitz://game/' + game; } catch (e) {}
+      return true;
+    }
+    if (game === 'chaimcraft') {
+      location.href = 'chaimcraft/index.html';
       return true;
     }
     if (game === 'kosher-chain' || game === 'chain') {
