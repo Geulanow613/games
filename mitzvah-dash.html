@@ -407,7 +407,7 @@ var Lang = {
     'DASH': 'דאש',
     'Shabbat Sprint': 'ספרינט שבת',
     'Help Needy Families get their Shabbat necessities!': 'עזרו למשפחות נזקקות להשיג את צרכי השבת!',
-    'Eight arcade games. Play and learn.': 'שמונה משחקים. משחקים ולומדים.',
+    'Nine arcade games. Play and learn.': 'תשעה משחקים. משחקים ולומדים.',
     'Camp Kosh': 'קעמפ כשר',
     'Feed the boys, keep it kosher': 'תאכיל את הבחורים, תשמור על כשרות',
     'Sukkah Scramble': 'מרוץ הסוכה',
@@ -3808,7 +3808,7 @@ var Screens = {
         size: 64, color: C.cream, align: 'center', weight: '900',
         stroke: 'rgba(0,0,0,.6)', strokeW: 8, shadow: 'rgba(120,200,255,.4)', shadowBlur: 24
       });
-      Draw.text(ctx, 'Eight arcade games. Play and learn.', CFG.W / 2, top + 212, {
+      Draw.text(ctx, 'Nine arcade games. Play and learn.', CFG.W / 2, top + 212, {
         size: 22, color: 'rgba(255,255,255,.72)', align: 'center', weight: '600'
       });
 
@@ -3951,7 +3951,7 @@ var Screens = {
     var cw = 300, ch = tall ? 128 : 152, gap = tall ? 10 : 12;
     var wideH = tall ? 112 : 128;
     var x0 = (CFG.W - (cw * 2 + gap)) / 2;
-    var y0 = View.safe.t + (tall ? 292 : 312);
+    var y0 = View.safe.t + (tall ? 314 : 334);
     var i, btn;
     // Feature ChaimCraft above the paired arcade tiles.
     var featured = list.find(function (g) { return g.id === 'chaimcraft'; });

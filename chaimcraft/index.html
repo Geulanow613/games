@@ -1929,7 +1929,7 @@ function updatePlaceButton(force){
   else if(player.sel==='sapling'){ctx={kind:'plant'};lab=T('Plant','לשתול');icon='🌱';}
   else if(player.sel==='mezuzah'){ctx={kind:'mezuzah'};lab=T('Mezuzah','מזוזה');icon='📜';}
   else{ctx={kind:'place'};lab=T('Build','לבנות');icon='▣';}
-  const key=lab+icon;if(key!==ctxLabel||force){ctxLabel=key;$('placeLabel').textContent=lab;$('placeIcon').textContent=icon;}
+  const key=lab+icon;if(key!==ctxLabel||force){ctxLabel=key;if(!$('bPlace').dataset.controlCustomized){$('placeLabel').textContent=lab;$('placeIcon').textContent=icon;}}
 }
 function doUse(){
   if(modalOpen||!playing)return;updatePlaceButton();
@@ -7248,7 +7248,7 @@ function openHero(after){const h=heroDraft||(heroDraft=Object.assign({name:'',gi
   document.querySelectorAll('[data-hk]').forEach(b=>b.onclick=()=>{keep();h[b.dataset.hk]=+b.dataset.hv;PROG.hero=Object.assign({},h,{name:h.name||(h.girl?T('Chana','חנה'):T('Chaim','חיים'))});applyHero();openHero(after);});
   $('hGo').onclick=()=>{keep();if(!h.name){$('hName').style.borderColor='#ff6a6a';$('hName').focus();return;}PROG.hero=Object.assign({},h);heroDraft=null;applyHero();saveGame();applyLang();/* labels with {NAME} pick up the new name */closeModal();sfx('mitzvah',.5);if(MODE==='hub'){save0Shown=true;toast(T('Shalom, {NAME}! Saba needs your help — follow the arrow.','שלום, {NAME}! סבא צריך עזרה — לכו לפי החץ.'),4.5);}after&&after();};}
 // first play of a game with no hero yet: ask (the welcome guide waits until you're done)
-{const _og=openGuide;openGuide=function(i){if(!PROG.hero&&!QA)return;return _og(i);};}
+{const _og=openGuide;openGuide=function(i,back){return _og(i,back);};}
 {const _sp2=startPlaying;startPlaying=function(){_sp2();if(!PROG.hero){if(QA){PROG.hero={name:'Chaim',girl:false,skin:0,hair:0,out:0};return;}setTimeout(()=>openHero(()=>{if(!PROG.seenIntro.guide)openGuide(0);}),120);}};}
 setTimeout(()=>{if(PROG.hero)applyHero();},0);
 window.HERO_QA={openHero,applyHero,T:(en,he)=>T(en,he),get extra(){return heroExtra;}};
@@ -9129,6 +9129,200 @@ const SPR_H={cow:1.5,goat:1.15,deer:1.45,camel:2.1,rabbit:.8,sheep:1.05,chicken:
 {const _t=makeMikdashMenorah;makeMikdashMenorah=function(){const g=_t.apply(this,arguments);sprSkin(g,'menorah',2.0,{});return g;};}// the seven-branch Beis HaMikdash menorah only (Chanukah's has nine branches)
 if(QA){window.SPR_QA={SPR,SPR_FILES,sprFrameIndex,sprSkin,get sprOff(){return sprOff;},set sprOff(v){sprOff=v;}};window.SPR_MK={makeAnimal,makeChicken,makeMonkey,makeEagle,makePigeon,makePetModel,makeIbex,makeMikdashMenorah,makeMenorah,makeSheep};}
 
+
+// Saved input profiles. Translate to the game's existing actions so all input
+// devices share the same gameplay rules, menus, hold-to-charge and cooldowns.
+const CONTROL_ACTIONS=[
+ ['forward','Walk forward','הליכה קדימה','KeyW',['KeyW','ArrowUp']],
+ ['back','Walk backward','הליכה אחורה','KeyS',['KeyS','ArrowDown']],
+ ['left','Walk left','הליכה שמאלה','KeyA',['KeyA','ArrowLeft']],
+ ['right','Walk right','הליכה ימינה','KeyD',['KeyD','ArrowRight']],
+ ['jump','Jump / swim up / climb','קפיצה / שחייה למעלה / טיפוס','Space',['Space']],
+ ['run','Run (hold while moving)','ריצה (להחזיק תוך כדי תנועה)','KeyZ',['KeyZ']],
+ ['attack','Attack / charge special (hold)','תקיפה / טעינת מתקפה מיוחדת (להחזיק)','KeyR',['KeyR']],
+ ['dig','Dig (hold)','חפירה (להחזיק)','dig',['Mouse0']],
+ ['shield','Shield / aim reflection (hold)','מגן / כיוון ההחזרה (להחזיק)','KeyF',['Mouse2','ShiftLeft','ShiftRight','KeyF']],
+ ['build','Place block','הנחת בלוק','build',['Mouse2Tap']],
+ ['use','Talk / use / eat','דיבור / שימוש / אכילה','KeyE',['KeyE']],
+ ['camera','Switch camera','החלפת מצלמה','KeyV',['KeyV']],
+ ['craft','Workbench / crafting','שולחן עבודה / יצירה','KeyC',['KeyC']],
+ ['journey','Journey / quests','המסע / משימות','KeyL',['KeyL','KeyM','KeyJ','Tab']],
+ ['next','Next hotbar slot','המשבצת הבאה בסרגל','KeyQ',['KeyQ']],
+ ['previous','Previous hotbar slot','המשבצת הקודמת בסרגל','previous',['WheelUp']],
+ ['map','Island map','מפת האי','KeyN',['KeyN']],
+ ['stones','Choshen stones','אבני החושן','KeyB',['KeyB']],
+ ['inventory','Inventory','תיק','KeyI',['KeyI']],
+ ['hover','Hover (when unlocked)','ריחוף (לאחר פתיחה)','KeyH',['KeyH']],
+ ['prayer','Prayer / before Shabbat','תפילה / ערב שבת','KeyT',['KeyT']],
+ ['pause','Pause / close menu','השהיה / סגירת תפריט','Escape',['Escape','KeyP']],
+ ...Array.from({length:9},(_,i)=>['slot'+i,'Hotbar slot '+(i+1),'משבצת '+(i+1)+' בסרגל','Digit'+(i+1),['Digit'+(i+1),'Numpad'+(i+1)]])
+];
+const PAD_DEFAULT={jump:0,use:2,attack:7,shield:6,dig:5,build:4,run:10,inventory:3,camera:11,journey:8,pause:9,next:1,map:12,craft:13,prayer:14,stones:15};
+const TOUCH_DEFAULT={bAtk:'attack',bPlace:'use',bShield:'shield',bBreak:'dig',bJump:'jump',bSprint:'run'};
+let controlProfile;
+try{controlProfile=JSON.parse(localStorage.getItem('chaimcraft.controls.v1')||'null');}catch(_){}
+if(!controlProfile||typeof controlProfile!=='object')controlProfile={};
+for(const key of ['keyboard','pad','touch'])if(!controlProfile[key]||typeof controlProfile[key]!=='object')controlProfile[key]={};
+const optDefault={touchScale:1,touchOpacity:1,leftHand:false,touchSpeed:1,padSpeed:1,deadzone:.18,invertPad:false,swapSticks:false};
+for(const key in optDefault)if(typeof controlProfile[key]!==typeof optDefault[key])controlProfile[key]=optDefault[key];
+const actionById=id=>CONTROL_ACTIONS.find(a=>a[0]===id);
+const actionName=a=>LANG==='he'?a[2]:a[1]; // Device names/keys must not be rewritten as touch tips.
+const bindingFor=a=>Array.isArray(controlProfile.keyboard[a[0]])?controlProfile.keyboard[a[0]]:(a[0]==='next'?[...a[4],'WheelDown']:a[4]);
+const padFor=a=>Object.hasOwn(controlProfile.pad,a[0])?controlProfile.pad[a[0]]:(PAD_DEFAULT[a[0]]??-1);
+const touchFor=id=>controlProfile.touch[id]||TOUCH_DEFAULT[id];
+const escapeControl=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function saveControls(){try{localStorage.setItem('chaimcraft.controls.v1',JSON.stringify(controlProfile));}catch(_){}applyTouchProfile();}
+function controlTokenName(code){
+ if(code==='WheelUp'||code==='WheelDown')return LANG==='he'?(code==='WheelUp'?'גלגלת למעלה':'גלגלת למטה'):(code==='WheelUp'?'Wheel up':'Wheel down');
+ const names={Mouse0:['Left mouse','לחצן עכבר שמאלי'],Mouse1:['Middle mouse','לחצן עכבר אמצעי'],Mouse2:['Right mouse (hold)','לחצן עכבר ימני (להחזיק)'],Mouse2Tap:['Right mouse (quick click)','לחצן עכבר ימני (לחיצה קצרה)'],Space:['Space','רווח'],Escape:['Esc','Esc'],ArrowUp:['↑','↑'],ArrowDown:['↓','↓'],ArrowLeft:['←','←'],ArrowRight:['→','→']};
+ return names[code]?names[code][LANG==='he'?1:0]:code.replace(/^Key|^Digit/,'').replace('Left',' L').replace('Right',' R');
+}
+const generatedControlEvents=new WeakSet(), heldControlSources=new Map();
+function emitControl(id,down,source){
+ const a=actionById(id);if(!a)return;
+ const before=[...heldControlSources.values()].includes(id);
+ if(down)heldControlSources.set(source,id);else heldControlSources.delete(source);
+ const after=[...heldControlSources.values()].includes(id);
+ if(before===after)return;
+ if(a[3]==='dig'){mouseDig=after;return;}
+ if(a[3]==='build'){if(after&&playing&&!modalOpen)placeBlock();return;}
+ if(a[3]==='previous'){if(after&&playing&&!modalOpen)cycleSlot(-1);return;}
+ const event=new KeyboardEvent(after?'keydown':'keyup',{code:a[3],bubbles:true,cancelable:true});
+ generatedControlEvents.add(event);document.dispatchEvent(event);
+}
+function clearControlSources(){for(const [source,id]of [...heldControlSources])emitControl(id,false,source);}
+const originalReleaseInputs=releaseInputs;
+releaseInputs=function(){clearControlSources();originalReleaseInputs();sprintToggle=false;};
+let captureBinding=null;
+let controlsBack=null;
+function bindToken(token){
+ const id=captureBinding;if(!id)return;
+ for(const a of CONTROL_ACTIONS)if(a[0]!==id&&bindingFor(a).includes(token))controlProfile.keyboard[a[0]]=bindingFor(a).filter(t=>t!==token);
+ controlProfile.keyboard[id]=[token];captureBinding=null;releaseInputs();saveControls();openControls('keyboard',controlsBack);
+}
+for(const type of ['keydown','keyup'])window.addEventListener(type,e=>{
+ if(generatedControlEvents.has(e))return;
+ if(captureBinding){e.preventDefault();e.stopImmediatePropagation();if(type==='keydown'&&!e.repeat){if(e.code==='Escape'){captureBinding=null;openControls('keyboard',controlsBack);}else if(!e.metaKey&&!e.ctrlKey)bindToken(e.code);}return;}
+ if(e.target?.matches('input,select,textarea,[contenteditable="true"]'))return;
+ if(type==='keyup'){
+   const sources=[...heldControlSources.keys()].filter(s=>s.startsWith('key:'+e.code+':'));
+   if(sources.length){e.preventDefault();e.stopImmediatePropagation();for(const s of sources)emitControl(heldControlSources.get(s),false,s);return;}
+ }
+ if(!playing||modalOpen)return;
+ const actions=CONTROL_ACTIONS.filter(a=>bindingFor(a).includes(e.code));
+ const reserved=CONTROL_ACTIONS.some(a=>a[4].includes(e.code));
+ if(!actions.length&&!reserved)return;
+ e.preventDefault();e.stopImmediatePropagation();if(e.repeat)return;
+ for(const a of actions)emitControl(a[0],type==='keydown','key:'+e.code+':'+a[0]);
+},true);
+window.addEventListener('wheel',e=>{if(captureBinding){e.preventDefault();e.stopImmediatePropagation();bindToken(e.deltaY>0?'WheelDown':'WheelUp');}},{capture:true,passive:false});
+view.addEventListener('wheel',e=>{
+ if(captureBinding){e.preventDefault();e.stopImmediatePropagation();bindToken(e.deltaY>0?'WheelDown':'WheelUp');return;}
+ if(!playing||modalOpen)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ for(const a of CONTROL_ACTIONS)if(bindingFor(a).includes(e.deltaY>0?'WheelDown':'WheelUp')){emitControl(a[0],true,'wheel:'+a[0]);emitControl(a[0],false,'wheel:'+a[0]);}
+},{capture:true,passive:false});
+let controlRightAt=0;
+for(const type of ['mousedown','mouseup'])window.addEventListener(type,e=>{
+ if(captureBinding){e.preventDefault();e.stopImmediatePropagation();if(type==='mousedown')bindToken('Mouse'+e.button);return;}
+ if(type==='mouseup'){
+   for(const [source,id]of [...heldControlSources])if(source.startsWith('mouse:'+e.button+':'))emitControl(id,false,source);
+ }
+ if(!playing||modalOpen||!(e.target===view||document.pointerLockElement===view))return;
+ if(type==='mousedown'&&document.pointerLockElement!==view&&!QA)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ if(type==='mousedown'&&e.button===2)controlRightAt=performance.now();
+ for(const a of CONTROL_ACTIONS)if(bindingFor(a).includes('Mouse'+e.button))emitControl(a[0],type==='mousedown','mouse:'+e.button+':'+a[0]);
+ if(type==='mouseup'&&e.button===2&&performance.now()-controlRightAt<230){for(const a of CONTROL_ACTIONS)if(bindingFor(a).includes('Mouse2Tap')){emitControl(a[0],true,'click:'+a[0]);emitControl(a[0],false,'click:'+a[0]);}}
+},true);
+
+// Touch layout customization keeps the joystick's pointer geometry intact.
+const touchStyle=document.createElement('style');document.head.appendChild(touchStyle);
+function applyTouchProfile(){
+ const scale=clamp(+controlProfile.touchScale||1,.7,1.4),opacity=clamp(+controlProfile.touchOpacity||1,.25,1);
+ touchStyle.textContent='#touch{opacity:'+opacity+'}#actGrid{transform:scale('+scale+');transform-origin:bottom right}#stick,#bSprint{scale:'+scale+'}'+(controlProfile.leftHand?'#stick{left:auto;right:calc(22px + var(--safe-r))}#bSprint{left:auto;right:calc(22px + var(--safe-r) + (var(--st) - var(--rb))/2)}#actGrid{right:auto;left:calc(18px + var(--safe-l));transform-origin:bottom left}':'');
+ for(const id in TOUCH_DEFAULT){const b=$(id),a=actionById(touchFor(id));if(!b||!a)continue;b.setAttribute('aria-label',actionName(a));if(!b.dataset.controlOriginal)b.dataset.controlOriginal=b.innerHTML;if(touchFor(id)!==TOUCH_DEFAULT[id]){let label=b.querySelector('small');if(!label){label=document.createElement('small');b.appendChild(label);}label.textContent=actionName(a);label.dataset.en=a[1];label.dataset.he=a[2];b.dataset.controlCustomized='1';}else if(b.dataset.controlCustomized){b.innerHTML=b.dataset.controlOriginal;delete b.dataset.controlCustomized;for(const label of b.querySelectorAll('[data-en]'))label.textContent=LANG==='he'?label.dataset.he:label.dataset.en;}}
+ if(playing)updatePlaceButton(true);
+}
+for(const id in TOUCH_DEFAULT){
+ const button=$(id);if(!button)continue;
+ button.addEventListener('pointerdown',e=>{
+   if(!playing||modalOpen)return;
+   // Keep native shield dragging and contextual Use behavior for defaults.
+   if(touchFor(id)===TOUCH_DEFAULT[id])return;
+   e.preventDefault();e.stopImmediatePropagation();button.setPointerCapture(e.pointerId);button.classList.add('on');emitControl(touchFor(id),true,'touch:'+id);
+ },true);
+ for(const type of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(type,e=>{const source='touch:'+id;if(heldControlSources.has(source)){e.preventDefault();e.stopImmediatePropagation();emitControl(heldControlSources.get(source),false,source);button.classList.remove('on');}},true);
+}
+// Existing touch-look handler receives scaled coordinates through its own state.
+view.addEventListener('pointermove',e=>{if(e.pointerId===lookId&&lookLast&&playing&&!modalOpen){const factor=clamp(+controlProfile.touchSpeed||1,.4,2);const s=TOUCH?.0062:.004;player.yaw-=(e.clientX-lookLast.x)*s*(factor-1);player.pitch=clamp(player.pitch-(e.clientY-lookLast.y)*s*(factor-1),-1.45,1.35);}},true);
+applyTouchProfile();
+
+let padPrevious=new Set(),padLast=performance.now(),controlPadStatus='';
+function pollControlPad(){
+ const now=performance.now(),dt=Math.min(.05,(now-padLast)/1000);padLast=now;
+ let pad;try{pad=Array.from(navigator.getGamepads?.()||[]).find(p=>p?.connected&&p.mapping==='standard');}catch(_){}
+ controlPadStatus=pad?pad.id:'';
+ const active=!!pad&&playing&&!modalOpen&&!document.hidden;
+ const next=new Set();
+ if(active){
+  for(const a of CONTROL_ACTIONS){const index=padFor(a);if(index>=0&&pad.buttons[index]?.pressed)next.add(a[0]);}
+  const dz=clamp(+controlProfile.deadzone||.18,.05,.5),axis=i=>{const v=pad.axes[i]||0;return Math.abs(v)<dz?0:Math.sign(v)*(Math.abs(v)-dz)/(1-dz);};
+  const move=controlProfile.swapSticks?2:0,look=controlProfile.swapSticks?0:2;
+  if(axis(move)<-.2)next.add('left');if(axis(move)>.2)next.add('right');if(axis(move+1)<-.2)next.add('forward');if(axis(move+1)>.2)next.add('back');
+  const dx=axis(look)*dt*2.4*controlProfile.padSpeed,dy=axis(look+1)*dt*2*controlProfile.padSpeed*(controlProfile.invertPad?-1:1);
+  if(player.shieldUp&&typeof swingShield==='function')swingShield(dx,dy);
+  else{player.yaw-=dx;player.pitch=clamp(player.pitch-dy,-1.45,1.35);}
+ }
+ for(const id of padPrevious)if(!next.has(id))emitControl(id,false,'pad:'+id);
+ for(const id of next)if(!padPrevious.has(id)){if(!playing||modalOpen)break;emitControl(id,true,'pad:'+id);}
+ padPrevious=next;
+ const status=$('controlPadStatus');if(status)status.textContent=controlPadStatus||(LANG==='he'?'חברו בקר ולחצו על כפתור. נדרש בקר עם מיפוי רגיל.':'Connect a controller and press a button. A standard-mapped controller is required.');
+ requestAnimationFrame(pollControlPad);
+}
+requestAnimationFrame(pollControlPad);
+addEventListener('gamepaddisconnected',()=>{for(const id of padPrevious)emitControl(id,false,'pad:'+id);padPrevious.clear();});
+
+function openControls(tab='keyboard',back){
+ releaseInputs();captureBinding=null;
+ controlsBack=back||null;
+ const text=(en,he)=>LANG==='he'?he:en;
+ const option=(value,label,selected)=>'<option value="'+escapeControl(value)+'"'+(selected?' selected':'')+'>'+escapeControl(label)+'</option>';
+ const row=(label,html)=>'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #ffffff22"><span>'+escapeControl(label)+'</span>'+html+'</div>';
+ const selectStyle='style="max-width:52%;padding:8px;background:#29384c;color:white;border-radius:8px"';
+ const range=(key,label,min,max,step)=>row(label,'<input aria-label="'+escapeControl(label)+'" data-control-option="'+key+'" type="range" min="'+min+'" max="'+max+'" step="'+step+'" value="'+controlProfile[key]+'">');
+ const check=(key,label)=>row(label,'<input aria-label="'+escapeControl(label)+'" data-control-option="'+key+'" type="checkbox" '+(controlProfile[key]?'checked':'')+'>');
+ let content='';
+ if(tab==='keyboard'){
+  content='<p>'+text('Choose an action, then press a key or mouse button. Esc cancels. A reused binding moves to the new action.','בחרו פעולה ולחצו על מקש או לחצן עכבר. Esc מבטל. שיוך קיים עובר לפעולה החדשה.')+'</p>'+CONTROL_ACTIONS.map(a=>row(actionName(a),'<button class="chip" style="width:auto;max-width:52%;height:auto" data-rebind="'+a[0]+'">'+escapeControl(bindingFor(a).map(controlTokenName).join(' / ')||text('Unassigned','לא משויך'))+'</button>')).join('');
+  content+='<p>'+text('Mouse: look around. Mouse wheel: change hotbar slot. Hold attack to charge a special move. Double-tap forward to run. Esc always closes menus. Browser shortcuts are reserved.','עכבר: הסתכלות. גלגלת: החלפת משבצת בסרגל. מחזיקים תקיפה לטעינת מתקפה מיוחדת. לחיצה כפולה קדימה לריצה. Esc תמיד סוגר תפריטים. קיצורי הדפדפן שמורים.')+'</p>';
+  content+=row(text('Mouse look speed','מהירות הסתכלות בעכבר'),'<input aria-label="'+text('Mouse look speed','מהירות הסתכלות בעכבר')+'" data-control-setting="sens" type="range" min="0.4" max="2" step="0.1" value="'+(SETTINGS.sens||1)+'">')+row(text('Invert mouse vertical look','היפוך הסתכלות אנכית בעכבר'),'<input aria-label="'+text('Invert mouse vertical look','היפוך הסתכלות אנכית בעכבר')+'" data-control-setting="invertY" type="checkbox" '+(SETTINGS.invertY?'checked':'')+'>');
+ }else if(tab==='pad'){
+  content='<p id="controlPadStatus"></p><p>'+text('Left stick: walk. Right stick: look. Menu navigation uses touch or mouse.','מקל שמאלי: הליכה. מקל ימני: הסתכלות. ניווט בתפריטים בעזרת מגע או עכבר.')+'</p>';
+  const padLabels=['A / Cross','B / Circle','X / Square','Y / Triangle','LB / L1','RB / R1','LT / L2','RT / R2','Back / Select','Start / Options','LS / L3','RS / R3','D-pad ↑','D-pad ↓','D-pad ←','D-pad →','Home'];
+  content+=CONTROL_ACTIONS.map(a=>row(actionName(a),'<select '+selectStyle+' aria-label="'+escapeControl(actionName(a))+'" data-pad-bind="'+a[0]+'">'+option(-1,text('Unassigned','לא משויך'),padFor(a)===-1)+padLabels.map((label,i)=>option(i,label,padFor(a)===i)).join('')+'</select>')).join('');
+  content+=range('padSpeed',text('Look speed','מהירות הסתכלות'),.4,2,.1)+range('deadzone',text('Stick dead zone','אזור מת במקל'),.05,.5,.05)+check('invertPad',text('Invert vertical look','היפוך הסתכלות אנכית'))+check('swapSticks',text('Swap move and look sticks','החלפת מקלי תנועה והסתכלות'));
+ }else{
+  content='<p>'+text('Joystick: walk. Drag the world: look. Tap the hotbar to select items. Tap the top buttons for map, camera and pause. Hold Attack to charge; hold Shield and slide to aim.','מקל: הליכה. גוררים על העולם כדי להסתכל. נוגעים בסרגל לבחירת פריטים. כפתורים עליונים: מפה, מצלמה והשהיה. מחזיקים תקיפה לטעינה; מחזיקים מגן ומחליקים לכיוון.')+'</p>';
+  for(const id in TOUCH_DEFAULT)content+=row(text('Button: ','כפתור: ')+actionName(actionById(TOUCH_DEFAULT[id])),'<select '+selectStyle+' aria-label="'+escapeControl(actionName(actionById(TOUCH_DEFAULT[id])))+'" data-touch-bind="'+id+'">'+CONTROL_ACTIONS.map(a=>option(a[0],actionName(a),touchFor(id)===a[0])).join('')+'</select>');
+  content+=range('touchScale',text('Button size','גודל כפתורים'),.7,1.4,.1)+range('touchOpacity',text('Button opacity','אטימות הכפתורים'),.25,1,.05)+range('touchSpeed',text('Look speed','מהירות הסתכלות'),.4,2,.1)+check('leftHand',text('Left-handed layout','פריסה לשמאליים'));
+ }
+ openModal('<div class="panel" dir="'+(LANG==='he'?'rtl':'ltr')+'" style="width:min(96vw,660px)"><h2>'+text('Controls','שליטה')+'</h2><div role="tablist" style="display:flex;flex-wrap:wrap;gap:6px">'+[['keyboard','Keyboard & mouse','מקלדת ועכבר'],['pad','Gamepad','בקר משחק'],['touch','Touch','מגע']].map(t=>'<button role="tab" aria-selected="'+(tab===t[0])+'" class="chip" style="width:auto" data-control-tab="'+t[0]+'">'+text(t[1],t[2])+'</button>').join('')+'</div><div class="scrollList" style="max-height:55vh;overflow-y:auto;overscroll-behavior:contain;font-size:14px">'+content+'</div><p id="controlCapture" aria-live="polite"></p><div class="row"><button class="btn alt" id="controlReset">'+text('Reset this tab','איפוס לשונית')+'</button><button class="btn" id="controlDone">'+text('Back','חזרה')+'</button></div></div>');
+ for(const b of document.querySelectorAll('[data-control-tab]'))b.onclick=()=>openControls(b.dataset.controlTab,back);
+ for(const b of document.querySelectorAll('[data-rebind]'))b.onclick=()=>{captureBinding=b.dataset.rebind;$('controlCapture').textContent=text('Press a key or mouse button. Esc to cancel.','לחצו על מקש או לחצן עכבר. Esc לביטול.');};
+ for(const s of document.querySelectorAll('[data-pad-bind]'))s.onchange=()=>{const value=+s.value;for(const a of CONTROL_ACTIONS)if(a[0]!==s.dataset.padBind&&value>=0&&padFor(a)===value)controlProfile.pad[a[0]]=-1;controlProfile.pad[s.dataset.padBind]=value;saveControls();openControls(tab,back);};
+ for(const s of document.querySelectorAll('[data-touch-bind]'))s.onchange=()=>{controlProfile.touch[s.dataset.touchBind]=s.value;saveControls();};
+ for(const s of document.querySelectorAll('[data-control-option]'))s.oninput=()=>{controlProfile[s.dataset.controlOption]=s.type==='checkbox'?s.checked:+s.value;saveControls();};
+ for(const s of document.querySelectorAll('[data-control-setting]'))s.oninput=()=>{SETTINGS[s.dataset.controlSetting]=s.type==='checkbox'?s.checked:+s.value;writeSettings();};
+ $('controlReset').onclick=()=>{controlProfile[tab==='keyboard'?'keyboard':tab==='pad'?'pad':'touch']={};if(tab==='keyboard'){SETTINGS.sens=1;SETTINGS.invertY=false;writeSettings();}for(const key in optDefault)if(tab==='touch'?key.startsWith('touch')||key==='leftHand':tab==='pad'?!key.startsWith('touch')&&key!=='leftHand':false)controlProfile[key]=optDefault[key];saveControls();openControls(tab,back);};
+ $('controlDone').onclick=()=>{captureBinding=null;closeModal();back?back():openGuide(0);};
+}
+const guideWithControls=openGuide;
+openGuide=function(page=0,back){
+ const result=guideWithControls(page,back);
+ if($('gNext')){const button=document.createElement('button');button.className='btn alt';button.id='guideControls';button.textContent=LANG==='he'?'🎮 שליטה והתאמה אישית':'🎮 Controls & customization';button.onclick=()=>openControls('keyboard',()=>openGuide(page,back));$('gNext').parentElement.before(button);}
+ return result;
+};
 
 // ===== Main: renderer, save/load, loop =====
 let renderer;
