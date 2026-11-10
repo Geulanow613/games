@@ -705,11 +705,10 @@ function buildArena(){
 
 // ---- edits (saved as a diff on the generated world) ----
 const edits=new Map();
-function fruitEditAllowed(old,next){return !B[old]?.fruitTree||old===next||(bareOf[old]!==undefined&&bareOf[old]===next)||(bareOf[next]!==undefined&&bareOf[next]===old);}
 function setBlock(x,y,z,b){
-  if(!inWorld(x,y,z))return;const i=vidx(x,y,z);if(vox[i]===b)return;const old=vox[i];if(!fruitEditAllowed(old,b))return;vox[i]=b;edits.set(i,b);recomputeTop(x,z);markDirty(x,z);if(B[b].glow||B[old].glow)lightChanged(x,y,z,b);
+  if(!inWorld(x,y,z))return;const i=vidx(x,y,z);if(vox[i]===b)return;const old=vox[i];vox[i]=b;edits.set(i,b);recomputeTop(x,z);markDirty(x,z);if(B[b].glow||B[old].glow)lightChanged(x,y,z,b);
 }
-function applyEdits(list){for(let i=0;i+1<list.length;i+=2){const id=list[i],b=list[i+1];if(id>=0&&id<vox.length&&B[b]&&fruitEditAllowed(vox[id],b)){vox[id]=b;edits.set(id,b);}}for(let z=0;z<D;z++)for(let x=0;x<W;x++)recomputeTop(x,z);}
+function applyEdits(list){for(let i=0;i+1<list.length;i+=2){const id=list[i],b=list[i+1];if(id>=0&&id<vox.length&&B[b]){vox[id]=b;edits.set(id,b);}}for(let z=0;z<D;z++)for(let x=0;x<W;x++)recomputeTop(x,z);}
 function editList(){const out=[];edits.forEach((b,i)=>out.push(i,b));return out;}
 
 // ---- meshing ----
@@ -1887,7 +1886,6 @@ function digTick(dt){
   if(k>=1){breakBlock(target);mineT=0;mineKey='';}
 }
 function breakBlock(t){
-  if(B[t.b]?.fruitTree){harvest(t);return;}
   const b=t.b,bd=B[b];setBlock(t.x,t.y,t.z,AIR);onBlockBroken(t);extBroken(t);
   // plants on top fall too
   const above=getB(t.x,t.y+1,t.z);if(B[above].cross)setBlock(t.x,t.y+1,t.z,AIR);
@@ -5094,7 +5092,7 @@ function resizeThing(c,k){const o=c.o,old=o.sizeK||1,nk=clamp(old*k,.3,3.2);if(M
   sfx(nk>old?'boss':'ping',nk>old?.5:1);burst(c.c,nk>old?'#7aff7a':'#ff7af0',22,4,.9);floatAt(c.c.clone().add(V3(0,1.5*nk,0)),nk>old?T('GIANT!','ענק!'):T('tiny!','זעיר!'));achieve(nk>old?'giantize':'shrinkit');}
 // ---------- rockets and drills: blast blocks (never protected or unbreakable ones) ----------
 const rockets=[];
-function blastAt(c,R,dmg){let n=0;for(let y=Math.floor(c.y-R);y<=c.y+R;y++)for(let z=Math.floor(c.z-R);z<=c.z+R;z++)for(let x=Math.floor(c.x-R);x<=c.x+R;x++){if(y<1)continue;const d=Math.hypot(x+.5-c.x,y+.5-c.y,z+.5-c.z);if(d>R)continue;const b=getB(x,y,z);if(b===AIR||b===WATER||B[b].unbreakable||B[b].fruitTree||isProtectedCell(x,y,z))continue;setBlock(x,y,z,AIR);n++;}
+function blastAt(c,R,dmg){let n=0;for(let y=Math.floor(c.y-R);y<=c.y+R;y++)for(let z=Math.floor(c.z-R);z<=c.z+R;z++)for(let x=Math.floor(c.x-R);x<=c.x+R;x++){if(y<1)continue;const d=Math.hypot(x+.5-c.x,y+.5-c.y,z+.5-c.z);if(d>R)continue;const b=getB(x,y,z);if(b===AIR||b===WATER||B[b].unbreakable||isProtectedCell(x,y,z))continue;setBlock(x,y,z,AIR);n++;}
   burst(c,'#ffb04a',26,6,1.4);burst(c,'#5a5a5a',22,4,1.6);shockFx(c,R+1.5);sfxN('slam',1);impact(.08,.6);
   for(const e of enemies){if(e.dead||e.T.giant)continue;const d=enemyCenter(e).distanceTo(c);if(d<R+2+e.r)strike(e,dmg*(1-.5*d/(R+2+e.r)),2,'slam',{dir:V3(e.pos.x-c.x,0,e.pos.z-c.z),up:7,ranged:true,big:true,noIF:true,heavy:true,stop:0,shake:0});}
   if(n===0&&isProtectedCell(Math.floor(c.x),Math.floor(c.y),Math.floor(c.z))&&clockT>(AR().protT||0)){AR().protT=clockT+4;toast(T('This place is protected: the blast can’t break it.','המקום הזה מוגן: הפיצוץ לא שובר אותו.'),2.5);}return n;}
