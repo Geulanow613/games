@@ -203,7 +203,7 @@ body.desktop #touch{display:none}
     <div id="quest"><div id="questArrow"><i></i></div><div id="questText"></div></div>
     <div class="topBtns">
       <button class="roundBtn" id="bBag" aria-label="Inventory">🎒</button>
-      <button class="roundBtn" id="bMap" aria-label="Levels">🗺</button>
+      <button class="roundBtn" id="bMap" aria-label="Zone map">🗺</button>
       <button class="roundBtn" id="bScroll" aria-label="Mitzvah scroll">📜</button>
       <button class="roundBtn" id="bCam" aria-label="Camera">👁</button>
       <button class="roundBtn" id="bMenu" aria-label="Menu">❚❚</button>
@@ -260,7 +260,7 @@ body.desktop #touch{display:none}
     <button class="btn alt" id="bScroll3" style="display:none"><span data-en="📜 Mitzvah Scroll" data-he="📜 מגילת המצוות"></span></button>
     <div class="row"><button class="btn alt" id="bHow2"><span data-en="❓ How to play" data-he="❓ איך משחקים"></span></button><button class="btn alt" id="bSide2"><span data-en="📋 Side quests" data-he="📋 משימות צד"></span></button></div>
     <button class="btn alt" id="bCraft2"><span data-en="⚒ Workbench — tools, swords, shul things" data-he="⚒ שולחן עבודה — כלים, חרבות, לבית הכנסת"></span></button>
-    <div class="row"><button class="btn alt" id="bIsle"><span data-en="🏝 Island map" data-he="🏝 מפת האי"></span></button><button class="btn alt" id="bChoshen"><span data-en="💎 Choshen stones" data-he="💎 אבני החושן"></span></button></div>
+    <div class="row"><button class="btn alt" id="bIsle"><span data-en="🗺 Zone map" data-he="🗺 מפת האזור"></span></button><button class="btn alt" id="bChoshen"><span data-en="💎 Choshen stones" data-he="💎 אבני החושן"></span></button></div>
     <div class="row"><button class="btn alt" id="bChal"><span data-en="🏗 Build challenges" data-he="🏗 אתגרי בנייה"></span></button><button class="btn alt" id="bCreaBlocks"><span data-en="🧱 Creative blocks" data-he="🧱 בלוקים ליצירה"></span></button></div>
     <button class="btn alt" id="bMap2" style="display:none"><span data-en="🗺 Adventure map" data-he="🗺 מפת ההרפתקה"></span></button>
     <div class="row"><button class="btn alt" id="bAch2"><span data-en="🏆 Achievements" data-he="🏆 הישגים"></span></button><button class="btn alt" id="bWard2"><span data-en="👕 Wardrobe" data-he="👕 ארון בגדים"></span></button></div>
@@ -2013,7 +2013,7 @@ function toggleCam(){SETTINGS.firstPerson=!SETTINGS.firstPerson;writeSettings();
 $('bCam').onclick=e=>{e.stopPropagation();toggleCam();};
 $('bScroll').onclick=e=>{e.stopPropagation();openScroll();};
 $('bMenu').onclick=e=>{e.stopPropagation();pauseGame();};
-$('bMap').onclick=e=>{e.stopPropagation();openLevelMap();};
+$('bMap').onclick=e=>{e.stopPropagation();openIslandMap();};
 
 // ---- title & pause ----
 let playing=false;
@@ -3797,15 +3797,7 @@ function exploreTick(){const E=EXT(),p=player.pos;if(E.seen.length!==1024)E.seen
   for(let gz=Math.max(0,Math.floor((p.z-20)/4));gz<=Math.min(31,Math.floor((p.z+20)/4));gz++)for(let gx=Math.max(0,Math.floor((p.x-20)/4));gx<=Math.min(31,Math.floor((p.x+20)/4));gx++){if(s[gz*32+gx]==='0'&&Math.hypot(gx*4+2-p.x,gz*4+2-p.z)<20){s[gz*32+gx]='1';ch=true;}}
   if(ch){E.seen=s.join('');const n=s.filter(c=>c==='1').length;if(n>=700)achieve('explorer');}
   for(const P of EXTC.places){if(!E.found[P.id]&&Math.hypot(P.x-p.x,P.z-p.z)<8){E.found[P.id]=1;addXP(35);sfx('mitzvah');toast(T('You found: '+P.name.en+'!'+(P.more?' '+P.more[0]:''),'מצאת: '+P.name.he+'!'+(P.more?' '+P.more[1]:'')),P.more?4.5:3);countUp('found');if(Object.keys(E.found).length>=EXTC.places.length)achieve('allplaces');saveSoon();}}}
-function openIslandMap(back){const E=EXT(),S=256,c=document.createElement('canvas');c.width=c.height=S;const g=c.getContext('2d');const img=g.createImageData(S,S);const seen=E.seen.length===1024?E.seen:'0'.repeat(1024);
-  for(let z=0;z<D;z++)for(let x=0;x<W;x++){const known=seen[Math.floor(z/4)*32+Math.floor(x/4)]==='1';let col;if(!known)col=[214,196,150];else{let y=H-1,b=AIR;for(;y>=0;y--){b=getB(x,y,z);if(b!==AIR&&!B[b].cross)break;}if(b===WATER)col=[60,120,200];else{const t=tileColor[B[b].tex[0]]||[120,120,120];const k=.75+clamp((y-SEA)/30,0,.5);col=t.map(v=>v*k);}}
-    for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){const i=((z*2+dy)*S+x*2+dx)*4;img.data[i]=col[0];img.data[i+1]=col[1];img.data[i+2]=col[2];img.data[i+3]=255;}}
-  g.putImageData(img,0,0);g.font='16px sans-serif';g.textAlign='center';g.textBaseline='middle';
-  const mark=(x,z,t)=>{if(seen[Math.floor(z/4)*32+Math.floor(x/4)]==='1')g.fillText(t,x*2,z*2);};
-  mark(64,52,'🏠');mark(PLACES.pushka.x,PLACES.pushka.z,'🪙');mark(SIDE.field.x0+4,SIDE.field.z0+3,'🌾');mark(MEADOW.x,MEADOW.z,'🐐');for(const P of EXTC.places)if(E.found[P.id])mark(P.x,P.z,P.icon);
-  g.save();g.translate(player.pos.x*2,player.pos.z*2);g.rotate(-player.yaw);g.fillStyle='#ff3a4a';g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(0,-9);g.lineTo(6,7);g.lineTo(0,3);g.lineTo(-6,7);g.closePath();g.fill();g.stroke();g.restore();
-  const pct=Math.round(seen.split('').filter(v=>v==='1').length/1024*100);
-  openModal('<div class="panel" style="text-align:center"><h2>🏝 '+T('Island map','מפת האי')+'</h2><img src="'+c.toDataURL()+'" style="width:min(80vw,320px);image-rendering:pixelated;border-radius:12px;box-shadow:0 0 0 3px #d9b46a"><div class="npcText" style="font-size:14px;margin-top:6px">'+T('Explored: ','נחקר: ')+pct+'% · '+T('Hidden places found: ','מקומות חבויים: ')+Object.keys(E.found).length+' / '+EXTC.places.length+'</div><button class="btn" id="mpX">'+T('Close','סגירה')+'</button></div>');$('mpX').onclick=()=>{closeModal();back&&back();};}
+function openIslandMap(back){return openZoneMap(back);}
 function openChoshen(back){const E=EXT(),n=Object.keys(E.gems).length;
   const cell=(gm,i)=>{const got=E.gems[i];return'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:6px 2px;text-align:center"><div style="width:30px;height:30px;margin:0 auto;clip-path:polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%);background:'+(got?'radial-gradient(circle at 35% 30%,#fff,'+gm.c+' 45%,#111 120%)':'#3a4a5a')+'"></div><div style="font-weight:900;font-size:15px" dir="rtl">'+(got?gm.he:'?')+'</div><div style="font-size:11px;opacity:.8">'+(got?gm.en+' · '+gm.tr:T('not found yet','עוד לא נמצא'))+'</div></div>';};
   openModal('<div class="panel"><h2>'+T('The Choshen stones','אבני החושן')+'</h2><div class="npcText" style="font-size:13px;text-align:center">'+T('Dig deep with a copper pick to find gem rock. ','חופרים עמוק עם מכוש נחושת כדי למצוא סלע אבני חן. ')+n+' / 12</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0" dir="rtl">'+GEMS.map(cell).join('')+'</div>'+(n>=12?'<button class="btn alt" id="chC">'+T('Read the card','לקרוא את הכרטיס')+'</button>':'')+'<button class="btn" id="chX">'+T('Close','סגירה')+'</button></div>');
@@ -6345,7 +6337,7 @@ function openShabbosPanel(){const st=stTable(),c=(ok,txt)=>'<div style="margin:3
     T('Buy everything at the makolet. Then look at a table, hold the food, and press the green button to put it on. Every dish brings more guests!','קונים הכל במכולת. אחר כך מסתכלים על שולחן, מחזיקים את האוכל, ולוחצים על הכפתור הירוק כדי לשים אותו. כל מאכל מביא עוד אורחים!')+'</div><button class="btn" id="spOk">'+T('Let’s get ready!','בואו נתכונן!')+'</button></div>');$('spOk').onclick=closeModal;}
 function dayTickUI(dt){dayChipT-=dt;if(dayChipT>0)return;dayChipT=1;if(!dayEl){dayEl=document.createElement('div');dayEl.id='dayMoment';dayEl.style.cssText='position:fixed;top:54px;left:12px;z-index:6;display:none;padding:6px 14px;border-radius:999px;background:rgba(30,40,70,.82);color:#fff;font:700 13px sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)';
     dayEl.onclick=e=>{e.stopPropagation();const m=dayMoment();if(m)m.run();};document.body.appendChild(dayEl);}
-  const m=playing&&!modalOpen?dayMoment():null;dayEl.style.display=m?'block':'none';if(m&&dayEl.textContent!==m.lab)dayEl.textContent=m.lab;}
+  const m=playing&&!modalOpen?dayMoment():null;dayEl.style.display=m?'block':'none';if(m)dayEl.style.top=Math.ceil($('topbar').getBoundingClientRect().bottom+8)+'px';if(m&&dayEl.textContent!==m.lab)dayEl.textContent=m.lab;}
 addEventListener('keydown',e=>{if(e.code!=='KeyT'||!playing||modalOpen||e.repeat)return;const m=dayMoment();if(m){m.run();e.preventDefault();}});
 {const _ec3=extCtx;extCtx=function(){const t=target;if(MODE!=='level'&&t&&t.b===TABLE&&isErevShabbos()&&SHABBOS_ITEMS.includes(player.sel))return{lab:{en:'Put it on the Shabbos table',he:'לשים על שולחן השבת'},icon:'🕯️',run:()=>putOnTable(t)};return _ec3();};}
 {const _tt4=tipsTick;tipsTick=function(dt){_tt4(dt);daveningTick(dt);tableTick(dt);};}
@@ -6429,7 +6421,7 @@ function openChapter(k){const c=CAMP[k],s=storyAt(k),open=chapterOpen(k)||(AR().
 // the title screen, the pause menu and the map button all open the journey
 {const lab=$('bAdv').querySelector('span');if(lab){lab.dataset.en='🗺 {NAME}’s Journey — the campaign';lab.dataset.he='🗺 המסע של {NAME} — המסע הגדול';lab.textContent=T(lab.dataset.en,lab.dataset.he);}
   const m2=$('bMap2').querySelector('span');if(m2){m2.dataset.en='🗺 {NAME}’s Journey';m2.dataset.he='🗺 המסע של {NAME}';m2.textContent=T(m2.dataset.en,m2.dataset.he);}}
-setTimeout(()=>{for(const id of['bAdv','bMap2','bJourney','bMap'])if($(id))$(id).onclick=e=>{e&&e.stopPropagation&&e.stopPropagation();openCampaign();};},0);
+setTimeout(()=>{for(const id of['bAdv','bMap2','bJourney'])if($(id))$(id).onclick=e=>{e&&e.stopPropagation&&e.stopPropagation();openCampaign();};},0);
 window.CAMP_QA={mainLeft,MAIN_LEVELS,travel:(id,via)=>travelTo(id,via),CAMP,curChapter,chapterOpen,placeUnlocked,chMissions,openCampaign,openChapter,playLevel,levelUnlocked:i=>levelUnlocked(i)};
 
 // ===== A simpler main menu (Dan, 9 Nov 2026): Play (where you left off), New game, Load game, How to play, Options,
@@ -9149,7 +9141,7 @@ const CONTROL_ACTIONS=[
  ['journey','Journey / quests','המסע / משימות','KeyL',['KeyL','KeyM','KeyJ','Tab']],
  ['next','Next hotbar slot','המשבצת הבאה בסרגל','KeyQ',['KeyQ']],
  ['previous','Previous hotbar slot','המשבצת הקודמת בסרגל','previous',['WheelUp']],
- ['map','Island map','מפת האי','KeyN',['KeyN']],
+ ['map','Zone map','מפת האזור','KeyN',['KeyN']],
  ['stones','Choshen stones','אבני החושן','KeyB',['KeyB']],
  ['inventory','Inventory','תיק','KeyI',['KeyI']],
  ['hover','Hover (when unlocked)','ריחוף (לאחר פתיחה)','KeyH',['KeyH']],
@@ -9323,6 +9315,148 @@ openGuide=function(page=0,back){
  if($('gNext')){const button=document.createElement('button');button.className='btn alt';button.id='guideControls';button.textContent=LANG==='he'?'🎮 שליטה והתאמה אישית':'🎮 Controls & customization';button.onclick=()=>openControls('keyboard',()=>openGuide(page,back));$('gNext').parentElement.before(button);}
  return result;
 };
+
+// North-up, block-accurate zone maps. The terrain is sampled from the current
+// voxel world; exploration belongs to that zone, never to a different island.
+function zoneMapIdentity(){
+ if(MODE==='area'&&AREA)return{key:'area:'+AREA_ID,name:L(AREA.name)};
+ if(MODE==='level'&&LV)return{key:'level:'+LV.i,name:L(LV.def.name)};
+ return{key:'home',name:T('Home Island','אי הבית')};
+}
+function zoneMapSeen(){
+ const key=zoneMapIdentity().key;
+ if(key==='home')return EXT().seen?.length===1024?EXT().seen:'0'.repeat(1024);
+ if(!PROG.zoneMaps||typeof PROG.zoneMaps!=='object')PROG.zoneMaps={};
+ return PROG.zoneMaps[key]?.length===1024?PROG.zoneMaps[key]:'0'.repeat(1024);
+}
+function recordZoneMap(){
+ const key=zoneMapIdentity().key,seen=zoneMapSeen().split(''),p=player.pos;let changed=false;
+ for(let z=Math.max(0,Math.floor((p.z-20)/4));z<=Math.min(31,Math.floor((p.z+20)/4));z++)for(let x=Math.max(0,Math.floor((p.x-20)/4));x<=Math.min(31,Math.floor((p.x+20)/4));x++)if(Math.hypot(x*4+2-p.x,z*4+2-p.z)<20&&seen[z*32+x]!=='1'){seen[z*32+x]='1';changed=true;}
+ if(changed){if(key==='home'){EXT().seen=seen.join('');if(seen.filter(v=>v==='1').length>=700)achieve('explorer');}else PROG.zoneMaps[key]=seen.join('');saveSoon();}
+}
+let zoneMapRecordT=0;
+const inputBeforeZoneMap=readInput;
+readInput=function(){inputBeforeZoneMap();if(playing&&!modalOpen&&performance.now()-zoneMapRecordT>700){zoneMapRecordT=performance.now();recordZoneMap();}};
+
+const zoneMapStyle=document.createElement('style');
+zoneMapStyle.textContent=`
+#zoneMapPanel{width:min(calc(100vw - 40px),820px);max-width:100%;min-width:0;height:min(94vh,900px);height:min(94dvh,900px);max-height:94dvh;display:flex;flex-direction:column;gap:8px;overflow:hidden;padding:14px;text-align:center}
+#zoneMapPanel h2{font-size:clamp(18px,3vw,28px);margin:0;line-height:1.2}
+#zoneMapPosition{font-size:13px;font-weight:800;color:#bdefff;direction:ltr}
+#zoneMapStage{position:relative;flex:1;min-height:80px;overflow:hidden;border:3px solid #d9b46a;border-radius:12px;background:#d9c89f}
+#zoneMapCanvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#zoneMapCanvas:active{cursor:grabbing}
+#zoneMapTools{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;flex-shrink:0}
+#zoneMapTools button{padding:7px 12px;border-radius:9px;background:#2c5570;color:#fff;font-weight:800;border:1px solid #7697a9;min-height:36px}
+#zoneMapTools button:disabled{opacity:.4;cursor:default}
+#zoneMapLegend{font-size:12px;line-height:1.4;margin:0;color:#d5e6ee}
+#zoneMapPanel .zoneMapFooter{font-size:12px;margin:0;line-height:1.4}
+#zoneMapPanel #mpX{flex-shrink:0;margin:0;padding:9px;font-size:18px;min-height:40px}
+@media(max-height:480px) and (min-width:540px){#zoneMapPanel{width:min(97vw,760px);padding:9px;gap:8px;display:grid;grid-template-columns:minmax(0,1fr) 190px;grid-template-rows:auto auto minmax(0,1fr) auto auto}#zoneMapPanel h2{font-size:18px;grid-column:2;grid-row:1}#zoneMapPosition{grid-column:2;grid-row:2;font-size:12px}#zoneMapStage{grid-column:1;grid-row:1/6;min-height:0}#zoneMapTools{grid-column:2;grid-row:3;align-content:center}#zoneMapLegend{display:none}#zoneMapPanel .zoneMapFooter{grid-column:2;grid-row:4}#zoneMapPanel #mpX{grid-column:2;grid-row:5;padding:5px;min-height:32px;font-size:15px}#zoneMapTools button{min-height:32px;padding:5px 10px}}
+`;
+document.head.appendChild(zoneMapStyle);
+
+function buildZoneMapTerrain(seen){
+ const surface=new Int16Array(W*D),blocks=new Uint8Array(W*D),base=document.createElement('canvas');base.width=W*2;base.height=D*2;
+ const ctx=base.getContext('2d'),image=ctx.createImageData(base.width,base.height);
+ for(let z=0;z<D;z++)for(let x=0;x<W;x++){
+  let y=H-1,b=AIR;
+  // Caves show their walkable floor, rather than a featureless rock ceiling.
+  if(MODE==='area'&&AREA?.dark){y=caveGround(x,z,Math.min(H-3,Math.max(1,Math.floor(player.pos.y+1))));b=getB(x,y,z);}
+  else for(;y>=0;y--){b=getB(x,y,z);if(b!==AIR&&!B[b].cross)break;}
+  surface[z*W+x]=y;blocks[z*W+x]=b;
+ }
+ for(let z=0;z<D;z++)for(let x=0;x<W;x++){
+  const i=z*W+x,known=seen[Math.floor(z/4)*32+Math.floor(x/4)]==='1',b=blocks[i];let color;
+  if(!known)color=((Math.floor(x/4)+Math.floor(z/4))%2)?[211,194,153]:[217,201,163];
+  else if(b===WATER||b===AIR)color=[67,132,176];
+  else{
+   const raw=tileColor[B[b]?.tex?.[0]]||[130,132,125];
+   const northwest=surface[Math.max(0,z-1)*W+Math.max(0,x-1)];
+   const shade=clamp(.96+(surface[i]-northwest)*.075+(surface[i]-SEA)*.003,.64,1.24);
+   color=raw.map(v=>clamp(v*shade,0,255));
+  }
+  for(let dz=0;dz<2;dz++)for(let dx=0;dx<2;dx++){const j=((z*2+dz)*base.width+x*2+dx)*4;image.data[j]=color[0];image.data[j+1]=color[1];image.data[j+2]=color[2];image.data[j+3]=255;}
+ }
+ ctx.putImageData(image,0,0);return base;
+}
+function zoneMapLandmarks(seen){
+ const list=[],known=(x,z)=>x>=0&&z>=0&&x<W&&z<D&&seen[Math.floor(z/4)*32+Math.floor(x/4)]==='1';
+ const add=(x,z,icon,en,he)=>{if(known(x,z))list.push({x,z,icon,name:T(en,he)});};
+ if(MODE==='hub'){
+  add(64,52,'⌂','Saba’s house','הבית של סבא');
+  add(PLACES.pushka.x,PLACES.pushka.z,'●','Tzedakah','צדקה');
+  add(SIDE.field.x0+4,SIDE.field.z0+3,'♧','Farm','השדה');
+  add(MEADOW.x,MEADOW.z,'♞','Animals','חיות');
+  add(PLACES.shop.x,PLACES.shop.z,'▣','Sofer’s shop','חנות הסופר');
+  for(const p of EXTC.places)if(EXT().found[p.id])add(p.x,p.z,'◇',p.name.en,p.name.he);
+ }else if(MODE==='area'){
+  for(const gate of areaGates){const name=gate.to==='home'?{en:'Home Island',he:'אי הבית'}:AREAS[gate.to].name;add(gate.x,gate.z,'↗',name.en,name.he);}
+  if(areaStone)add(areaStone.x,areaStone.z,'◆','Travel stone','אבן קפיצת הדרך');
+ }
+ return list;
+}
+function openZoneMap(back){
+ releaseInputs();recordZoneMap();
+ if($('dayMoment'))$('dayMoment').style.display='none';
+ const seen=zoneMapSeen(),identity=zoneMapIdentity(),terrain=buildZoneMapTerrain(seen),landmarks=zoneMapLandmarks(seen);
+ const pct=Math.round([...seen].filter(v=>v==='1').length/1024*100);
+ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const heading=()=>{const angle=((player.yaw*180/Math.PI)%360+360)%360;return angle<45||angle>=315?T('North','צפון'):angle<135?T('West','מערב'):angle<225?T('South','דרום'):T('East','מזרח');};
+ openModal('<div class="panel" id="zoneMapPanel" dir="'+(LANG==='he'?'rtl':'ltr')+'"><h2>🗺 '+esc(identity.name)+'</h2><div id="zoneMapPosition"></div><div id="zoneMapStage"><canvas id="zoneMapCanvas" role="img" aria-label="'+esc(T('Zone terrain map. The white arrow with a blue halo is you.','מפת האזור. החץ הלבן עם ההילה הכחולה מסמן את מיקומכם.'))+'"></canvas></div><div id="zoneMapTools"><button id="zoneMapOut" aria-label="'+T('Zoom out','הקטנה')+'">−</button><button id="zoneMapZoom" disabled>1×</button><button id="zoneMapIn" aria-label="'+T('Zoom in','הגדלה')+'">+</button><button id="zoneMapFind">◎ '+T('Find me','איפה אני')+'</button><button id="zoneMapFull">▦ '+T('Whole zone','כל האזור')+'</button></div><p id="zoneMapLegend">'+T('▲ You · North is up · Drag to pan · Beige = unexplored','▲ המיקום שלכם · הצפון למעלה · גוררים להזזה · בז׳ = טרם נחקר')+'</p><p class="zoneMapFooter">'+T('Explored: ','נחקר: ')+pct+'%'+(MODE==='hub'?' · '+T('Hidden places: ','מקומות חבויים: ')+Object.keys(EXT().found).length+' / '+EXTC.places.length:'')+'</p><button class="btn" id="mpX">'+T('Close','סגירה')+'</button></div>');
+ const canvas=$('zoneMapCanvas'),ctx=canvas.getContext('2d'),stage=$('zoneMapStage');
+ let zoom=2,cx=player.pos.x,cz=player.pos.z,drag=null,layout=null,disposed=false;
+ function boundCenter(){const span=W/zoom;cx=clamp(cx,span/2,W-span/2);cz=clamp(cz,span/2,D-span/2);}
+ function draw(){
+  if(disposed||!canvas.isConnected)return;
+  const rect=stage.getBoundingClientRect(),width=Math.max(1,rect.width-6),height=Math.max(1,rect.height-6),dpr=Math.min(devicePixelRatio||1,2);
+  if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);ctx.fillStyle='#d9c89f';ctx.fillRect(0,0,width,height);
+  const padding=30,size=Math.max(20,Math.min(width,height)-padding*2),left=(width-size)/2,top=(height-size)/2,span=W/zoom;
+  boundCenter();const x0=cx-span/2,z0=cz-span/2,scale=size/span;
+  layout={size,left,top,span,x0,z0,scale};
+  ctx.imageSmoothingEnabled=false;ctx.drawImage(terrain,x0*2,z0*2,span*2,span*2,left,top,size,size);
+  ctx.save();ctx.beginPath();ctx.rect(left,top,size,size);ctx.clip();
+  // A light grid reads as block terrain, without obscuring roads or buildings.
+  if(zoom>1){ctx.strokeStyle='rgba(33,44,33,.13)';ctx.lineWidth=1;for(let v=Math.ceil(x0/16)*16;v<x0+span;v+=16){const px=left+(v-x0)*scale;ctx.beginPath();ctx.moveTo(px,top);ctx.lineTo(px,top+size);ctx.stroke();}for(let v=Math.ceil(z0/16)*16;v<z0+span;v+=16){const py=top+(v-z0)*scale;ctx.beginPath();ctx.moveTo(left,py);ctx.lineTo(left+size,py);ctx.stroke();}}
+  ctx.font='bold 12px "Segoe UI",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  const labels=[];
+  for(const p of landmarks){
+   const x=left+(p.x-x0)*scale,y=top+(p.z-z0)*scale;if(x<left+8||x>left+size-8||y<top+8||y>top+size-8)continue;
+   ctx.fillStyle='#fff0b7';ctx.strokeStyle='#4e452e';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#463e29';ctx.fillText(p.icon,x,y);
+   if(zoom>1||Math.hypot(p.x-player.pos.x,p.z-player.pos.z)>12){
+    const textWidth=Math.min(size-12,ctx.measureText(p.name).width+12),lx=clamp(x-textWidth/2,left+3,left+size-textWidth-3),ly=clamp(y+11,top+3,top+size-21);
+    if(!labels.some(a=>lx<a.x+a.w&&lx+textWidth>a.x&&ly<a.y+19&&ly+19>a.y)){
+     labels.push({x:lx,y:ly,w:textWidth});ctx.fillStyle='rgba(21,37,45,.88)';ctx.fillRect(lx,ly,textWidth,19);ctx.fillStyle='#fff3ca';ctx.fillText(p.name,lx+textWidth/2,ly+9.5,textWidth-6);
+    }
+   }
+  }
+  const realX=left+(player.pos.x-x0)*scale,realY=top+(player.pos.z-z0)*scale;
+  const px=clamp(realX,left+13,left+size-13),py=clamp(realY,top+13,top+size-13),outside=px!==realX||py!==realY;
+  // Draw last, above every landmark; fixed screen size remains visible at 1×.
+  ctx.save();ctx.translate(px,py);ctx.fillStyle='rgba(0,35,56,.72)';ctx.beginPath();ctx.arc(0,0,15,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#50e9ff';ctx.lineWidth=3;ctx.stroke();
+  ctx.rotate(outside?Math.atan2(realX-px,-(realY-py)):-player.yaw);ctx.beginPath();ctx.moveTo(0,-12);ctx.lineTo(8,9);ctx.lineTo(0,5);ctx.lineTo(-8,9);ctx.closePath();ctx.fillStyle='#fff';ctx.strokeStyle='#152d45';ctx.lineWidth=2;ctx.fill();ctx.stroke();ctx.restore();
+  ctx.restore();ctx.strokeStyle='#a58c59';ctx.lineWidth=1;ctx.strokeRect(left,top,size,size);
+  ctx.font='bold 13px "Segoe UI",sans-serif';ctx.fillStyle='#4b422e';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(T('N','צפון'),left+size/2,top-13);ctx.fillText(T('S','דרום'),left+size/2,top+size+13);ctx.fillText(T('W','מערב'),left-13,top+size/2);ctx.fillText(T('E','מזרח'),left+size+13,top+size/2);
+  // Screen-space scale bar uses the same world-to-map transform as the marker.
+  const barBlocks=Math.min(16,span/4),barWidth=barBlocks*scale;
+  ctx.fillStyle='rgba(22,40,49,.8)';ctx.fillRect(left+7,top+size-27,barWidth+12,21);ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.fillText(barBlocks+' '+T('blocks','בלוקים'),left+13+barWidth/2,top+size-18);
+  $('zoneMapPosition').textContent=T('You are here','אתם כאן')+' · X '+Math.floor(player.pos.x)+' · Z '+Math.floor(player.pos.z)+' · '+heading();
+  $('zoneMapZoom').textContent=zoom+'×';$('zoneMapOut').disabled=zoom===1;$('zoneMapIn').disabled=zoom===4;
+ }
+ function setZoom(next){zoom=clamp(next,1,4);cx=player.pos.x;cz=player.pos.z;draw();}
+ $('zoneMapOut').onclick=()=>setZoom(zoom/2);$('zoneMapIn').onclick=()=>setZoom(zoom*2);
+  $('zoneMapFind').onclick=()=>{zoom=Math.max(2,zoom);cx=player.pos.x;cz=player.pos.z;draw();};$('zoneMapFull').onclick=()=>{zoom=1;cx=W/2;cz=D/2;draw();};
+ canvas.onpointerdown=e=>{drag={id:e.pointerId,x:e.clientX,y:e.clientY,cx,cz};canvas.setPointerCapture(e.pointerId);};
+ canvas.onpointermove=e=>{if(!drag||drag.id!==e.pointerId||!layout)return;cx=drag.cx-(e.clientX-drag.x)/layout.scale;cz=drag.cz-(e.clientY-drag.y)/layout.scale;draw();};
+ const end=e=>{if(drag?.id===e.pointerId)drag=null;};canvas.onpointerup=end;canvas.onpointercancel=end;canvas.onlostpointercapture=end;
+ canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(e.deltaY<0?zoom*2:zoom/2);},{passive:false});
+ const observer=new ResizeObserver(draw);observer.observe(stage);
+ let frame,lastPlayer='';function live(){if(!canvas.isConnected){disposed=true;observer.disconnect();return;}const position=[player.pos.x,player.pos.z,player.yaw].join(':');if(position!==lastPlayer){lastPlayer=position;draw();}frame=requestAnimationFrame(live);}frame=requestAnimationFrame(live);
+ $('mpX').onclick=()=>{disposed=true;observer.disconnect();cancelAnimationFrame(frame);closeModal();back&&back();};
+ draw();
+}
 
 // ===== Main: renderer, save/load, loop =====
 let renderer;
