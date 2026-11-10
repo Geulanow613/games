@@ -3952,8 +3952,20 @@ var Screens = {
     var wideH = tall ? 112 : 128;
     var x0 = (CFG.W - (cw * 2 + gap)) / 2;
     var y0 = View.safe.t + (tall ? 292 : 312);
-    var pairs = Math.floor(list.length / 2);
     var i, btn;
+    // Feature ChaimCraft above the paired arcade tiles.
+    var featured = list.find(function (g) { return g.id === 'chaimcraft'; });
+    if (featured) {
+      btn = new Button(x0, y0, cw * 2 + gap, wideH, featured.name,
+        function () { Game.startGame('chaimcraft'); },
+        { data: featured, pad: 0 });
+      btn.kind = 'game';
+      btn.wide = true;
+      b.push(btn);
+      y0 += wideH + gap;
+      list = list.filter(function (g) { return g !== featured; });
+    }
+    var pairs = Math.floor(list.length / 2);
     for (i = 0; i < pairs * 2; i++) {
       var col = i % 2, row = (i / 2) | 0;
       btn = new Button(x0 + col * (cw + gap), y0 + row * (ch + gap), cw, ch, list[i].name,
