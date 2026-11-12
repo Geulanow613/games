@@ -56,11 +56,11 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 #shieldMeter{position:absolute;left:50%;top:calc(50% + 26px);transform:translateX(-50%);width:60px;height:6px;border-radius:4px;background:rgba(0,0,0,.4);overflow:hidden;opacity:0;transition:opacity .2s}
 #shieldMeter i{display:block;height:100%;background:linear-gradient(90deg,#8ff3ff,#ffe58a)}
 /* hotbar */
-#hotbar{position:absolute;left:50%;bottom:calc(10px + var(--safe-b));transform:translateX(-50%);display:flex;gap:5px;padding:6px;border-radius:16px;background:var(--ui);pointer-events:auto;max-width:min(92vw,560px);overflow-x:auto;scrollbar-width:none}
+#hotbar{position:absolute;left:50%;bottom:calc(10px + var(--safe-b));transform:translateX(-50%);display:flex;gap:5px;padding:6px;border-radius:16px;background:var(--ui);pointer-events:auto;max-width:min(98vw,660px);overflow-x:auto;scrollbar-width:none}
 #hotbar::-webkit-scrollbar{display:none}
-.slot{position:relative;flex:0 0 46px;height:46px;border-radius:11px;background:rgba(255,255,255,.12);box-shadow:inset 0 -3px 0 rgba(0,0,0,.25);display:grid;place-items:center}
+.slot{position:relative;flex:0 1 46px;min-width:30px;height:46px;border-radius:11px;background:rgba(255,255,255,.12);box-shadow:inset 0 -3px 0 rgba(0,0,0,.25);display:grid;place-items:center}
 .slot.sel{background:rgba(255,223,120,.35);box-shadow:inset 0 0 0 3px #ffd766,0 0 12px rgba(255,215,102,.6)}
-.slot canvas{width:36px;height:36px}
+.slot canvas{width:36px;height:36px;max-width:84%;max-height:84%}
 .slot b{position:absolute;right:3px;bottom:1px;font-size:12px;font-weight:900;text-shadow:0 1px 2px #000,0 0 3px #000}
 .slot i{position:absolute;left:4px;top:1px;font-size:10.5px;font-style:normal;font-weight:900;opacity:.8;text-shadow:0 1px 2px #000}
 .slot.empty{background:rgba(255,255,255,.05)}.slot.bagSlot{background:rgba(245,201,90,.18);margin-left:4px;cursor:pointer}.slot.bagSlot span{font-size:24px}
@@ -7173,6 +7173,11 @@ function buildChunk(ch){
       for(const[dx,dz]of[[1,0],[-1,0],[0,1],[0,-1]]){if(getB(x+dx,y,z+dz)!==b)continue;
         for(const[r0,r1]of[[.28,.42],[.68,.82]]){if(dx)box(dx>0?.62:0,r0,.45,dx>0?1:.38,r1,.55);else box(.45,r0,dz>0?.62:0,.55,r1,dz>0?1:.38);}}
       continue;}
+    if(bd.menorah){const tg=tileUV(B[GOLDBLOCK].tex[0]),tf=tileUV(B[LANTERN].tex[0]),uvG=[[tg[0],tg[1]],[tg[2],tg[1]],[tg[2],tg[3]],[tg[0],tg[3]]],uvF=[[tf[0],tf[1]],[tf[2],tf[1]],[tf[2],tf[3]],[tf[0],tf[3]]],lit=y+1>colTop(x,z)?1:.62;
+      const box=(x0,y0,z0,x1,y1,z1,uv)=>{for(const fc of FACES){const vs=fc.c.map(q=>[x+(q[0]?x1:x0),y+(q[1]?y1:y0),z+(q[2]?z1:z0)]),s=lit*fc.shade;quad(0,vs,uv,[s,s,s,s],false);}};
+      box(.05,0,.38,.95,.07,.62,uvG);box(.45,.07,.45,.55,.40,.55,uvG);box(.07,.40,.44,.93,.47,.56,uvG);/* foot, stem, the bar of the arms */
+      for(let i=0;i<9;i++){const cx=.1+i*.1,top=i===4?.82:.64;box(cx-.03,.47,.46,cx+.03,top,.54,uvG);box(cx-.026,top,.475,cx+.026,top+.08,.525,uvF);}/* eight candles, the shamash raised in the middle, a flame on each */
+      continue;}
     if(bd.cross){const t=tileUV(bd.tex[1]),lit=y>colTop(x,z)?1:.62,c=[lit,lit,lit,lit],uv=[[t[0],t[1]],[t[2],t[1]],[t[2],t[3]],[t[0],t[3]]];
       const A=[[.15,0,.15],[.85,0,.85],[.85,.9,.85],[.15,.9,.15]],Bq=[[.85,0,.15],[.15,0,.85],[.15,.9,.85],[.85,.9,.15]];
       for(const q of[A,Bq]){const v=q.map(p=>[x+p[0],y+p[1],z+p[2]]);quad(0,v,uv,c,false);quad(0,[v[1],v[0],v[3],v[2]],uv,c,false);}continue;}
@@ -9929,7 +9934,7 @@ def(KILN,{tex:tx(60,59,60),hard:1,glow:true,name:{en:'Kiln',he:'כבשן'}});
 def(ARON,{tex:tx(62,61,62),hard:.8,name:{en:'Aron Kodesh',he:'ארון קודש'}});
 def(SEFARIM,{tex:tx(9,63,9),hard:.6,name:{en:'Shelf of Sefarim',he:'מדף ספרים'}});
 def(SHTENDER,{solid:false,opaque:false,cross:true,tex:tx(64),hard:.3,name:{en:'Shtender',he:'סטנדר'}});
-def(CHANUKIAH,{solid:false,opaque:false,cross:true,tex:tx(65),hard:.3,name:{en:'Chanukiah',he:'חנוכייה'}});
+def(CHANUKIAH,{solid:false,opaque:false,cross:true,menorah:true,tex:tx(65),hard:.3,name:{en:'Chanukiah',he:'חנוכייה'}});
 def(TABLE,{tex:tx(66,9,9),hard:.5,name:{en:'Table',he:'שולחן'}});
 def(BED,{tex:tx(67,68,9),hard:.4,name:{en:'Bed',he:'מיטה'}});
 def(WHEAT0,{solid:false,opaque:false,cross:true,tex:tx(69),hard:.05,drop:AIR,name:{en:'Wheat sprouts',he:'נבטי חיטה'}});
@@ -30438,7 +30443,7 @@ function openCreativeMenu(){const m=slotMeta();const mine=m.list.map((s,i)=>s&&s
 for(const ev of['pagehide','beforeunload'])window.addEventListener(ev,()=>{try{if(playing||modalOpen)saveGame();}catch(e){}});
 document.addEventListener('freeze',()=>{try{saveGame();}catch(e){}});
 setInterval(()=>{try{if(playing)saveGame();}catch(e){}},5000);
-window.CREATIVE_QA={st:()=>({mode:MODE,creative:!!PROG.creative,pos:[player.pos.x,player.pos.y,player.pos.z].map(v=>+v.toFixed(1)),hot:hotStore().h.slice(),inv:Object.assign({},player.inv),coins:player.coins,hp:player.hp,maxHp:player.maxHp,weap:(LO().slots||[]).slice(),weapon:player.weapon,playing,mp:PROG.mp}),tp:(x,y,z)=>{player.pos.set(x,y,z);},hurtMe:()=>{player.invul=0;hurt();},saveNow:()=>saveGame(),useI:k=>useItem(k),travel:id=>travelTo(id),creativeOn,openCreativeKit,openCreativeMenu,creativeNewWorld,creativeTopUp,crList,crSetHot,crSetWeap};
+window.CREATIVE_QA={setB:(x,y,z,id)=>setBlock(x,y,z,id),look:(yaw,pitch)=>{player.yaw=yaw;player.pitch=pitch;},st:()=>({mode:MODE,creative:!!PROG.creative,pos:[player.pos.x,player.pos.y,player.pos.z].map(v=>+v.toFixed(1)),hot:hotStore().h.slice(),inv:Object.assign({},player.inv),coins:player.coins,hp:player.hp,maxHp:player.maxHp,weap:(LO().slots||[]).slice(),weapon:player.weapon,playing,mp:PROG.mp}),tp:(x,y,z)=>{player.pos.set(x,y,z);},hurtMe:()=>{player.invul=0;hurt();},saveNow:()=>saveGame(),useI:k=>useItem(k),travel:id=>travelTo(id),creativeOn,openCreativeKit,openCreativeMenu,creativeNewWorld,creativeTopUp,crList,crSetHot,crSetWeap};
 
 // ===== Noach's Teivah as a ship, and a feeding quest you can follow (Dan, 10 Nov 2026: "noahs teiva looks like a giant
 // rectangle? you couldn't make it look like a boat? also it says feed every animal or something with no explanation how
