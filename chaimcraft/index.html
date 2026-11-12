@@ -321,8 +321,10 @@ window.__ccStore=(function(){
     try{var db=await open();var rec=await new Promise(function(res){var r=db.transaction(ST).objectStore(ST).get(KEY);r.onsuccess=function(){res(r.result);};r.onerror=function(){res(null);};});db.close();
       var gone=null;try{gone=localStorage.getItem('chaimcraft.noMirror');}catch(e){}
       if(gone){mirror(null);}
-      else if(rec&&rec.data){var cur=null;try{cur=localStorage.getItem('chaimcraft.v1');}catch(e){}
-        if(!cur||stamp(rec.data)>stamp(cur)){window.__ccMem=rec.data;try{localStorage.setItem('chaimcraft.v1',rec.data);window.__ccMem=null;}catch(e){}}}
+      else if(rec&&rec.data){var cur=null,curSlot=null,recSlot;try{cur=localStorage.getItem('chaimcraft.v1');}catch(e){}
+        try{curSlot=(JSON.parse(localStorage.getItem('chaimcraft.slots')||'null')||{}).cur;}catch(e){}try{recSlot=(JSON.parse(rec.data).prog||{}).slotNo;}catch(e){}
+        /* the backup copy only wins if it is the SAME save slot (switching between a journey and a creative world must not bring the other one back) */
+        if(!cur||(stamp(rec.data)>stamp(cur)&&(recSlot===undefined||curSlot===null||curSlot===undefined||recSlot===curSlot))){window.__ccMem=rec.data;try{localStorage.setItem('chaimcraft.v1',rec.data);window.__ccMem=null;}catch(e){}}}
     }catch(e){}
   }
   return {mirror:mirror,hydrate:hydrate};
@@ -10387,13 +10389,12 @@ const AREAS={
   kinneret:{icon:'⛵',name:{en:'The Kinneret',he:'הכנרת'},blurb:{en:'Row a boat, catch fish, visit the islands',he:'חותרים בסירה, דגים דגים, מבקרים באיים'},gates:{w:'chermon',s:'yeru'}},
   forest:{icon:'🌲',name:{en:'The Great Forest',he:'היער הגדול'},blurb:{en:'Lost hikers, deer, and wolves at dusk',he:'מטיילים שאיבדו דברים, צבאים, וזאבים'},gates:{n:'chermon',e:'yeru',s:'jungle'}},
   yeru:{icon:'🧱',name:{en:'Yerushalayim',he:'ירושלים'},blurb:{en:'The Kotel, the shuk, and a gate back in time',he:'הכותל, השוק, ושער אחורה בזמן'},gates:{n:'kinneret',w:'forest',s:'canyon'},noDig:true},
-  yeruOld:{icon:'🏛️',name:{en:'Yerushalayim of Old',he:'ירושלים של פעם'},blurb:{en:'Bring bikkurim up to the Beis HaMikdash',he:'מעלים ביכורים לבית המקדש'},gates:{},noDig:true},
   jungle:{icon:'🌴',name:{en:'The Jungle',he:'הג׳ונגל'},blurb:{en:'Giant trees, monkeys, and leopards',he:'עצי ענק, קופים, ונמרים'},gates:{n:'forest',e:'canyon'}},
   canyon:{icon:'🏜️',name:{en:'Red Canyon',he:'הקניון האדום'},blurb:{en:'Cliffs, a rope bridge, and an eagle’s nest',he:'צוקים, גשר חבלים, וקן של נשר'},gates:{w:'jungle',n:'yeru',e:'desert'}},
   desert:{icon:'🐪',name:{en:'The Midbar',he:'המדבר'},blurb:{en:'An open tent, falling mon, and a lion',he:'אוהל פתוח, מן שיורד, ואריה'},gates:{w:'canyon',s:'caves'}},
   caves:{icon:'💎',name:{en:'The Deep Caves',he:'המערות העמוקות'},blurb:{en:'Glowing crystals and a hidden cave of Torah',he:'גבישים זוהרים ומערה נסתרת של תורה'},gates:{n:'desert'},dark:true}
 };
-const AREA_ORDER=['forest','chermon','peaks','kinneret','yeru','yeruOld','jungle','canyon','desert','caves'];
+const AREA_ORDER=['forest','chermon','peaks','kinneret','yeru','jungle','canyon','desert','caves'];
 const OPP={n:'s',s:'n',e:'w',w:'e'};
 const GATE_POS={n:{x:64,z:5,yaw:0},s:{x:64,z:122,yaw:Math.PI},w:{x:5,z:64,yaw:Math.PI/2},e:{x:122,z:64,yaw:-Math.PI/2}};
 const AR=()=>{if(!PROG.areas)PROG.areas={found:{home:1},ed:{},done:{},seen:{},kind:0};return PROG.areas;};
@@ -10941,11 +10942,11 @@ function yeruCity(r,old){const y0=SEA+7;
     for(let i=0;i<14;i++){const x=56+((i*5)%18),z=78+((i*7)%18);const h=surfaceY(x,z);if(i%3===0)fruitTree(x,h,z,i%2?'fig':'pom',r);else if(i%3===1)fruitTree(x,h,z,'palm',r);}}
   // the time gate: an old stone arch
   const ty=surfaceY(TIMEGATE.x,TIMEGATE.z);for(let o=-2;o<=2;o++){for(let y=ty+1;y<=ty+5;y++)setRaw(TIMEGATE.x+o,y,TIMEGATE.z,Math.abs(o)===2||y===ty+5?KOTEL:AIR);setRaw(TIMEGATE.x+o,ty,TIMEGATE.z,KOTEL);for(const dz of[-1,1,-2,2])for(let y=ty+1;y<=ty+4;y++)setRaw(TIMEGATE.x+o,y,TIMEGATE.z+dz,AIR);}}
-AREA_BUILD.yeru=r=>yeruCity(r,false);AREA_BUILD.yeruOld=r=>yeruCity(r,true);
+AREA_BUILD.yeru=r=>yeruCity(r,false);
 function timeGate(to){const ty=surfaceY(TIMEGATE.x,TIMEGATE.z)+1;const grp=new THREE.Group();const mat=new THREE.MeshBasicMaterial({color:'#ffd36a',transparent:true,opacity:.4,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});grp.add(new THREE.Mesh(new THREE.BoxGeometry(3,4,.4),mat));grp.position.set(TIMEGATE.x+.5,ty+2,TIMEGATE.z+.5);
-  const lab=bubbleSprite(to==='yeruOld'?T('Back in time','אחורה בזמן'):T('Back to today','חזרה להיום'));lab.position.y=3.2;lab.scale.set(2.8,.9,1);grp.add(lab);
+  const lab=bubbleSprite(to==='mikdash'?T('Back in time','אחורה בזמן'):T('Back to today','חזרה להיום'));lab.position.y=3.2;lab.scale.set(2.8,.9,1);grp.add(lab);
   return ent({kind:'timegate',m:grp,pos:grp.position,x:TIMEGATE.x+.5,z:TIMEGATE.z+.5,armed:false,tick(dt,t){mat.opacity=.32+Math.sin(t*3)*.12;const d=Math.hypot(player.pos.x-this.x,player.pos.z-this.z);if(d>3)this.armed=true;if(this.armed&&d<1.1&&Math.abs(player.pos.y-(ty))<2){this.armed=false;travelTo(to,'time');}}});}
-SETUP.yeru=r=>{timeGate('yeruOld');const y0=SEA+7;
+SETUP.yeru=r=>{timeGate('mikdash');const y0=SEA+7;
   ent({kind:'kotel',pos:V3(64.5,y0+1,41.5),r:3,ctx:()=>({lab:{en:'Put a note in the Kotel',he:'לשים פתק בכותל'},icon:'📝',run:kotelNote})});
   const pin=person({coat:'#6a3a2a',beard:'#3a2a1e',kippah:'#14141a',shirt:'#f4f4f4'},62.5,67.5,-Math.PI/2,T('Pinchas the date seller','פנחס מוכר התמרים'));pin.r=2.6;
   pin.ctx=()=>({lab:{en:'Help Pinchas weigh dates',he:'לעזור לפנחס לשקול תמרים'},icon:'⚖️',run:scaleGame});
@@ -10970,23 +10971,7 @@ function scaleGame(){let order=3+Math.floor(Math.random()*6),dates=0;const done=
 
 // ================= YERUSHALAYIM OF OLD: bringing bikkurim =================
 const SPECIES=['wheat','barley','grapes','fig','pom','olive','date'];
-SETUP.yeruOld=r=>{timeGate('yeru');const top=SEA+15;const B0=AR().basket||(AR().basket={});
-  const kohen=person({coat:'#f4f2ea',belt:'#3a5ab0',hat:'cloth',hatColor:'#ffffff',beard:'#5a4a3a'},64.5,52.5,Math.PI,T('A Kohen','כהן'));kohen.r=2.8;
-  kohen.ctx=()=>{if(QD().yeruOld_quest)return{lab:{en:'Talk to the Kohen',he:'לדבר עם הכהן'},icon:'💬',run:()=>say(T('A Kohen','כהן'),T('Your bikkurim were beautiful, and the figs were perfect. Come again next year!','הביכורים שלכם היו יפים, והתאנים היו מושלמות. תבואו שוב בשנה הבאה!'))};
-    const n=SPECIES.filter(s=>B0[s]).length;return{lab:n>=7?{en:'Give the basket of bikkurim',he:'לתת את סל הביכורים'}:{en:'Talk to the Kohen',he:'לדבר עם הכהן'},icon:n>=7?'🧺':'💬',run:()=>{if(n<7){say(T('A Kohen','כהן'),T('Shalom! Bikkurim come from the seven species, and only from them. The road is full of fruit; choose carefully! Your basket has ','שלום! ביכורים מביאים משבעת המינים, ורק מהם. הדרך מלאה פירות; בוחרים בזהירות! בסל שלכם יש ')+n+'/7.');return;}
-      sfxN('ready',1);flute();burst(kohen.pos.clone().add(V3(0,2,0)),'#ffe58a',30,4,1.1);qDone('yeruOld','bikkurim');}};};
-  // the parade: an ox with golden horns and an olive crown, a flute player, pilgrims
-  const ox=makeAnimal('cow');const head=ox.root.children[0];for(const s of[-1,1])ball(head,s*.24,1.18,-.58,.06,.06,.06,cmat('#f2c94a',.3,.8));const wr=new THREE.Mesh(new THREE.TorusGeometry(.18,.04,6,16),cmat('#5a7a2a'));wr.rotation.x=Math.PI/2;wr.position.set(0,1.18,-.58);head.add(wr);
-  const path=[V3(64.5,0,100.5),V3(64.5,0,74.5)];const lead=[ox,null];
-  const oxE=ent({kind:'ox',m:ox.root,pos:ox.root.position,t:0,tick(dt){this.t+=dt;const k=(this.t*.035)%1,p=path[0].clone().lerp(path[1],k);this.pos.set(p.x,groundUnder(p.x,H-1,p.z)+1,p.z);this.m.rotation.y=0;(ox.legs||[]).forEach((l,i)=>l.rotation.x=Math.sin(this.t*6+i*1.6)*.4);}});ox.root.position.set(64.5,0,100.5);
-  const flutist=person({coat:'#7a5aa0',beard:'#3a2a1e',hat:'cloth',hatColor:'#f0e6d0'},63,102,0,'');flutist.tick=function(dt){const p=oxE.pos;this.pos.set(p.x-1.6,groundUnder(p.x-1.6,H-1,p.z+2.2)+1,p.z+2.2);(this.mm.legs||[]).forEach((lg,j)=>lg.rotation.x=Math.sin(clockT*6+j*3)*.4);if(Math.random()<dt*.6&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<14)flute(.25);};
-  for(let i=0;i<10;i++){const lk={coat:['#8a6a4a','#5a6a8a','#7a4a3a','#4a7a5a'][i%4],beard:['#3a2a1e','#999','#6a4a2a'][i%3],hat:'cloth',hatColor:'#f0e6d0',staff:i%2===0};const x=50+r()*28,z=62+r()*36;const p=person(lk,x,z,r()*6,'');p.home=V3(x,0,z);p.t=r()*9;
-    p.tick=function(dt){this.t+=dt;const a=this.t*.3;const tx=this.home.x+Math.cos(a)*3,tz=this.home.z+Math.sin(a)*3;const d=V3(tx-this.pos.x,0,tz-this.pos.z);if(d.length()>.2){d.normalize();this.pos.x+=d.x*dt;this.pos.z+=d.z*dt;this.m.rotation.y=Math.atan2(-d.x,-d.z);}this.pos.y=groundUnder(this.pos.x,H-1,this.pos.z)+1;(this.mm.legs||[]).forEach((lg,j)=>lg.rotation.x=Math.sin(this.t*7+j*3)*.4);};}
-  // craftsmen along the road stand up to greet you (Bikkurim 3:3)
-  for(const[x,z]of[[60,90],[69,86],[60,80],[69,76]]){const c=person({coat:'#6a5a4a',beard:'#4a3a2a',hat:'cloth',hatColor:'#e8dcc0',belt:'#3a2a1a'},x+.5,z+.5,x<64?-Math.PI/2:Math.PI/2,'');c.greeted=false;c.tick=function(dt){const d=Math.hypot(player.pos.x-this.pos.x,player.pos.z-this.pos.z);if(!this.greeted&&d<5){this.greeted=true;bubble(this,T('Welcome, our brother from Chaim’s island!','ברוכים הבאים, אחינו מהאי של {NAME}!'),3.5);this.mm.g.position.y=.1;}if(this.bubT>0){this.bubT-=dt;if(this.bubT<=0&&this.bub){this.m.remove(this.bub);this.bub=null;}}};}
-  // the fruit along the way: only the seven species go in the basket
-  if(!QD().yeruOld_quest){const spots=[[58,96],[71,94],[57,88],[72,84],[58,78],[71,80],[57,70],[72,72],[60,84],[69,90]];const kinds=[...SPECIES,'apple','banana','orange'];
-    kinds.forEach((k,i)=>{if(B0[k])return;const[x,z]=spots[i];pickup(pickupMesh(k),x+.5,z+.5,()=>{if(!SPECIES.includes(k)){if(clockT>(AR().badT||0)){AR().badT=clockT+3;toast(L(PK[k].bad),2.5);}return false;}B0[k]=1;const n=SPECIES.filter(s=>B0[s]).length;toast(L(PK[k].name)+T(' into the basket (',' לסל (')+n+'/7)',2);questChanged();});});}};
+
 function flute(vol=.6){if(!SETTINGS.sound||QA)return;try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();const notes=[523,587,659,587,523,659,784];let t=actx.currentTime;for(const f of notes){const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.08*vol,t+.04);g.gain.exponentialRampToValueAtTime(.0001,t+.24);o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.26);t+=.2;}}catch(e){}}
 
 // ---------- per-frame update for the area ----------
@@ -11320,14 +11305,12 @@ Object.assign(STONE_AT,{mikdash:{x:6,z:64},giants:{x:64,z:108}});
 Object.assign(ITEMS,{goldKey:{name:{en:'Golden key',he:'מפתח זהב'},emoji:'🗝️'}});
 const UNL=()=>AR().unl||(AR().unl={});
 // portals: a place can be open before you've been there
-{const _hint=hintFor;hintFor=function(id){if(id==='mikdash')return T('Bring bikkurim in Yerushalayim of Old to open it','מביאים ביכורים בירושלים של פעם כדי לפתוח');if(id==='giants')return T('Finish the quests in 6 places to open it','מסיימים משימות ב־6 מקומות כדי לפתוח');return _hint(id);};}
+{const _hint=hintFor;hintFor=function(id){if(id==='mikdash')return T('Step through the old arch in Yerushalayim','עוברים בשער הקדום בירושלים');if(id==='giants')return T('Finish the quests in 6 places to open it','מסיימים משימות ב־6 מקומות כדי לפתוח');return _hint(id);};}
 const _openTravelM=openTravel;openTravel=function(){const F=AR().found,added=[];for(const k in UNL())if(!F[k]){F[k]=1;added.push(k);}_openTravelM();for(const k of added)delete F[k];};
 function unlockPlace(id){if(UNL()[id]||AR().found[id])return;UNL()[id]=1;saveGame();setTimeout(()=>{toast(T('A new place is open: ','מקום חדש נפתח: ')+L(AREAS[id].name)+T('! Use a portal.','! דרך אבן קפיצה.'),4);sfx('mitzvah');},1800);}
 function checkUnlocks(){const d=AR().done;if(d.yeruOld_quest)unlockPlace('mikdash');const n=Object.keys(d).filter(k=>/_quest$/.test(k)).length;if(n>=6)unlockPlace('giants');}
 const _qDoneM=qDone;qDone=function(id,card){_qDoneM(id,card);checkUnlocks();};
 const _enterAreaM=enterArea;enterArea=function(id,via){_enterAreaM(id,via);checkUnlocks();if(AREA&&AREA.arriveYaw!==undefined&&via!=='time'){player.yaw=AREA.arriveYaw;}};
-// from Yerushalayim of Old: a gate at the top of the great steps leads up into the Mikdash
-{const _s=SETUP.yeruOld;SETUP.yeruOld=r=>{_s(r);const top=SEA+15;ent({kind:'mgate',pos:V3(64.5,top+1,57.5),r:3,ctx:()=>UNL().mikdash||AR().found.mikdash?{lab:{en:'Go up into the Beis HaMikdash',he:'לעלות לבית המקדש'},icon:'🕍',run:()=>travelTo('mikdash','up')}:null});};}
 
 // ---------- the Beis HaMikdash (Mishnah Middos), 1 block = 3 amos; high x = west ----------
 const MK={y0:6,EN0:14,AZ0:59,zN:42,zS:86,wood:{x:21,z:49}};
@@ -11696,10 +11679,8 @@ const STORY=[
     letter:{en:'The Tzohar! Feivel asked if pigeons get one too. They don’t. Take it down into the Deep Caves, south of the Midbar, where it’s so dark the Glooms bump into each other. Somewhere down there is a hidden cave with a carob tree and a spring, where a great tzaddik learned Torah.',he:'הצוהר! פייבל שאל אם גם יונים מקבלות אחד. הן לא. {קח|קחי} אותו למערות העמוקות, דרומית למדבר, שם כל כך חשוך שהעצבונים נתקלים אחד בשני. איפשהו שם למטה יש מערה נסתרת עם עץ חרוב ומעיין, שבה צדיק גדול למד תורה.'}},
   {id:'yeru',place:'yeru',done:()=>QD().yeru_quest,goal:{en:'Help Pinchas in the shuk',he:'לעזור לפנחס בשוק'},
     letter:{en:'Rabbi Shimon’s cave! Feivel tried carob for the first time. He says it’s “fine” and is now eating a sandwich. Next stop: Yerushalayim, where Pinchas the date seller needs an honest helper at his scale. I told him all about you. I may have exaggerated. A lot.',he:'המערה של רבי שמעון! פייבל טעם חרוב בפעם הראשונה. הוא אומר שזה ״בסדר״ ועכשיו הוא אוכל כריך. התחנה הבאה: ירושלים, שם פנחס מוכר התמרים צריך עוזר ישר ליד המאזניים. סיפרתי לו {עליך|עלייך} הכל. אולי הגזמתי. הרבה.'}},
-  {id:'yeruOld',place:'yeruOld',done:()=>QD().yeruOld_quest,goal:{en:'Bring bikkurim',he:'להביא ביכורים'},
+  {id:'mikdash',place:'mikdash',done:()=>QD().yeruOld_quest,goal:{en:'Bring bikkurim to the Beis HaMikdash',he:'להביא ביכורים לבית המקדש'},
     letter:{en:'Pinchas says you tip a scale like a real Yerushalmi! Now find the ancient arch in the city and walk through it… all the way back to the days of bikkurim. Fill a basket with the seven species and join the parade. Feivel wanted to come, but there’s an ox at the front, and he’s afraid of oxen.',he:'פנחס אומר {שאתה מטה מאזניים כמו ירושלמי אמיתי|שאת מטה מאזניים כמו ירושלמית אמיתית}! עכשיו {תמצא|תמצאי} את הקשת העתיקה בעיר {ותעבור|ותעברי} דרכה… כל הדרך אחורה, לימים של הביכורים. {תמלא|תמלאי} סל משבעת המינים {ותצטרף|ותצטרפי} לתהלוכה. פייבל רצה לבוא, אבל יש שור בראש התהלוכה, והוא מפחד משוורים.'}},
-  {id:'mikdash',place:'mikdash',done:()=>AR().seen.mikdashCard,goal:{en:'Go up to the Beis HaMikdash',he:'לעלות לבית המקדש'},
-    letter:{en:'Chaim, the great steps are open. Go up into the Beis HaMikdash and look at everything, slowly, the way you’d want to remember it forever. And please: no hoverboards, no eagles, no pigeons. (Feivel is sulking.)',he:'{NAME}, המדרגות הגדולות פתוחות. {תעלה|תעלי} לבית המקדש {ותסתכל|ותסתכלי} על הכל, לאט, כמו שהיית רוצה לזכור את זה לתמיד. ובבקשה: בלי גלשנים, בלי נשרים, בלי יונים. (פייבל עושה פרצוף.)'}},
   {id:'giants',place:'giants',done:()=>AR().done.giantKey,goal:{en:'Win the golden key from the giants',he:'לזכות במפתח הזהב מהענקים'},
     letter:{en:'Under the Mikdash there’s a hidden chamber, and its golden key is guarded by two giants who never stop fighting: the Livyasan and the great Shor. Take the Sword and Shield of the Geulah, and raise the shield just as they strike. Feivel says he will “cheer from very far away.” He has already left.',he:'מתחת למקדש יש חדר נסתר, ואת מפתח הזהב שלו שומרים שני ענקים שלא מפסיקים להילחם: הלוויתן והשור הגדול. {קח|קחי} את חרב ומגן הגאולה, {ותרים|ותרימי} את המגן בדיוק כשהם מכים. פייבל אומר שהוא ״יעודד מרחוק מאוד״. הוא כבר יצא לדרך.'}},
   {id:'hidden',place:'mikdash',done:()=>AR().seen.hiddenRoom,goal:{en:'Open the hidden chamber',he:'לפתוח את החדר הנסתר'},
@@ -12548,11 +12529,11 @@ window.KH_QA={KH,town,capOf,growKehillos,countedSeconds,holyHour,isYomTov,commun
 // nine wait in IndexedDB, which has room for big worlds. Picking another world swaps them and reloads the page. =====
 const SLOTS_N=10,SLOT_META='chaimcraft.slots';
 function slotMeta(){let m=null;try{m=JSON.parse(localStorage.getItem(SLOT_META)||'null');}catch(e){}if(!m||!Array.isArray(m.list))m={cur:0,list:[]};
-  for(let i=0;i<SLOTS_N;i++)if(!m.list[i])m.list[i]=null;if(!m.list[m.cur])m.list[m.cur]={name:T('Save ','שמירה ')+(m.cur+1),t:0,fam:0,lvl:1,places:0};return m;}
+  for(let i=0;i<SLOTS_N;i++)if(!m.list[i])m.list[i]=null;if(!m.list[m.cur])m.list[m.cur]={name:T('Journey ','מסע ')+(m.cur+1),t:0,fam:0,lvl:1,places:0};return m;}
 function saveSlotMeta(m){try{localStorage.setItem(SLOT_META,JSON.stringify(m));}catch(e){}}
 let slotSwitching=false;
 // every save also updates the little card shown in the world list
-{const _sg=saveGame;saveGame=function(){if(slotSwitching)return;PROG.lastSeen=Date.now();_sg();const m=slotMeta(),s=m.list[m.cur];
+{const _sg=saveGame;saveGame=function(){if(slotSwitching)return;PROG.lastSeen=Date.now();try{PROG.slotNo=slotMeta().cur;}catch(e){}_sg();const m=slotMeta(),s=m.list[m.cur];
   s.t=Date.now();s.fam=typeof famTotal==='function'?famTotal():0;s.lvl=PROG.lvl||1;s.places=typeof AR==='function'?Object.keys(AR().found||{}).length:0;s.creative=!!PROG.creative;saveSlotMeta(m);};}
 // IndexedDB: one record per slot
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('chaimcraft',1);r.onupgradeneeded=()=>r.result.createObjectStore('slots');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
@@ -12562,7 +12543,7 @@ async function switchSlot(n,fresh){const m=slotMeta();if(n===m.cur&&!fresh){clos
   saveGame();slotSwitching=true;
   try{const curData=saveGet();if(curData)await idbPut('slot'+m.cur,curData);
     const next=fresh?null:await idbGet('slot'+n);if(next)saveSet(next);else saveDel();
-    if(fresh||!m.list[n])m.list[n]={name:T('Save ','שמירה ')+(n+1),t:Date.now(),fam:0,lvl:1,places:0};m.cur=n;saveSlotMeta(m);
+    if(fresh||!m.list[n])m.list[n]={name:T('Journey ','מסע ')+(n+1),t:Date.now(),fam:0,lvl:1,places:0};m.cur=n;saveSlotMeta(m);
     if(fresh)await idbDel('slot'+n);}
   catch(e){slotSwitching=false;toast(T('Could not open that save: ','לא הצלחנו לפתוח את השמירה: ')+e.message,4);return;}
   if(!QA)location.reload();}
@@ -12570,7 +12551,7 @@ async function deleteSlot(n){const m=slotMeta();if(n===m.cur)return;try{await id
 function slotAgo(t){if(!t)return'';const mins=Math.round((Date.now()-t)/6e4);if(mins<1)return T('just now','עכשיו');if(mins<60)return mins+T(' min ago',' דק׳ לפני');const h=Math.round(mins/60);if(h<48)return h+T(' hours ago',' שעות לפני');return Math.round(h/24)+T(' days ago',' ימים לפני');}
 let slotMode='load';
 function slotRow(s,i,cur){const esc=t=>String(t).replace(/[<&"]/g,'');
-  const info=s?'<div class="sName">'+(s.creative?'🧱 ':'')+esc(s.name)+(i===cur?'<span class="sTag">'+T('playing now','במשחק עכשיו')+'</span>':'')+'</div><div class="sMeta">'+
+  const info=s?'<div class="sName">'+(s.creative?'🧱 ':'🗺 ')+esc(s.name)+(i===cur?'<span class="sTag">'+T('playing now','במשחק עכשיו')+'</span>':'')+'</div><div class="sMeta">'+
       T('Level ','רמה ')+s.lvl+' · '+(s.places===1?T('1 place','מקום אחד'):s.places+T(' places',' מקומות'))+(s.fam?' · '+(s.fam===1?T('1 family','משפחה אחת'):s.fam+T(' families',' משפחות')):'')+(s.t?'<br>'+T('Saved ','נשמר ')+slotAgo(s.t):'')+'</div>'
     :'<div class="sName">'+T('Empty slot','משבצת ריקה')+'</div>';
   let btns='';
@@ -12578,12 +12559,15 @@ function slotRow(s,i,cur){const esc=t=>String(t).replace(/[<&"]/g,'');
   else if(s)btns='<button class="btn" data-sp="'+i+'">'+(i===cur?T('Play','לשחק'):T('Load','לטעון'))+'</button><button class="btn ghost" data-sr="'+i+'" title="'+T('Rename','שינוי שם')+'">✏️</button>'+(i===cur?'':'<button class="btn ghost" data-sd="'+i+'" title="'+T('Delete','מחיקה')+'">🗑</button>');
   else btns='<button class="btn ghost" data-sn="'+i+'">'+T('New game','משחק חדש')+'</button>';
   return '<div class="svRow'+(i===cur?' cur':'')+(s?'':' empty')+'"><div class="sNum">'+(i+1)+'</div><div class="sInfo">'+info+'</div><div class="sBtns">'+btns+'</div></div>';}
-function openSlots(mode){slotMode=mode||'load';const m=slotMeta();
-  openModal('<div class="panel slotPanel"><h2>📂 '+(slotMode==='new'?T('New game: pick a slot','משחק חדש: בוחרים משבצת'):T('Load game','טעינת משחק'))+'</h2><div class="npcText" style="font-size:13px;text-align:center">'+
-    (slotMode==='new'?T('Pick an empty slot, or replace an old game.','בוחרים משבצת ריקה, או מחליפים משחק ישן.'):T('Ten save slots. Each one is its own game.','עשר משבצות שמירה. כל אחת היא משחק משלה.'))+'</div><div class="slotList">'+
-    m.list.map((s,i)=>slotRow(s,i,m.cur)).join('')+
-    '</div><button class="btn ghost" id="slX">'+T('Close','סגירה')+'</button></div>');
+let slotKind=null;/* 'journey' | 'creative' | null (everything) */
+function openSlots(mode,kind){if(arguments.length===0)kind=slotKind;slotKind=kind||null;kind=slotKind;slotMode=mode||'load';const m=slotMeta();
+  openModal('<div class="panel slotPanel"><h2>'+(kind==='journey'?'🗺 '+T('Journey','מסע'):kind==='creative'?'🧱 '+T('Creative mode','מצב יצירה'):'📂 '+(slotMode==='new'?T('New game: pick a slot','משחק חדש: בוחרים משבצת'):T('Load game','טעינת משחק')))+'</h2><div class="npcText" style="font-size:13px;text-align:center">'+
+    (slotMode==='new'?T('Pick an empty slot, or replace an old game.','בוחרים משבצת ריקה, או מחליפים משחק ישן.'):(kind==='journey'?T('Your journeys: the island, missions and quests. Each save is its own journey.','המסעות שלכם: האי, משימות והרפתקאות. כל שמירה היא מסע משלה.'):kind==='creative'?T('Your creative worlds: endless blocks, your own hotbar and 5 weapons, every place open. Each one is its own world.','עולמות היצירה שלכם: בלוקים בלי סוף, סרגל וחמישה כלי נשק משלכם, כל המקומות פתוחים. כל אחד הוא עולם משלו.'):T('Journey and Creative saves are kept apart. Each slot is its own game.','שמירות מסע ושמירות יצירה נשמרות בנפרד. כל משבצת היא משחק משלה.')))+'</div><div class="slotList">'+
+    m.list.map((s,i)=>kind&&(!s||!!s.creative!==(kind==='creative'))?'':slotRow(s,i,m.cur)).join('')+(kind&&!m.list.some(s=>s&&!!s.creative===(kind==='creative'))?'<div class="npcText" style="text-align:center">'+T('Nothing saved here yet.','עוד אין כאן שמירות.')+'</div>':'')+
+    '</div>'+(kind?'<button class="btn" id="slNewK">'+(kind==='creative'?T('🧱 New creative world','🧱 עולם יצירה חדש'):T('🌱 New journey','🌱 מסע חדש'))+'</button>':'')+'<button class="btn ghost" id="slX">'+T('Close','סגירה')+'</button></div>');
   $('slX').onclick=closeModal;
+  if($('slNewK'))$('slNewK').onclick=()=>{const free=m.list.findIndex(s=>!s);if(free<0){toast(T('All 10 save slots are used: delete one first.','כל 10 המשבצות תפוסות: מוחקים אחת קודם.'),4);return;}
+    if(kind==='creative'){try{localStorage.setItem(CR_FLAG,'1');}catch(e){toast(T('This browser would not let the game start a new world.','הדפדפן לא איפשר להתחיל עולם חדש.'),4);return;}}switchSlot(free,true);};
   document.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>switchSlot(+b.dataset.sp,false));
   document.querySelectorAll('[data-sn]').forEach(b=>b.onclick=()=>switchSlot(+b.dataset.sn,true));
   document.querySelectorAll('[data-snew]').forEach(b=>b.onclick=()=>{const n=+b.dataset.snew;if(!m.list[n]){switchSlot(n,true);return;}openModal('<div class="panel" style="text-align:center"><h2>🎮 '+T('Start a new game here?','להתחיל כאן משחק חדש?')+'</h2><div class="npcText">'+T('“','“')+m.list[n].name.replace(/</g,'')+T('” will be replaced by a brand-new game.','” יוחלף במשחק חדש לגמרי.')+'</div><button class="btn" id="snNo">'+T('Keep it','להשאיר')+'</button><button class="btn ghost" id="snYes">'+T('Start new','להתחיל חדש')+'</button></div>');$('snNo').onclick=()=>openSlots('new');$('snYes').onclick=()=>switchSlot(n,true);});
@@ -12591,7 +12575,7 @@ function openSlots(mode){slotMode=mode||'load';const m=slotMeta();
   document.querySelectorAll('[data-sr]').forEach(b=>b.onclick=()=>{const n=+b.dataset.sr;openModal('<div class="panel" style="text-align:center"><h2>✏️ '+T('Name this save','שם לשמירה')+'</h2><input id="srIn" maxlength="24" style="font-size:18px;padding:8px;width:80%;border-radius:10px;border:2px solid #8a6a3a" value="'+m.list[n].name.replace(/"/g,'')+'"><div style="margin-top:10px"><button class="btn" id="srOk">'+T('Save','לשמור')+'</button></div></div>');
     $('srOk').onclick=()=>{const v=($('srIn').value||'').trim().slice(0,24);if(v){m.list[n].name=v;saveSlotMeta(m);}openSlots();};});}
 // title screen: the world list sits right under Play
-{const b=document.createElement('button');b.className='btn alt';b.id='bSlots';b.innerHTML='<span data-en="📂 Load game" data-he="📂 טעינת משחק">'+T('📂 Load game','📂 טעינת משחק')+'</span>';const p=$('bNewGame');p.parentNode.insertBefore(b,p.nextSibling);b.onclick=e=>{e.stopPropagation();openSlots();};}
+{const b=document.createElement('button');b.className='btn alt';b.id='bSlots';b.innerHTML='<span data-en="📂 Load game" data-he="📂 טעינת משחק">'+T('📂 Load game','📂 טעינת משחק')+'</span>';const p=$('bNewGame');p.parentNode.insertBefore(b,p.nextSibling);b.onclick=e=>{e.stopPropagation();openSlots('load',null);};}
 window.SLOT_QA={slotMeta,switchSlot,deleteSlot,openSlots,idbGet,idbPut};
 
 // ===== The real Jewish calendar comes into the game (Dan, 9 Nov 2026). Erev Shabbos, people carry challah and wine and
@@ -12845,11 +12829,11 @@ const CAMP=[
   {story:'peaks',place:'peaks',lv:'teshuvah',dg:'peaks',extra:[['⚪',{en:'Win the snowball fight',he:'לנצח בקרב כדורי השלג'},()=>(QD().snowWins||0)>=1],['🛷',{en:'Sled 60 blocks in one run',he:'להחליק 60 בלוקים במזחלת'},()=>!!(PROG.ach&&PROG.ach.sledder)]]},
   {story:'ark',place:'ark'},
   {story:'caves',place:'caves',lv:'purim',dg:'caves'},
-  {story:'yeru',place:'yeru',lv:'bully',extra:[['🧺',{en:'Bring bikkurim in Yerushalayim of Old',he:'להביא ביכורים בירושלים של פעם'},()=>!!QD().yeruOld_quest,1]]},
-  {story:'mikdash',place:'mikdash'},
+  {story:'yeru',place:'yeru',lv:'bully'},
+  {story:'mikdash',place:'mikdash',extra:[['🧺',{en:'Bring bikkurim to the Beis HaMikdash',he:'להביא ביכורים לבית המקדש'},()=>!!QD().yeruOld_quest,1]]},
   {story:'giants',place:'giants'},
   {story:'hidden',place:'mikdash'}];
-const WIDE=['forest','jungle','canyon','desert','kinneret','chermon','peaks','caves','yeru','yeruOld'];
+const WIDE=['forest','jungle','canyon','desert','kinneret','chermon','peaks','caves','yeru'];
 function storyAt(k){return STORY.find(s=>s.id===CAMP[k].story);}
 const MAIN_LEVELS=5;/* per place: the story quest, 5 core missions and the boss; everything else is a side quest */
 function mainLeft(k){return chMissions(k).filter(m=>m.main&&!m.done);}
@@ -13149,7 +13133,7 @@ setInterval(()=>{if(!playing)return;const P=PROG.scn||(PROG.scn={}),D=AR().done|
     if(AREA_ID==='canyon'&&D.canyon_chick&&!D.canyon_quest)playScene('eagle_lands');
     if(AREA_ID==='ark'&&D.ark_lionOut&&!D.ark_calm)playScene('ark_lion');
     if(AREA_ID==='kinneret'&&(D.fishN||0)>=1&&!D.kinneret_quest)playScene('first_fish');
-    if(AREA_ID==='yeruOld'&&!D.yeruOld_quest&&Object.keys(AR().basket||{}).length)playScene('bik_parade');
+    if(AREA_ID==='mikdash'&&!D.yeruOld_quest&&Object.keys(AR().basket||{}).length)playScene('bik_parade');
     if(AREA_ID==='peaks'&&MID_NOW.snow_win()&&!(typeof SNF!=='undefined'&&SNF&&SNF.on))playScene('snow_win');}
   if(MODE==='hub'&&player.riding)playScene('donkey_ride');
   if(MID_NOW.first_minyan())playScene('first_minyan');else if(MID_NOW.first_tefillah())playScene('first_tefillah');
@@ -14116,7 +14100,7 @@ Object.assign(CAST,{
   rav:{name:{en:'The Rosh Yeshiva',he:'ראש הישיבה'},icon:'📚',place:'yeru',at:{s:[-9,3]},look:man('#1b1c22','#eeeeee',{hat:'black',hair:'#ddd'})},
   yaakov:{name:{en:'Yaakov the sleepy talmid',he:'יעקב התלמיד העייף'},icon:'😴',place:'yeru',at:{s:[-10,6]},look:man('#2a2d36','#6a4a2a',{hat:'black'})},
   // ---- Yerushalayim of Old ----
-  elazar:{name:{en:'Elazar the oil presser',he:'אלעזר בעל בית הבד'},icon:'🫒',place:'yeruOld',at:{s:[-5,4]},look:{coat:'#6a6a3a',beard:'#5a4a3a',hat:'cloth',hatColor:'#f0e6d0'}}});
+  elazar:{name:{en:'Elazar the oil presser',he:'אלעזר בעל בית הבד'},icon:'🫒',place:'mikdash',at:{s:[-5,4]},look:{coat:'#6a6a3a',beard:'#5a4a3a',hat:'cloth',hatColor:'#f0e6d0'}}});
 
 const K=String;
 const sideS=()=>PROG.side||{};
@@ -14626,7 +14610,7 @@ REQ({id:'rav',place:'yeru',giver:'rav',title:{en:'Asleep on the shtender',he:'נ
   reward:{coins:8,xp:100},src:{en:'Avos 1:6 · Yoma 35b (Hillel on the roof)',he:'אבות א, ו · יומא לה ע״ב'}});
 
 // ---------------- Yerushalayim of Old ----------------
-REQ({id:'elazar',place:'yeruOld',giver:'elazar',title:{en:'The oil presser in the dark',he:'בעל בית הבד בחושך'},after:[10],
+REQ({id:'elazar',place:'mikdash',giver:'elazar',title:{en:'The oil presser in the dark',he:'בעל בית הבד בחושך'},after:[10],
   ask:[['elazar','I press olives for the Menorah in the Beis HaMikdash. Only the very first drop of each olive is pure enough: crushed gently, not ground.','אני כותש זיתים למנורה בבית המקדש. רק הטיפה הראשונה מכל זית מספיק טהורה: כתית, לא טחון.'],['me','So what do you light at home?','אז מה {אתה|אתה} מדליק בבית?'],
     ['elazar','At home? I sit in the dark. I won’t use the Menorah’s oil for myself, and I’m so busy pressing that I keep forgetting to buy lamps!','בבית? אני יושב בחושך. אני לא משתמש בשמן של המנורה לעצמי, ואני כל כך עסוק בכתישה שאני כל הזמן שוכח לקנות מנורות!']],
   steps:[{need:{bring:{[LANTERN]:4}},hint:{en:'Bring Elazar 4 lanterns (Workbench → Building: 1 copper bar + 1 glass; or Shmuel’s shop and the traders).',he:'מביאים לאלעזר 4 פנסים (שולחן עבודה ← בנייה: מטיל נחושת + זכוכית; או אצל שמואל והסוחרים).'},
@@ -15782,7 +15766,7 @@ const completedMissionRuns=new WeakSet();
 let questSyncT=0;
 {const old=dayTick;dayTick=function(dt){old(dt);questSyncT-=dt;if(questSyncT<=0){questSyncT=.5;questPointSync();}};}
 {const old=chMissions;chMissions=function(k){const out=old(k),place=CAMP[k].place==='home'?'hub':CAMP[k].place;
- for(const R of REQUESTS){const rp=R.place==='yeruOld'?'yeru':R.place;if(rp!==place)continue;const state=RQ()[R.id]?.st;out.push({kind:'request',id:R.id,icon:'📋',name:R.title,done:state==='done',main:false,points:5,locked:!state});}
+ for(const R of REQUESTS){const rp=R.place;if(rp!==place)continue;const state=RQ()[R.id]?.st;out.push({kind:'request',id:R.id,icon:'📋',name:R.title,done:state==='done',main:false,points:5,locked:!state});}
  for(const m of out)if(m.kind==='level'){const h=PROG.missionHistory?.[m.i];m.runs=h?.runs||(m.done?1:0);m.points=h?.points||0;}
  return out;};}
 function campaignPointSummary(k){const c=CAMP[k],ms=chMissions(k),done=ms.filter(m=>m.done).length,where=c.place==='home'?'hub':c.place,earned=PROG.mpByPlace?.[where]||0;
@@ -30338,6 +30322,46 @@ if(TEST_OPEN_ALL){
   {const _ot=openTravel;openTravel=function(){const F=AR().found,was={...F};for(const id of AREA_ORDER)F[id]=1;try{return _ot.apply(this,arguments);}finally{for(const id of AREA_ORDER)if(!was[id])delete F[id];}};}
 }
 
+// ===== Yerushalayim of Old is gone (Dan, 12 Nov 2026: "it's the same as the Beis HaMikdash"). Its bikkurim quest (the Kohen, the
+// fruit road, the parade, the whole questline) now happens in the Beis HaMikdash, on the open plain south of the Temple Mount. The old
+// street's coordinates are squeezed onto that plain: x - 28, z squeezed from 52..110 to 94..124. The quest keeps its old save flags
+// (yeruOld_quest, yeruOld_setpiece) as aliases so existing saves, mitzvah points and unlocks keep working. =====
+const BM_X=x=>x-28,BM_Z=z=>Math.round(94+(z-52)*30/58);
+const BM_SPOTS=[[30,117],[43,116],[29,113],[44,111],[30,107],[43,109],[29,102],[44,103],[32,111],[41,114]];// the fruit, where the old road put it
+const BM_KOHEN=[36.5,94.5];
+// an old save: carry its bikkurim progress over to the Beis HaMikdash
+{const _sa=setupArea;setupArea=function(id){if(id==='mikdash'){try{const d=QD();if(d.yeruOld_quest&&!d.mikdash_quest)d.mikdash_quest=1;if(d.yeruOld_setpiece&&!d.mikdash_setpiece)d.mikdash_setpiece=1;
+      const pq=AR().pq;if(pq&&pq.yeruOld&&!pq.mikdash)pq.mikdash=pq.yeruOld;}catch(e){}}return _sa.apply(this,arguments);};}
+// finishing it in the Beis HaMikdash also sets the old flag, which the mitzvah points, the journey page and the unlocks read
+{const _q=qDone;qDone=function(id,card){const r=_q.apply(this,arguments);try{if(id==='mikdash'&&QD().mikdash_quest&&!QD().yeruOld_quest){QD().yeruOld_quest=1;saveSoon();}}catch(e){}return r;};}
+// the place quest: same steps, new coordinates
+if(typeof PQ_DATA!=='undefined'&&PQ_DATA.yeruOld){const D=PQ_DATA.yeruOld;const mp=a=>Array.isArray(a)&&a.length===2&&typeof a[0]==='number'?[BM_X(a[0]),BM_Z(a[1])]:a;
+  for(const k in (D.cast||{}))if(D.cast[k].at)D.cast[k].at=mp(D.cast[k].at);
+  const have=()=>SPECIES.filter(s=>(AR().basket||{})[s]).length;
+  const tgt=()=>{if(have()<7){const B=AR().basket||{};let best=null,bd=1e9;SPECIES.forEach((s,i)=>{if(B[s])return;const p=BM_SPOTS[i],d=Math.hypot(player.pos.x-p[0]-.5,player.pos.z-p[1]-.5);if(d<bd){bd=d;best=p;}});if(best)return[best[0]+.5,best[1]+.5];}return BM_KOHEN;};
+  for(const s of D.steps){if(s.at)s.at=mp(s.at);if(s.to)s.to=mp(s.to);if(s.flag==='yeruOld_setpiece'){s.flag='mikdash_setpiece';s.tgt={get 0(){return tgt()[0];},get 1(){return tgt()[1];}};}}
+  PQ_DATA.mikdash=D;delete PQ_DATA.yeruOld;}
+// the old scene, the Kohen, the parade and the fruit, built in the Beis HaMikdash
+{const _sm=SETUP.mikdash;SETUP.mikdash=r=>{_sm(r);bikkurimSetup(r);};}
+function bikkurimSetup(r){
+const B0=AR().basket||(AR().basket={});
+  const kohen=person({coat:'#f4f2ea',belt:'#3a5ab0',hat:'cloth',hatColor:'#ffffff',beard:'#5a4a3a'},36.5,94.5,Math.PI,T('A Kohen','כהן'));kohen.r=2.8;
+  kohen.ctx=()=>{if(QD().yeruOld_quest)return{lab:{en:'Talk to the Kohen',he:'לדבר עם הכהן'},icon:'💬',run:()=>say(T('A Kohen','כהן'),T('Your bikkurim were beautiful, and the figs were perfect. Come again next year!','הביכורים שלכם היו יפים, והתאנים היו מושלמות. תבואו שוב בשנה הבאה!'))};
+    const n=SPECIES.filter(s=>B0[s]).length;return{lab:n>=7?{en:'Give the basket of bikkurim',he:'לתת את סל הביכורים'}:{en:'Talk to the Kohen',he:'לדבר עם הכהן'},icon:n>=7?'🧺':'💬',run:()=>{if(n<7){say(T('A Kohen','כהן'),T('Shalom! Bikkurim come from the seven species, and only from them. The road is full of fruit; choose carefully! Your basket has ','שלום! ביכורים מביאים משבעת המינים, ורק מהם. הדרך מלאה פירות; בוחרים בזהירות! בסל שלכם יש ')+n+'/7.');return;}
+      sfxN('ready',1);flute();burst(kohen.pos.clone().add(V3(0,2,0)),'#ffe58a',30,4,1.1);qDone('mikdash','bikkurim');}};};
+  // the parade: an ox with golden horns and an olive crown, a flute player, pilgrims
+  const ox=makeAnimal('cow');const head=ox.root.children[0];for(const s of[-1,1])ball(head,s*.24,1.18,-.58,.06,.06,.06,cmat('#f2c94a',.3,.8));const wr=new THREE.Mesh(new THREE.TorusGeometry(.18,.04,6,16),cmat('#5a7a2a'));wr.rotation.x=Math.PI/2;wr.position.set(0,1.18,-.58);head.add(wr);
+  const path=[V3(36.5,0,119.5),V3(36.5,0,105.5)];const lead=[ox,null];
+  const oxE=ent({kind:'ox',m:ox.root,pos:ox.root.position,t:0,tick(dt){this.t+=dt;const k=(this.t*.035)%1,p=path[0].clone().lerp(path[1],k);this.pos.set(p.x,groundUnder(p.x,H-1,p.z)+1,p.z);this.m.rotation.y=0;(ox.legs||[]).forEach((l,i)=>l.rotation.x=Math.sin(this.t*6+i*1.6)*.4);}});ox.root.position.set(36.5,0,119.5);
+  const flutist=person({coat:'#7a5aa0',beard:'#3a2a1e',hat:'cloth',hatColor:'#f0e6d0'},35,121,0,'');flutist.tick=function(dt){const p=oxE.pos;this.pos.set(p.x-1.6,groundUnder(p.x-1.6,H-1,p.z+2.2)+1,p.z+2.2);(this.mm.legs||[]).forEach((lg,j)=>lg.rotation.x=Math.sin(clockT*6+j*3)*.4);if(Math.random()<dt*.6&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<14)flute(.25);};
+  for(let i=0;i<10;i++){const lk={coat:['#8a6a4a','#5a6a8a','#7a4a3a','#4a7a5a'][i%4],beard:['#3a2a1e','#999','#6a4a2a'][i%3],hat:'cloth',hatColor:'#f0e6d0',staff:i%2===0};const x=22+r()*28,z=99+r()*20;const p=person(lk,x,z,r()*6,'');p.home=V3(x,0,z);p.t=r()*9;
+    p.tick=function(dt){this.t+=dt;const a=this.t*.3;const tx=this.home.x+Math.cos(a)*3,tz=this.home.z+Math.sin(a)*3;const d=V3(tx-this.pos.x,0,tz-this.pos.z);if(d.length()>.2){d.normalize();this.pos.x+=d.x*dt;this.pos.z+=d.z*dt;this.m.rotation.y=Math.atan2(-d.x,-d.z);}this.pos.y=groundUnder(this.pos.x,H-1,this.pos.z)+1;(this.mm.legs||[]).forEach((lg,j)=>lg.rotation.x=Math.sin(this.t*7+j*3)*.4);};}
+  // craftsmen along the road stand up to greet you (Bikkurim 3:3)
+  for(const[x,z]of[[32,114],[41,112],[32,108],[41,106]]){const c=person({coat:'#6a5a4a',beard:'#4a3a2a',hat:'cloth',hatColor:'#e8dcc0',belt:'#3a2a1a'},x+.5,z+.5,x<37?-Math.PI/2:Math.PI/2,'');c.greeted=false;c.tick=function(dt){const d=Math.hypot(player.pos.x-this.pos.x,player.pos.z-this.pos.z);if(!this.greeted&&d<5){this.greeted=true;bubble(this,T('Welcome, our brother from Chaim’s island!','ברוכים הבאים, אחינו מהאי של {NAME}!'),3.5);this.mm.g.position.y=.1;}if(this.bubT>0){this.bubT-=dt;if(this.bubT<=0&&this.bub){this.m.remove(this.bub);this.bub=null;}}};}
+  // the fruit along the way: only the seven species go in the basket
+  if(!QD().yeruOld_quest){const spots=BM_SPOTS;const kinds=[...SPECIES,'apple','banana','orange'];
+    kinds.forEach((k,i)=>{if(B0[k])return;const[x,z]=spots[i];pickup(pickupMesh(k),x+.5,z+.5,()=>{if(!SPECIES.includes(k)){if(clockT>(AR().badT||0)){AR().badT=clockT+3;toast(L(PK[k].bad),2.5);}return false;}B0[k]=1;const n=SPECIES.filter(s=>B0[s]).length;toast(L(PK[k].name)+T(' into the basket (',' לסל (')+n+'/7)',2);questChanged();});});}}
+
 // ===== Creative mode (Dan, 12 Nov 2026) =====
 // A creative world is its own save slot. In it: endless blocks, things and coins, instant digging, hold jump to fly, every place open,
 // and a "Creative kit" page where you choose what is on hotbar keys 1–9 and which 5 weapons you carry (X / Y switch them).
@@ -30429,26 +30453,21 @@ function creativeNewWorld(){PROG.creative=1;
     if(PROG.creative){try{creativeTopUp();refreshHotbar();}catch(e){}}};}
 
 // ---------- the main-menu button, under Load game ----------
-function openCreativeMenu(){const m=slotMeta();const mine=m.list.map((s,i)=>s&&s.creative?{s,i}:null).filter(Boolean);
-  const free=m.list.findIndex(s=>!s);
-  openModal('<div class="panel slotPanel" style="text-align:center"><h2>🧱 '+T('Creative mode','מצב יצירה')+'</h2><div class="npcText" style="font-size:13px">'+
-    T('Build anything. Endless blocks, things and creatures, you choose your hotbar keys and 5 weapons, every place is open, and you can fly (hold jump). Your world saves by itself, and the game picks up right where you stopped.','בונים הכול. בלוקים, חפצים ויצורים בלי סוף, אתם בוחרים את מקשי הסרגל ו־5 כלי נשק, כל המקומות פתוחים, ואפשר לעוף (מחזיקים קפיצה). העולם נשמר לבד, והמשחק ממשיך בדיוק מאיפה שעצרתם.')+'</div><div class="slotList">'+
-    (mine.length?mine.map(({s,i})=>'<div class="svRow'+(i===m.cur?' cur':'')+'"><div class="sNum">🧱</div><div class="sInfo"><div class="sName">'+String(s.name).replace(/[<&"]/g,'')+(i===m.cur?'<span class="sTag">'+T('playing now','במשחק עכשיו')+'</span>':'')+'</div><div class="sMeta">'+(s.t?T('Saved ','נשמר ')+slotAgo(s.t):'')+'</div></div><div class="sBtns"><button class="btn" data-cp="'+i+'">'+T('Play','לשחק')+'</button></div></div>').join(''):'')+
-    '</div><button class="btn" id="crNew">'+T('🧱 New creative world','🧱 עולם יצירה חדש')+'</button>'+(free<0?'<div class="npcText" style="font-size:12px">'+T('All 10 save slots are used: delete one in Load game first.','כל 10 המשבצות תפוסות: מוחקים אחת בטעינת משחק קודם.')+'</div>':'')+
-    '<button class="btn ghost" id="crClose">'+T('Close','סגירה')+'</button></div>');
-  $('crClose').onclick=closeModal;
-  document.querySelectorAll('[data-cp]').forEach(b=>b.onclick=()=>switchSlot(+b.dataset.cp,false));
-  $('crNew').onclick=()=>{if(free<0){toast(T('All 10 save slots are used: delete one in Load game first.','כל 10 המשבצות תפוסות: מוחקים אחת בטעינת משחק קודם.'),4);return;}
-    try{localStorage.setItem(CR_FLAG,'1');}catch(e){toast(T('This browser would not let the game start a new world.','הדפדפן לא איפשר להתחיל עולם חדש.'),4);return;}
-    switchSlot(free,true);};}
-{const slotsBtn=$('bSlots');const b=document.createElement('button');b.className='btn alt';b.id='bCreativeMode';b.innerHTML='<span data-en="🧱 Creative mode" data-he="🧱 מצב יצירה">'+T('🧱 Creative mode','🧱 מצב יצירה')+'</span>';
-  (slotsBtn?slotsBtn.parentNode:$('bNewGame').parentNode).insertBefore(b,slotsBtn?slotsBtn.nextSibling:$('bNewGame').nextSibling);b.onclick=e=>{e.stopPropagation();openCreativeMenu();};}
+function openCreativeMenu(){openSlots('load','creative');}
+function openJourneyMenu(){openSlots('load','journey');}
+{const slotsBtn=$('bSlots'),playBtn=$('bPlay'),newBtn=$('bNewGame');const mk=(id,en,he,fn)=>{const b=document.createElement('button');b.className='btn alt';b.id=id;b.innerHTML='<span data-en="'+en+'" data-he="'+he+'">'+T(en,he)+'</span>';b.onclick=e=>{e.stopPropagation();fn();};return b;};
+  const jb=mk('bJourneyMode','🗺 Journey','🗺 מסע',openJourneyMenu),cb=mk('bCreativeMode','🧱 Creative mode','🧱 מצב יצירה',openCreativeMenu);
+  playBtn.parentNode.insertBefore(jb,playBtn.nextSibling);if(slotsBtn)slotsBtn.parentNode.insertBefore(cb,slotsBtn);else jb.parentNode.insertBefore(cb,jb.nextSibling);
+  if(newBtn)newBtn.style.display='none';/* "New game" lives inside Journey now */
+  /* Play carries on with the save you played last, and says which one it is */
+  const sub=document.createElement('small');sub.className='plSub';sub.style.cssText='display:block;font-size:12px;font-weight:600;opacity:.8;margin-top:2px';playBtn.appendChild(sub);
+  const refresh=()=>{try{const m=slotMeta(),s=m.list[m.cur];sub.textContent=s?(s.creative?'🧱 ':'🗺 ')+s.name:'';}catch(e){}};refresh();setInterval(refresh,1500);}
 
 // ---------- never lose the world: save when the page is hidden or closed, and more often ----------
 for(const ev of['pagehide','beforeunload'])window.addEventListener(ev,()=>{try{if(playing||modalOpen)saveGame();}catch(e){}});
 document.addEventListener('freeze',()=>{try{saveGame();}catch(e){}});
 setInterval(()=>{try{if(playing)saveGame();}catch(e){}},5000);
-window.CREATIVE_QA={setB:(x,y,z,id)=>setBlock(x,y,z,id),look:(yaw,pitch)=>{player.yaw=yaw;player.pitch=pitch;},st:()=>({mode:MODE,creative:!!PROG.creative,pos:[player.pos.x,player.pos.y,player.pos.z].map(v=>+v.toFixed(1)),hot:hotStore().h.slice(),inv:Object.assign({},player.inv),coins:player.coins,hp:player.hp,maxHp:player.maxHp,weap:(LO().slots||[]).slice(),weapon:player.weapon,playing,mp:PROG.mp}),tp:(x,y,z)=>{player.pos.set(x,y,z);},hurtMe:()=>{player.invul=0;hurt();},saveNow:()=>saveGame(),useI:k=>useItem(k),travel:id=>travelTo(id),creativeOn,openCreativeKit,openCreativeMenu,creativeNewWorld,creativeTopUp,crList,crSetHot,crSetWeap};
+window.CREATIVE_QA={goal:()=>{try{const g=areaGoal();return g&&{en:g.en,sub:g.sub&&g.sub.en,tgt:g.tgt?[+g.tgt.x.toFixed(1),+g.tgt.z.toFixed(1)]:null};}catch(e){return String(e);}},ents:()=>areaEnts.map(e=>e.kind+':'+(e.name||'')+'@'+Math.round(e.pos.x)+','+Math.round(e.pos.z)),treeCells:()=>{const out=[];for(let y=0;y<H;y++)for(let z=0;z<D;z++)for(let x=0;x<W;x++){const b=getB(x,y,z),nm=(B[b]&&B[b].name&&B[b].name.en)||'';if(/leaves|log|palm|trunk|needles|fronds/i.test(nm))out.push([x,y,z,nm]);}return out;},area:()=>({mode:MODE,id:typeof AREA_ID!=='undefined'?AREA_ID:null}),setB:(x,y,z,id)=>setBlock(x,y,z,id),look:(yaw,pitch)=>{player.yaw=yaw;player.pitch=pitch;},st:()=>({mode:MODE,creative:!!PROG.creative,pos:[player.pos.x,player.pos.y,player.pos.z].map(v=>+v.toFixed(1)),hot:hotStore().h.slice(),inv:Object.assign({},player.inv),coins:player.coins,hp:player.hp,maxHp:player.maxHp,weap:(LO().slots||[]).slice(),weapon:player.weapon,playing,mp:PROG.mp}),tp:(x,y,z)=>{player.pos.set(x,y,z);},hurtMe:()=>{player.invul=0;hurt();},saveNow:()=>saveGame(),useI:k=>useItem(k),travel:id=>travelTo(id),creativeOn,openCreativeKit,openCreativeMenu,creativeNewWorld,creativeTopUp,crList,crSetHot,crSetWeap};
 
 // ===== Noach's Teivah as a ship, and a feeding quest you can follow (Dan, 10 Nov 2026: "noahs teiva looks like a giant
 // rectangle? you couldn't make it look like a boat? also it says feed every animal or something with no explanation how
