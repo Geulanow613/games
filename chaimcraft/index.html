@@ -7178,6 +7178,11 @@ function buildChunk(ch){
       box(.05,0,.38,.95,.07,.62,uvG);box(.45,.07,.45,.55,.40,.55,uvG);box(.07,.40,.44,.93,.47,.56,uvG);/* foot, stem, the bar of the arms */
       for(let i=0;i<9;i++){const cx=.1+i*.1,top=i===4?.82:.64;box(cx-.03,.47,.46,cx+.03,top,.54,uvG);box(cx-.026,top,.475,cx+.026,top+.08,.525,uvF);}/* eight candles, the shamash raised in the middle, a flame on each */
       continue;}
+    if(bd.shtender){const tw=tileUV(B[PLANKS].tex[0]),tp=tileUV(B[WOOL].tex[0]),uvW=[[tw[0],tw[1]],[tw[2],tw[1]],[tw[2],tw[3]],[tw[0],tw[3]]],uvP=[[tp[0],tp[1]],[tp[2],tp[1]],[tp[2],tp[3]],[tp[0],tp[3]]],lit=y+1>colTop(x,z)?1:.62;
+      const box=(x0,y0,z0,x1,y1,z1,uv)=>{for(const fc of FACES){const vs=fc.c.map(q=>[x+(q[0]?x1:x0),y+(q[1]?y1:y0),z+(q[2]?z1:z0)]),s=lit*fc.shade;quad(0,vs,uv,[s,s,s,s],false);}};
+      box(.18,0,.18,.82,.07,.82,uvW);box(.40,.07,.40,.60,.60,.60,uvW);/* foot and stand */
+      box(.14,.60,.22,.86,.68,.78,uvW);box(.20,.68,.26,.80,.73,.50,uvP);box(.20,.68,.50,.80,.80,.54,uvW);/* the sloped desk with an open sefer and a lip */
+      continue;}
     if(bd.cross){const t=tileUV(bd.tex[1]),lit=y>colTop(x,z)?1:.62,c=[lit,lit,lit,lit],uv=[[t[0],t[1]],[t[2],t[1]],[t[2],t[3]],[t[0],t[3]]];
       const A=[[.15,0,.15],[.85,0,.85],[.85,.9,.85],[.15,.9,.15]],Bq=[[.85,0,.15],[.15,0,.85],[.15,.9,.85],[.85,.9,.15]];
       for(const q of[A,Bq]){const v=q.map(p=>[x+p[0],y+p[1],z+p[2]]);quad(0,v,uv,c,false);quad(0,[v[1],v[0],v[3],v[2]],uv,c,false);}continue;}
@@ -9933,7 +9938,7 @@ def(GEMORE,{tex:tx(58),hard:1.7,drop:AIR,name:{en:'Gem Rock',he:'סלע אבני
 def(KILN,{tex:tx(60,59,60),hard:1,glow:true,name:{en:'Kiln',he:'כבשן'}});
 def(ARON,{tex:tx(62,61,62),hard:.8,name:{en:'Aron Kodesh',he:'ארון קודש'}});
 def(SEFARIM,{tex:tx(9,63,9),hard:.6,name:{en:'Shelf of Sefarim',he:'מדף ספרים'}});
-def(SHTENDER,{solid:false,opaque:false,cross:true,tex:tx(64),hard:.3,name:{en:'Shtender',he:'סטנדר'}});
+def(SHTENDER,{solid:false,opaque:false,cross:true,shtender:true,tex:tx(64),hard:.3,name:{en:'Shtender',he:'סטנדר'}});
 def(CHANUKIAH,{solid:false,opaque:false,cross:true,menorah:true,tex:tx(65),hard:.3,name:{en:'Chanukiah',he:'חנוכייה'}});
 def(TABLE,{tex:tx(66,9,9),hard:.5,name:{en:'Table',he:'שולחן'}});
 def(BED,{tex:tx(67,68,9),hard:.4,name:{en:'Bed',he:'מיטה'}});
