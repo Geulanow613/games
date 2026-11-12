@@ -42,6 +42,10 @@
 <canvas id="stage"></canvas>
 <div id="safeprobe"></div>
 <pre id="fatal"></pre>
+<script>/* Full screen on the website: a game opened over this hub in full screen sends its 'back to the hub' link here.
+   If this page was opened INSIDE that overlay, close the overlay instead of showing a hub inside a game. */
+(function(){try{if(window.parent!==window&&window.parent.__mdashHub){var h=window.parent.__mdashHub;window.stop();h.close();}}catch(e){}})();
+</script>
 <script>
 "use strict";
 /* ==========================================================================
@@ -3723,6 +3727,8 @@ var GAMES = [
 GAMES.forEach(function (g) { if (g.webBeta && window.MITZ_MODE !== true) { g.hidden = false; g.isBeta = true; } });
 var VISIBLE_GAMES = GAMES.filter(function (g) { return !g.hidden; });
 
+/* the full-screen layer silences / restores the hub music while a game runs over it */
+window.__mdashAudio = function (on) { try { if (on) { if (Game.state === 'MENU' || Game.state === 'GALLERY') Sound.playMusic('menu'); } else { Sound.stopMusic(); } } catch (e) {} };
 /* Ask the Mitz Mode Play tab (or a sibling page) to open another game. */
 var MitzHost = {
   open: function (game) {
@@ -3730,18 +3736,13 @@ var MitzHost = {
       try { location.href = 'mitz://game/' + game; } catch (e) {}
       return true;
     }
-    if (game === 'chaimcraft') {
-      location.href = 'chaimcraft/index.html';
-      return true;
-    }
-    if (game === 'kosher-chain' || game === 'chain') {
-      try { location.href = 'kosher-chain/index.html'; return true; } catch (e) {}
-    }
-    if (game === 'sukkah' || game === 'sukkah-architect') {
-      try { location.href = 'sukkah-architect/index.html'; return true; } catch (e) {}
-    }
-    if (game === 'shabbat' || game === 'shabbat-surfers') {
-      try { location.href = 'shabbat-surfers/index.html'; return true; } catch (e) {}
+    var GAME_PAGES = { 'chaimcraft': 'chaimcraft/index.html', 'kosher-chain': 'kosher-chain/index.html', 'chain': 'kosher-chain/index.html',
+      'sukkah': 'sukkah-architect/index.html', 'sukkah-architect': 'sukkah-architect/index.html',
+      'shabbat': 'shabbat-surfers/index.html', 'shabbat-surfers': 'shabbat-surfers/index.html' };
+    if (GAME_PAGES[game]) {
+      /* in full screen, the game opens in a layer over this page so the browser stays in full screen */
+      try { if (window.__mdashOpen && window.__mdashOpen(GAME_PAGES[game], game)) return true; } catch (e) {}
+      try { location.href = GAME_PAGES[game]; return true; } catch (e) {}
     }
     return false;
   }
@@ -15634,6 +15635,73 @@ window.MitzvahDash = {
     Profile.load();
   }
 };
+</script>
+<script>
+/* ---------- Full screen (website only) ----------
+   A small button top-left puts the whole Mitzvah Dash page in full screen. Games that are separate pages (ChaimCraft, Camp Kosh,
+   Sukkah Scramble, Shabbat Sprint) then open in a layer over this page, so full screen is not lost, and "back" closes the layer.
+   The embedding page must allow it: <iframe allow="fullscreen" allowfullscreen>. Not used inside the Mitz Mode app. */
+(function () {
+  if (window.MITZ_MODE === true) return;
+  var de = document.documentElement;
+  var req = de.requestFullscreen || de.webkitRequestFullscreen;
+  var exit = document.exitFullscreen || document.webkitExitFullscreen;
+  var can = !!req && (document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  var he = function () { try { return window.MITZ_LANG === 'he' || (document.documentElement.lang || '').indexOf('he') === 0; } catch (e) { return false; } };
+  function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement; }
+  var layer = null, frame = null, wasMusic = false;
+  var bar = document.createElement('div');
+  bar.id = 'mdBar';
+  bar.style.cssText = 'position:fixed;left:calc(8px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));z-index:2147483000;display:flex;gap:6px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif';
+  function mk(id, txt, title) {
+    var b = document.createElement('button'); b.id = id; b.type = 'button'; b.textContent = txt; b.title = title; b.setAttribute('aria-label', title);
+    b.style.cssText = 'min-width:36px;height:36px;padding:0 10px;border-radius:10px;border:2px solid rgba(255,207,92,.7);background:rgba(10,16,36,.72);color:#ffd766;font-size:18px;font-weight:800;cursor:pointer;opacity:.82;line-height:1;-webkit-tap-highlight-color:transparent';
+    b.onpointerdown = function (e) { e.stopPropagation(); };
+    return b;
+  }
+  var back = mk('mdBack', '← ' + (he() ? 'עוד משחקים' : 'More games'), 'More games'); back.style.display = 'none'; back.style.fontSize = '14px';
+  var fs = mk('mdFs', '⛶', 'Full screen');
+  if (can) { bar.appendChild(back); bar.appendChild(fs); } else { bar.appendChild(back); }
+  function syncFs() { fs.textContent = fsEl() ? '✕' : '⛶'; fs.title = fsEl() ? 'Exit full screen' : 'Full screen'; }
+  fs.onclick = function (e) {
+    e.stopPropagation();
+    try {
+      if (fsEl()) { (exit || function () {}).call(document); }
+      else { var r = req.call(de, { navigationUI: 'hide' }); if (r && r.catch) r.catch(function () {}); }
+    } catch (err) {}
+  };
+  document.addEventListener('fullscreenchange', syncFs); document.addEventListener('webkitfullscreenchange', syncFs);
+  function attach() { if (!bar.parentNode) document.body.appendChild(bar); }
+  if (document.body) attach(); else document.addEventListener('DOMContentLoaded', attach);
+  var touch = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0;
+  function openGame(path, game) {
+    if (!can || !fsEl()) return false;               /* only in full screen: otherwise a normal page change, as before */
+    if (layer) return true;
+    layer = document.createElement('div');
+    layer.style.cssText = 'position:fixed;inset:0;z-index:2147482000;background:#000';
+    frame = document.createElement('iframe');
+    frame.src = path; frame.title = game;
+    frame.setAttribute('allow', 'fullscreen; autoplay; gamepad'); frame.setAttribute('allowfullscreen', '');
+    frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000';
+    layer.appendChild(frame); document.body.appendChild(layer);
+    back.style.display = '';
+    try { window.__mdashAudio(false); } catch (e) {}
+    if (game === 'chaimcraft' && touch) { try { screen.orientation.lock('landscape').catch(function () {}); } catch (e) {} }
+    frame.addEventListener('load', function () { try { frame.contentWindow.focus(); } catch (e) {} });
+    return true;
+  }
+  function closeGame() {
+    if (!layer) return;
+    try { layer.parentNode.removeChild(layer); } catch (e) {}
+    layer = null; frame = null; back.style.display = 'none';
+    if (touch) { try { screen.orientation.unlock(); } catch (e) {} }
+    try { window.__mdashAudio(true); } catch (e) {}
+    try { window.focus(); } catch (e) {}
+  }
+  back.onclick = function (e) { e.stopPropagation(); closeGame(); };
+  window.__mdashOpen = openGame;
+  window.__mdashHub = { close: closeGame, open: openGame };
+})();
 </script>
 </body>
 </html>
