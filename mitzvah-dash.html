@@ -1881,6 +1881,8 @@ var Input = {
                 ArrowUp: 'up', w: 'up', W: 'up', ArrowDown: 'down', s: 'down', S: 'down' };
     if (map[k]) {
       e.preventDefault();
+      // Direction keys also represent individual swipes, never auto-repeat.
+      if (e.repeat) return;
       var dir = map[k];
       var v = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[dir];
       Input.events.push({
@@ -1890,6 +1892,8 @@ var Input = {
       });
     } else if (k === ' ' || k === 'Enter') {
       e.preventDefault();
+      // A held key is one tap, not a stream of automatic actions.
+      if (e.repeat) return;
       Input.events.push({ type: 'tap', id: -1, x: cx, y: cy, keyboard: true });
     } else if (k === 'Escape' || k === 'p' || k === 'P') {
       Input.events.push({ type: 'escape' });
@@ -8665,7 +8669,8 @@ ShulCrossing.prototype.isBlocked = function (r, c) {
 
 /* ------------------------------------------------------------- movement */
 ShulCrossing.prototype.hop = function (dc, dr) {
-  if (this.stun > 0) return;
+  // Finish landing (including traffic checks) before accepting another hop.
+  if (this.stun > 0 || this.hopT > 0) return;
   var nc = clamp(this.col + dc, 0, ShulCrossing.COLS - 1);
   var nr = Math.max(0, this.row + dr);
   if (nc === this.col && nr === this.row) return;
