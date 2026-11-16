@@ -3038,6 +3038,8 @@ SS.Sim = {
          a rich stretch of road) wait in the basket and are set as the pace allows, and the week ends the moment
          the last table is set (nothing is ever dragged out after the goal). */
       var pace = Math.floor(s.goal * Math.min(1, s.t / SS.K.MIN_RUN_T));
+      /* already holding every set the week still needs (a big boost, a rich stretch): no waiting, the week ends now */
+      if (Math.min.apply(null, have) >= s.goal - s.tables) pace = s.goal;
       n = Math.min(n, Math.max(0, Math.min(s.goal, pace) - s.tables));
       if (n <= 0 || n < Math.min(20, sets)) {
         /* sets waiting for the pace: keep a few in the basket, the rest turn into bonus points (no endless hoard) */
